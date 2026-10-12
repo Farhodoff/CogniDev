@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./docs/images/cognidev-logo.png" width="120" height="120" alt="CogniDev Logo" style="border-radius: 28px; box-shadow: 0 16px 40px rgba(56, 189, 248, 0.3);" />
+
 # ⚡️ CogniDev
 ### AI-First Developer Operating System for macOS
 

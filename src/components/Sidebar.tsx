@@ -144,6 +144,18 @@ export default function Sidebar() {
 
   return (
     <aside className="flex w-[246px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-white/[0.06] bg-[#0f1013]/80 px-3 py-4">
+      {/* Brand Header */}
+      <div className="flex items-center gap-2.5 px-2 pb-1">
+        <img src="/logo.svg" alt="CogniDev Logo" className="h-7 w-7 rounded-xl shadow-md border border-white/10" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-bold tracking-tight text-white">CogniDev</span>
+            <span className="rounded bg-sky-500/20 px-1 py-0.2 font-mono text-[9px] text-sky-300 border border-sky-400/30">v1.0</span>
+          </div>
+          <p className="truncate font-mono text-[10px] text-zinc-500">AI Command Center</p>
+        </div>
+      </div>
+
       {/* Smart Ko'rinishlar (Asosiy Bo'limlar) */}
       <nav className="space-y-0.5">
         <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Boshqaruv</p>

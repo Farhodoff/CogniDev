@@ -128,6 +128,13 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             </div>
           )}
 
+          <div className="flex items-center gap-2 pr-1">
+            <img src="/logo.svg" alt="CogniDev Logo" className="h-6 w-6 rounded-lg shadow-sm" />
+            <span className="font-bold tracking-tight text-[13px] bg-gradient-to-r from-sky-400 via-indigo-300 to-violet-400 bg-clip-text text-transparent">
+              CogniDev
+            </span>
+          </div>
+
           <div className="relative">
             <button
               onClick={() => setWsOpen((v) => !v)}
