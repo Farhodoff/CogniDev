@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Folder, Sparkles, RefreshCw, Plus, Trophy, BookOpen, Layers, Bot, TrendingUp, Users, X } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { Folder, Sparkles, Plus, Trophy, BookOpen, Layers, Bot, TrendingUp, Users, X } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker } from '../lib/ai';
 import { fetchTagCounts } from '../lib/db';
@@ -35,7 +34,6 @@ export default function Sidebar() {
     triggerWeeklyCoach,
     createWorkspace,
     dbMode,
-    setHud,
     groups,
     activeGroupId,
     setActiveGroup,
@@ -50,8 +48,6 @@ export default function Sidebar() {
     architecture: number;
   } | null>(null);
 
-  const [gitBranch, setGitBranch] = useState<string | null>(null);
-  const [gitLoading, setGitLoading] = useState(false);
   const [creatingWs, setCreatingWs] = useState(false);
   const [newWsName, setNewWsName] = useState('');
   const [newWsType, setNewWsType] = useState<'personal' | 'team'>('personal');
@@ -73,46 +69,6 @@ export default function Sidebar() {
       mounted = false;
     };
   }, [dbMode, tasks.length, prompts.length]);
-
-  async function checkBranch() {
-    setGitLoading(true);
-    try {
-      const branch = await invoke<string | null>('get_git_branch');
-      setGitBranch(branch ?? null);
-      if (branch) {
-        setHud(`Git filial: ${branch}`);
-      } else {
-        setHud('Git repozitoriy ulanmagan');
-      }
-    } catch {
-      setGitBranch(null);
-      setHud('Git tekshirishda xatolik');
-    } finally {
-      setGitLoading(false);
-    }
-  }
-
-  // Read git branch dynamically via Tauri command
-  useEffect(() => {
-    let mounted = true;
-    async function initBranch() {
-      setGitLoading(true);
-      try {
-        const branch = await invoke<string | null>('get_git_branch');
-        if (mounted) setGitBranch(branch ?? null);
-      } catch {
-        if (mounted) setGitBranch(null);
-      } finally {
-        if (mounted) setGitLoading(false);
-      }
-    }
-    initBranch();
-    const interval = setInterval(initBranch, 20000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   // Compute fallback / in-memory counts
   const memPromptCount = prompts.length;
@@ -633,24 +589,15 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Git va Tizim holati */}
+      {/* Tizim holati */}
       <div className="mt-auto space-y-2">
-        <button
-          onClick={checkBranch}
-          title="Git filialini yangilash uchun bosing"
-          className="flex w-full items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left hover:bg-white/[0.06] transition"
-        >
-          <RefreshCw size={13} className={`shrink-0 text-zinc-500 ${gitLoading ? 'animate-spin' : ''}`} />
+        <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" />
           <span className="truncate font-mono text-[11.5px] text-zinc-300">
-            {gitBranch ? `git: ${gitBranch}` : 'git: ulanmagan'}
+            {dbMode === 'sqlite' ? `synapse.db · ${tasks.length} ta yozuv` : 'xotira rejimi'}
           </span>
-          <span
-            className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${
-              gitBranch ? 'bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]' : 'bg-zinc-600'
-            }`}
-          />
-        </button>
-        <p className="px-1 font-mono text-[10px] text-zinc-600">synapse.db · mahalliy SQLite · Ollama</p>
+        </div>
+        <p className="px-1 font-mono text-[10px] text-zinc-600">mahalliy SQLite · Ollama</p>
       </div>
     </aside>
   );

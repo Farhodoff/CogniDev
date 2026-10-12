@@ -317,13 +317,13 @@ export async function fetchTagCounts(): Promise<TagCounts> {
   const [promptsRes, bugRes, blockerRes, archRes] = await Promise.all([
     db.select<{ c: number }[]>('SELECT COUNT(*) as c FROM prompt_vault'),
     db.select<{ c: number }[]>(
-      "SELECT COUNT(*) as c FROM tasks WHERE LOWER(title) LIKE '%bug%' OR LOWER(title) LIKE '%fix%' OR LOWER(COALESCE(git_branch, '')) LIKE '%bug%' OR LOWER(COALESCE(git_branch, '')) LIKE '%fix%'",
+      "SELECT COUNT(*) as c FROM tasks WHERE LOWER(title) LIKE '%bug%' OR LOWER(title) LIKE '%fix%'",
     ),
     db.select<{ c: number }[]>(
       "SELECT COUNT(*) as c FROM tasks WHERE status = 'blocker' OR priority IN ('P0 Blocker', 'Critical')",
     ),
     db.select<{ c: number }[]>(
-      "SELECT COUNT(*) as c FROM tasks WHERE LOWER(title) LIKE '%arch%' OR LOWER(title) LIKE '%refactor%' OR LOWER(title) LIKE '%design%' OR LOWER(COALESCE(git_branch, '')) LIKE '%arch%'",
+      "SELECT COUNT(*) as c FROM tasks WHERE LOWER(title) LIKE '%arch%' OR LOWER(title) LIKE '%refactor%' OR LOWER(title) LIKE '%design%'",
     ),
   ]);
   return {

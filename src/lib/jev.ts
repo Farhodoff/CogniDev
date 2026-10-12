@@ -88,7 +88,7 @@ export interface JevTriageItem {
 }
 
 function taskState(t: Task): string {
-  return `${t.id}: ${t.title} [status=${t.status}, priority=${t.priority}${t.git_branch ? `, branch=${t.git_branch}` : ''}]`;
+  return `${t.id}: ${t.title} [status=${t.status}, priority=${t.priority}]`;
 }
 
 /** Triage one task: blocker? priority? urgency? — one API call, 3 questions. */

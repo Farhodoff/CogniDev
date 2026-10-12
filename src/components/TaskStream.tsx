@@ -350,7 +350,6 @@ function TaskCard({
       {/* Teglar va bog'liqliklar */}
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {ai && <span className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] ${ai.cls}`}>{ai.label}</span>}
-        {task.git_branch && <span className="rounded-md border border-white/10 bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">#{task.git_branch}</span>}
         {(task.tags ?? []).map((tag) => (
           <span
             key={tag}
@@ -362,7 +361,6 @@ function TaskCard({
           </span>
         ))}
         {done && <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-200">#solved</span>}
-        {task.pr_url && <span className="rounded-md border border-sky-400/25 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">✓ {task.pr_url}</span>}
         {(task.assignee_avatar || task.assignee_avatar2) && (
           <span className="ml-auto flex items-center">
             {task.assignee_avatar && (

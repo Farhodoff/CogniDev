@@ -31,7 +31,7 @@ export function isBlocker(t: Task): boolean {
 export function analyzeBlockers(tasks: Task[]): string {
   const blockers = tasks.filter(isBlocker);
   if (!blockers.length) return "Hal qilinmagan P0 muammolar yo'q. Oqim toza — 0 ta to'siq aniqlandi.";
-  return `⚠ ${blockers.length} ta to'siq aniqlandi:\n` + blockers.map((t) => `• ${t.id} [${t.priority}] ${t.title} — filial: ${t.git_branch ?? "yo'q"} (${t.ai_source ?? "AI yozuvi yo'q"})`).join('\n');
+  return `⚠ ${blockers.length} ta to'siq aniqlandi:\n` + blockers.map((t) => `• ${t.id} [${t.priority}] ${t.title} (${t.ai_source ?? "AI yozuvi yo'q"})`).join('\n');
 }
 
 async function tryOllama(prompt: string): Promise<{ text: string; model: string } | null> {
@@ -182,7 +182,7 @@ export async function generateWeeklyCoachReview(
 
   // Extract bottlenecks
   const bottlenecks: string[] = [];
-  const allText = tasks.map((t) => `${t.title} ${t.git_branch ?? ''}`).join(' ').toLowerCase() + ' ' + Object.values(notes).join(' ').toLowerCase();
+  const allText = tasks.map((t) => t.title).join(' ').toLowerCase() + ' ' + Object.values(notes).join(' ').toLowerCase();
 
   if (allText.includes('db') || allText.includes('sqlite') || allText.includes('lock') || allText.includes('migration')) {
     bottlenecks.push("SQLite WAL rejimi va ma'lumotlar bazasi tranzaksiyalarida kechikishlar");
