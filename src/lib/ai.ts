@@ -107,6 +107,8 @@ export interface WeeklyCoachAi {
   bottlenecks: string[];
   recommendations: string[];
   summary: string;
+  source: AiSource;
+  model?: string;
 }
 
 /** AI-first weekly review: real model writes bottlenecks/recommendations/summary as JSON. */
@@ -132,7 +134,10 @@ async function tryCoachAi(
 Qamrash kerak: bajarilgan/yangi tasklar, QILINMAGAN (qoldirilgan) ishlar, hal qilingan muammolar, o'rganilgan bilimlar, keyingi hafta nimani o'rganish kerak.\n\n${ctx}`;
 
   const cloud = await tryCloudProviders(prompt).catch(() => null);
-  const text = cloud?.text ?? (await tryOllama(prompt).catch(() => null))?.text;
+  const ollamaHit = cloud ? null : await tryOllama(prompt).catch(() => null);
+  const text = cloud?.text ?? ollamaHit?.text;
+  const source: AiSource = cloud ? cloud.source : ollamaHit ? 'ollama' : 'fallback';
+  const model = cloud?.model ?? ollamaHit?.model;
   if (!text) return null;
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) return null;
@@ -143,6 +148,8 @@ Qamrash kerak: bajarilgan/yangi tasklar, QILINMAGAN (qoldirilgan) ishlar, hal qi
       bottlenecks: j.bottlenecks.filter((s): s is string => typeof s === 'string').slice(0, 3),
       recommendations: j.recommendations.filter((s): s is string => typeof s === 'string').slice(0, 3),
       summary: j.summary.slice(0, 600),
+      source,
+      model,
     };
   } catch {
     return null;
@@ -161,6 +168,8 @@ export async function generateWeeklyCoachReview(
   summary: string;
   generatedAt: string;
   aiPowered: boolean;
+  aiSource: AiSource;
+  aiModel?: string;
 }> {
   const completed = tasks.filter((t) => t.status === 'completed');
   const blockers = tasks.filter(isBlocker);
@@ -175,7 +184,8 @@ export async function generateWeeklyCoachReview(
   // Smart path: real AI writes the narrative; counts stay local (always truthful).
   const ai = await tryCoachAi(completed, activeOrBacklog, blockers, notes);
   if (ai && (ai.bottlenecks.length || ai.recommendations.length)) {
-    return { completedCount, deferredCount, blockersCount, ...ai, generatedAt, aiPowered: true };
+    const { source, model, ...rest } = ai;
+    return { completedCount, deferredCount, blockersCount, ...rest, generatedAt, aiPowered: true, aiSource: source, aiModel: model };
   }
 
   // Rule-based fallback (offline):
@@ -222,6 +232,7 @@ export async function generateWeeklyCoachReview(
     summary,
     generatedAt,
     aiPowered: false,
+    aiSource: 'fallback' as AiSource,
   };
 }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Bot, Check, Loader2, X } from 'lucide-react';
+import { Bot, Check, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react';
 import {
-  PROVIDERS, getProvider, setProvider, testProvider,
+  PROVIDERS, getProvider, setProvider, testProvider, getProviderOrder, moveProvider,
   type CloudProviderId,
 } from '../lib/providers';
 import { getJevKey, setJevKey, testJev } from '../lib/jev';
@@ -52,15 +52,34 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
 
         <div className="max-h-[62vh] space-y-3 overflow-y-auto px-5 py-4">
           <p className="text-[12px] leading-relaxed text-zinc-500">
-            Yoqilgan provayderlar navbat bilan uriniladi → keyin lokal Ollama → oxirida oflayn shablon. Kalitlar faqat brauzer xotirasida (localStorage) saqlanadi.
+            Yoqilgan provayderlar <span className="text-zinc-300">yuqoridan pastga</span> tartibda uriniladi → keyin lokal Ollama → oxirida oflayn shablon. ↑↓ bilan birinchi ishlaydigan AI'ni belgilang. Kalitlar faqat brauzer xotirasida (localStorage) saqlanadi.
           </p>
 
-          {PROVIDERS.map((p) => {
+          {getProviderOrder().map((id, idx, arr) => {
+            const p = PROVIDERS.find((x) => x.id === id)!;
             const s = getProvider(p.id);
             const r = results[p.id];
             return (
               <div key={p.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
                 <div className="flex items-center gap-2.5">
+                  <div className="flex flex-col gap-0">
+                    <button
+                      onClick={() => { moveProvider(p.id, -1); refresh(); }}
+                      disabled={idx === 0}
+                      title="Yuqoriga (birinchi urinish)"
+                      className="rounded p-0.5 text-zinc-500 hover:text-white disabled:opacity-25"
+                    >
+                      <ChevronUp size={13} />
+                    </button>
+                    <button
+                      onClick={() => { moveProvider(p.id, 1); refresh(); }}
+                      disabled={idx === arr.length - 1}
+                      title="Pastga"
+                      className="rounded p-0.5 text-zinc-500 hover:text-white disabled:opacity-25"
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                  </div>
                   <button
                     onClick={() => { setProvider(p.id, { enabled: !s.enabled }); refresh(); }}
                     className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${s.enabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
