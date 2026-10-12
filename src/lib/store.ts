@@ -1,15 +1,45 @@
 import { create } from 'zustand';
-import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspace, WeeklyCoachInsight, TeamGroup } from './types';
+import type {
+  ChecklistItem,
+  EditorTab,
+  PromptEntry,
+  QuickFilter,
+  Task,
+  Workspace,
+  WeeklyCoachInsight,
+  TeamGroup,
+  GitCommit,
+  GitRepoInfo,
+} from './types';
 import { DEFAULT_PERSONAL_WORKSPACE } from './seed';
 import {
-  deleteGroupFromDb, deleteTaskFromDb, ensureDefaultWorkspace, fetchGroups, fetchPrompts, fetchResolution, fetchTasks, fetchWorkspaces,
-  insertGroup, insertPrompt, insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskGroup, updateTaskMeta, upsertResolution,
+  deleteTaskFromDb,
+  ensureDefaultWorkspace,
+  fetchPrompts,
+  fetchResolution,
+  fetchTasks,
+  fetchWorkspaces,
+  insertPrompt,
+  insertTask,
+  insertWorkspace,
+  migrate,
+  purgeMockDataIfPresent,
+  saveRetrospective,
+  uid,
+  updateTaskMeta,
+  upsertResolution,
+  fetchGroups,
+  insertGroup,
+  deleteGroupFromDb,
+  updateTaskGroup,
   type VaultDump,
 } from './db';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
+import { fetchRecentCommits, fetchGitStatus } from './git';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
+/** Next sequential ID: DEV-1, DEV-2, etc. (starts at 1 when empty). */
 export function nextTaskId(tasks: Task[]): string {
   let max = 0;
   for (const t of tasks) {
@@ -21,6 +51,7 @@ export function nextTaskId(tasks: Task[]): string {
 
 const noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
+/** Fire-and-forget write-through of a task's note + checklist. */
 function persistResolution(taskId: string) {
   const { dbMode, notes, checklists } = useSynapse.getState();
   if (dbMode !== 'sqlite') return;
@@ -53,6 +84,9 @@ interface SynapseState {
   showChatModal: boolean;
   weeklyCoach: WeeklyCoachInsight | null;
   showWeeklyCoachModal: boolean;
+  gitCommits: GitCommit[];
+  gitStatus: GitRepoInfo | null;
+  showSpotlight: boolean;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -62,6 +96,9 @@ interface SynapseState {
   createGroup: (name: string, color?: string, icon?: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   assignTaskToGroup: (taskId: string, groupId: string | null) => Promise<void>;
+  syncGitCommits: () => Promise<void>;
+  convertCommitToTask: (commit: GitCommit) => Promise<void>;
+  setSpotlight: (open: boolean) => void;
   selectTask: (id: string) => Promise<void>;
   setTab: (t: EditorTab) => void;
   setFilter: (f: QuickFilter) => void;
@@ -118,6 +155,9 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showChatModal: false,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
+  gitCommits: [],
+  gitStatus: null,
+  showSpotlight: false,
 
   init: async () => {
     try {
@@ -127,6 +167,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       await get().refresh();
       set({ ready: true, dbMode: 'sqlite' });
     } catch {
+      // Browser dev without Tauri — memory mode with clean state.
       set({ ready: true, dbMode: 'memory' });
     }
   },
@@ -135,7 +176,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     const [ws, tasks, grps] = await Promise.all([
       fetchWorkspaces().catch(() => []),
       fetchTasks().catch(() => []),
-      fetchGroups(get().activeWorkspaceId).catch(() => []),
+      fetchGroups().catch(() => []),
     ]);
     const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
     const currentSelected = get().selectedTaskId;
@@ -175,13 +216,13 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   setWorkspace: async (id) => {
-    set({ activeWorkspaceId: id, activeGroupId: null, quickFilter: null, search: '' });
+    set({ activeWorkspaceId: id, quickFilter: null, search: '' });
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
       try {
-        const [tasks, grps] = await Promise.all([fetchTasks(id), fetchGroups(id)]);
+        const tasks = await fetchTasks(id);
         const first = tasks[0];
-        set({ tasks, groups: grps, selectedTaskId: first?.id ?? null });
+        set({ tasks, selectedTaskId: first?.id ?? null });
         if (first) {
           await get().selectTask(first.id);
         } else {
@@ -216,32 +257,48 @@ export const useSynapse = create<SynapseState>((set, get) => ({
           prompts: pr,
         });
         return;
-      } catch { /* keep memory */ }
+      } catch { /* fallback */ }
     }
+    set((s) => ({ prompts: s.prompts.filter((p) => p.task_id === id) }));
   },
 
-  setTab: (t) => set({ editorTab: t }),
-  setFilter: (f) => set({ quickFilter: f }),
-  setSortOrder: (s) => set({ sortOrder: s }),
-  setSearch: (s) => set({ search: s }),
+  setTab: (editorTab) => set({ editorTab }),
+  setFilter: (quickFilter) => set({ quickFilter }),
+  setSortOrder: (sortOrder) => set({ sortOrder }),
+  setSearch: (search) => set({ search }),
 
   toggleCheck: (taskId, itemId) => {
-    const list = get().checklists[taskId] ?? [];
-    const next = list.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it));
-    set((s) => ({ checklists: { ...s.checklists, [taskId]: next } }));
+    set((s) => ({
+      checklists: {
+        ...s.checklists,
+        [taskId]: (s.checklists[taskId] ?? []).map((c) => (c.id === itemId ? { ...c, done: !c.done } : c)),
+      },
+    }));
     persistResolution(taskId);
   },
 
   addChecklistItem: (taskId, text) => {
-    const list = get().checklists[taskId] ?? [];
-    const item: ChecklistItem = { id: uid('chk'), text: text.trim(), done: false };
-    set((s) => ({ checklists: { ...s.checklists, [taskId]: [...list, item] } }));
+    const item: ChecklistItem = {
+      id: uid('chk'),
+      text: text.trim(),
+      done: false,
+    };
+    set((s) => ({
+      checklists: {
+        ...s.checklists,
+        [taskId]: [...(s.checklists[taskId] ?? []), item],
+      },
+    }));
     persistResolution(taskId);
   },
 
   removeChecklistItem: (taskId, itemId) => {
-    const list = get().checklists[taskId] ?? [];
-    set((s) => ({ checklists: { ...s.checklists, [taskId]: list.filter((it) => it.id !== itemId) } }));
+    set((s) => ({
+      checklists: {
+        ...s.checklists,
+        [taskId]: (s.checklists[taskId] ?? []).filter((c) => c.id !== itemId),
+      },
+    }));
     persistResolution(taskId);
   },
 
@@ -252,28 +309,22 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   flagBlocker: (id) => {
-    const { tasks, dbMode } = get();
-    const t = tasks.find((item) => item.id === id);
-    if (!t) return;
-    const nextStatus = t.status === 'blocker' ? 'active' : 'blocker';
-    const nextPriority = nextStatus === 'blocker' ? 'P0 Blocker' : 'Normal';
+    const stamp = new Date().toISOString();
     set((s) => ({
-      tasks: s.tasks.map((item) =>
-        item.id === id ? { ...item, status: nextStatus, priority: nextPriority } : item,
-      ),
-      hudMessage: nextStatus === 'blocker' ? `${id} P0 blocker deb belgilandi` : `${id} faol holatga qaytarildi`,
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, status: 'blocker', priority: 'P0 Blocker', updated_at: stamp } : t)),
+      hudMessage: `${id} P0 to'siq deb belgilandi`,
     }));
-    if (dbMode === 'sqlite') {
-      updateTaskMeta(id, nextStatus, nextPriority).catch(() => {});
+    if (get().dbMode === 'sqlite') {
+      updateTaskMeta(id, 'blocker', 'P0 Blocker').catch(() => {});
     }
   },
 
-  setStandup: (content, source) => set({ standup: content, standupSource: source }),
-  setHud: (msg) => set({ hudMessage: msg }),
-  setStandupModal: (open) => set({ showStandupModal: open }),
-  setTaskModal: (open) => set({ showTaskModal: open }),
-  setChatModal: (open) => set({ showChatModal: open }),
-  setWeeklyCoachModal: (open) => set({ showWeeklyCoachModal: open }),
+  setStandup: (standup, standupSource) => set({ standup, standupSource }),
+  setHud: (hudMessage) => set({ hudMessage }),
+  setStandupModal: (showStandupModal) => set({ showStandupModal }),
+  setTaskModal: (showTaskModal) => set({ showTaskModal }),
+  setChatModal: (showChatModal) => set({ showChatModal }),
+  setWeeklyCoachModal: (showWeeklyCoachModal) => set({ showWeeklyCoachModal }),
 
   triggerWeeklyCoach: async () => {
     const { tasks, notes } = get();
@@ -290,33 +341,55 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }
   },
 
-
   quickCapture: async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
     const { tasks, activeWorkspaceId, dbMode } = get();
     const id = nextTaskId(tasks);
+    const now = new Date().toISOString();
     const newTask: Task = {
       id,
       workspace_id: activeWorkspaceId,
-      title: text.trim(),
+      title: trimmed,
       status: 'active',
       priority: 'Normal',
       git_branch: null,
       pr_url: null,
-      ai_source: 'Quick Capture',
+      ai_source: 'AI Synced',
       assignee_name: 'Farhod',
       assignee_avatar: 'F',
       assignee_name2: null,
       assignee_avatar2: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
+
+    const initialNote = `# ${trimmed}\n\n### Problem Solved & Kontekst\n\n\`\`\`typescript\n// Yechim kodi yoki arxitektura namunasi\n\`\`\`\n\n### Key Learnings (O'rganilgan bilimlar)\n- Bugun nimalar tushunildi:\n- Keyingi qadamlar:\n`;
+
     if (dbMode === 'sqlite') {
-      await insertTask(newTask).catch(() => {});
+      try {
+        await insertTask(newTask);
+        await upsertResolution(id, initialNote, JSON.stringify([
+          { id: uid('chk'), text: "Muammoni aniqlash va o'rganish", done: false },
+          { id: uid('chk'), text: "Yechim kodini tekshirish", done: false },
+        ]));
+      } catch {
+        /* fallback */
+      }
     }
+
     set((s) => ({
       tasks: [newTask, ...s.tasks],
-      selectedTaskId: newTask.id,
-      hudMessage: `Yangi tezkor vazifa qo'shildi: ${newTask.id}`,
+      selectedTaskId: id,
+      notes: { ...s.notes, [id]: initialNote },
+      checklists: {
+        ...s.checklists,
+        [id]: [
+          { id: uid('chk'), text: "Muammoni aniqlash va o'rganish", done: false },
+          { id: uid('chk'), text: "Yechim kodini tekshirish", done: false },
+        ],
+      },
+      hudMessage: `Yangi vazifa qayd etildi: ${id}`,
     }));
   },
 
@@ -344,14 +417,13 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         updated_at: now,
       };
 
-      const richNote = `# ${ingestData.title}\n\n` +
-        `> **AI Modeli:** ${ingestData.detectedModel}\n` +
-        `> **Sana:** ${new Date().toLocaleDateString('uz-UZ')}\n\n` +
-        `## Muammo & Kontekst\n${ingestData.problemSummary}\n\n` +
-        (ingestData.solutionSnippet ? `## Yechim Kodi\n${ingestData.solutionSnippet}\n\n` : '') +
-        `## Asosiy Bilimlar & Xulosalar\n` +
-        ingestData.keyLearnings.map((k) => `- ${k}`).join('\n') +
-        '\n';
+      const richNote = `# ${ingestData.title}\n\n> 🤖 **AI Manbasi:** ${ingestData.detectedModel} · **Teglar:** ${ingestData.tags.join(' ')}\n\n### Problem Solved & Yechim Kodi\n${ingestData.solutionSnippet || '```typescript\n// Yechim kodi tahlil qilindi\n```'}\n\n### Key Learnings (O'rganilgan Bilimlar)\n${ingestData.keyLearnings.map((k) => `- ${k}`).join('\n')}\n\n### Asl AI Savol / Prompt\n\`\`\`text\n${ingestData.rawPrompt}\n\`\`\`\n`;
+
+      const checklistItems: ChecklistItem[] = ingestData.keyLearnings.map((k) => ({
+        id: uid('chk'),
+        text: k,
+        done: true,
+      }));
 
       const promptEntry: PromptEntry = {
         id: uid('pv'),
@@ -366,15 +438,18 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       if (dbMode === 'sqlite') {
         try {
           await insertTask(newTask);
-          await upsertResolution(id, richNote, '[]');
+          await upsertResolution(id, richNote, JSON.stringify(checklistItems));
           await insertPrompt(promptEntry);
-        } catch {}
+        } catch {
+          /* fallback */
+        }
       }
 
       set((s) => ({
         tasks: [newTask, ...s.tasks],
         selectedTaskId: id,
         notes: { ...s.notes, [id]: richNote },
+        checklists: { ...s.checklists, [id]: checklistItems },
         prompts: [promptEntry],
         hudMessage: `AI yechimi muvaffaqiyatli import qilindi: ${id}`,
       }));
@@ -400,9 +475,11 @@ export const useSynapse = create<SynapseState>((set, get) => ({
 
       if (dbMode === 'sqlite') {
         try {
-          await upsertResolution(id, updatedNote, '[]');
+          await upsertResolution(id, updatedNote, JSON.stringify(get().checklists[id] ?? []));
           await insertPrompt(promptEntry);
-        } catch {}
+        } catch {
+          /* fallback */
+        }
       }
 
       set((s) => ({
@@ -415,15 +492,9 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       return id;
     }
   },
+
   addTask: (t) => {
-    set((s) => ({
-      tasks: [t, ...s.tasks],
-      selectedTaskId: t.id,
-      hudMessage: `Yangi vazifa qo'shildi: ${t.id}`,
-    }));
-    if (get().dbMode === 'sqlite') {
-      insertTask(t).catch(() => {});
-    }
+    set((s) => ({ tasks: [t, ...s.tasks], selectedTaskId: t.id, prompts: [] }));
   },
 
   deleteTask: async (id) => {
@@ -487,9 +558,9 @@ export const useSynapse = create<SynapseState>((set, get) => ({
 
   addPrompt: (p) => set((s) => ({ prompts: [...s.prompts, p] })),
 
-  setActiveGroup: (id: string | null) => set({ activeGroupId: id }),
+  setActiveGroup: (id) => set({ activeGroupId: id }),
 
-  createGroup: async (name: string, color = '#38bdf8', icon = 'folder') => {
+  createGroup: async (name, color = '#38bdf8', icon = 'folder') => {
     const { activeWorkspaceId, dbMode } = get();
     const g: TeamGroup = {
       id: uid('grp'),
@@ -509,7 +580,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }));
   },
 
-  deleteGroup: async (id: string) => {
+  deleteGroup: async (id) => {
     const { dbMode, activeGroupId } = get();
     if (dbMode === 'sqlite') {
       await deleteGroupFromDb(id).catch(() => {});
@@ -522,7 +593,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }));
   },
 
-  assignTaskToGroup: async (taskId: string, groupId: string | null) => {
+  assignTaskToGroup: async (taskId, groupId) => {
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
       await updateTaskGroup(taskId, groupId).catch(() => {});
@@ -533,6 +604,63 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }));
   },
 
+  syncGitCommits: async () => {
+    set({ hudMessage: 'Git commits tekshirilmoqda...' });
+    try {
+      const [commits, status] = await Promise.all([
+        fetchRecentCommits(8),
+        fetchGitStatus(),
+      ]);
+      set({
+        gitCommits: commits,
+        gitStatus: status,
+        hudMessage: commits.length ? `${commits.length} ta Git commit yuklandi` : 'Git commitlar topilmadi',
+      });
+    } catch {
+      set({ hudMessage: 'Git maʼlumotlarini olishda xatolik' });
+    }
+  },
+
+  convertCommitToTask: async (commit) => {
+    const { tasks, activeWorkspaceId, activeGroupId, gitStatus, dbMode } = get();
+    const id = nextTaskId(tasks);
+    const newTask: Task = {
+      id,
+      workspace_id: activeWorkspaceId,
+      group_id: activeGroupId,
+      title: commit.message,
+      status: 'completed',
+      priority: 'Normal',
+      git_branch: gitStatus?.branch ?? null,
+      pr_url: null,
+      ai_source: 'Git Sync',
+      assignee_name: commit.author || 'Farhod',
+      assignee_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      assignee_name2: null,
+      assignee_avatar2: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (dbMode === 'sqlite') {
+      await insertTask(newTask).catch(() => {});
+    }
+
+    const note = `## Git Commit: ${commit.hash}\n- **Muallif:** ${commit.author}\n- **Vaqti:** ${commit.relative_time}\n\n### Vazifa Ta'rifi\n${commit.message}\n\n*Ushbu yechim Git commitdan avtomatik sinxronlashtirildi.*`;
+
+    set((s) => ({
+      tasks: [newTask, ...s.tasks],
+      selectedTaskId: newTask.id,
+      notes: { ...s.notes, [newTask.id]: note },
+      hudMessage: `Commit ${commit.hash} vazifa sifatida qo'shildi: ${newTask.id}`,
+    }));
+
+    if (dbMode === 'sqlite') {
+      upsertResolution(newTask.id, note, '[]').catch(() => {});
+    }
+  },
+
+  setSpotlight: (open) => set({ showSpotlight: open }),
 
   triggerStandup: async () => {
     const { tasks, dbMode } = get();
@@ -577,12 +705,15 @@ export function filteredTasks(
   if (f === 'high') out = out.filter((t) => t.priority === 'P0 Blocker' || t.priority === 'Critical');
   if (f === 'claude') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('claude'));
   if (f === 'gemini') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('gemini'));
+  if (f === 'solved') out = out.filter((t) => t.status === 'completed' || t.title.toLowerCase().includes('fix') || t.title.toLowerCase().includes('solved'));
+  if (f === 'knowledge') out = out.filter((t) => t.title.toLowerCase().includes('learn') || t.title.toLowerCase().includes('arch') || t.title.toLowerCase().includes('o\'rgan'));
 
   const q = search.trim().toLowerCase();
   if (q) {
     out = out.filter((t) => t.id.toLowerCase().includes(q) || t.title.toLowerCase().includes(q));
   }
 
+  // Sorting
   out = [...out].sort((a, b) => {
     if (sortOrder === 'priority') {
       return (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9);
@@ -593,6 +724,7 @@ export function filteredTasks(
     if (sortOrder === 'oldest') {
       return Date.parse(a.created_at) - Date.parse(b.created_at);
     }
+    // newest
     return Date.parse(b.created_at || b.updated_at) - Date.parse(a.created_at || a.updated_at);
   });
 
