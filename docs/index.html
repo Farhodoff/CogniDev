@@ -1661,6 +1661,20 @@
             Yes! With one click or via the `Cmd+K` command palette, you can export your entire database into a portable `cognidev-vault.json` snapshot and restore it on any other Mac at any time.
           </div>
         </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>How do I open CogniDev if macOS Gatekeeper shows a warning?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Because CogniDev is an open-source project without a paid commercial Apple certificate, macOS Gatekeeper automatically places internet downloads under quarantine. To open it smoothly:<br><br>
+            <strong>1. Drag `CogniDev.app`</strong> to your <code>/Applications</code> folder.<br>
+            <strong>2. Remove quarantine:</strong> Open Terminal and run:
+            <pre style="background: rgba(0,0,0,0.5); padding: 10px 14px; border-radius: 6px; margin: 8px 0; font-family: var(--font-mono); font-size: 13px; color: var(--accent-cyan);">xattr -cr /Applications/CogniDev.app</pre>
+            <em>Alternatively:</em> Right-click (Control + Click) on CogniDev in Applications, select <strong>Open</strong>, and click <strong>Open</strong> in the confirmation dialog.
+          </div>
+        </div>
       </div>
     </section>
 
