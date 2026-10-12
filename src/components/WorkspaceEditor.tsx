@@ -85,7 +85,7 @@ function useInlineDictation(taskId: string | null, notes: Record<string, string>
     rec.lang = 'en-US';
     recognitionRef.current = rec;
 
-    rec.onresult = (e: SpeechRecognitionEvent) => {
+    rec.onresult = (e: any) => {
       let interimResult = '';
       let finalResult = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -101,7 +101,7 @@ function useInlineDictation(taskId: string | null, notes: Record<string, string>
         setInterim(interimResult);
       }
     };
-    rec.onerror = (e: SpeechRecognitionErrorEvent) => {
+    rec.onerror = (e: any) => {
       if (e.error !== 'no-speech') console.warn('SpeechRecognition error', e.error);
     };
     rec.start();
