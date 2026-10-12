@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspace, WeeklyCoachInsight } from './types';
+import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspace, WeeklyCoachInsight, TeamGroup } from './types';
 import { DEFAULT_PERSONAL_WORKSPACE } from './seed';
 import {
-  deleteTaskFromDb, ensureDefaultWorkspace, fetchPrompts, fetchResolution, fetchTasks, fetchWorkspaces,
-  insertPrompt, insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskMeta, upsertResolution,
+  deleteGroupFromDb, deleteTaskFromDb, ensureDefaultWorkspace, fetchGroups, fetchPrompts, fetchResolution, fetchTasks, fetchWorkspaces,
+  insertGroup, insertPrompt, insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskGroup, updateTaskMeta, upsertResolution,
   type VaultDump,
 } from './db';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
@@ -34,6 +34,8 @@ interface SynapseState {
   dbMode: 'sqlite' | 'memory';
   workspaces: Workspace[];
   activeWorkspaceId: string;
+  groups: TeamGroup[];
+  activeGroupId: string | null;
   tasks: Task[];
   selectedTaskId: string | null;
   editorTab: EditorTab;
@@ -56,6 +58,10 @@ interface SynapseState {
   refresh: () => Promise<void>;
   restoreAll: (d: VaultDump) => void;
   setWorkspace: (id: string) => Promise<void>;
+  setActiveGroup: (id: string | null) => void;
+  createGroup: (name: string, color?: string, icon?: string) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+  assignTaskToGroup: (taskId: string, groupId: string | null) => Promise<void>;
   selectTask: (id: string) => Promise<void>;
   setTab: (t: EditorTab) => void;
   setFilter: (f: QuickFilter) => void;
@@ -93,6 +99,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   dbMode: 'memory',
   workspaces: [DEFAULT_PERSONAL_WORKSPACE],
   activeWorkspaceId: DEFAULT_PERSONAL_WORKSPACE.id,
+  groups: [],
+  activeGroupId: null,
   tasks: [],
   selectedTaskId: null,
   editorTab: 'note',
@@ -124,13 +132,18 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   refresh: async () => {
-    const [ws, tasks] = await Promise.all([fetchWorkspaces().catch(() => []), fetchTasks().catch(() => [])]);
+    const [ws, tasks, grps] = await Promise.all([
+      fetchWorkspaces().catch(() => []),
+      fetchTasks().catch(() => []),
+      fetchGroups(get().activeWorkspaceId).catch(() => []),
+    ]);
     const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
     const currentSelected = get().selectedTaskId;
     const sel = tasks.find((t) => t.id === currentSelected) ?? tasks[0] ?? null;
     set({
       workspaces: ws.length ? ws : [DEFAULT_PERSONAL_WORKSPACE],
       activeWorkspaceId: activeWs.id,
+      groups: grps,
       tasks,
       selectedTaskId: sel?.id ?? null,
     });
@@ -162,13 +175,13 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   setWorkspace: async (id) => {
-    set({ activeWorkspaceId: id, quickFilter: null, search: '' });
+    set({ activeWorkspaceId: id, activeGroupId: null, quickFilter: null, search: '' });
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
       try {
-        const tasks = await fetchTasks(id);
+        const [tasks, grps] = await Promise.all([fetchTasks(id), fetchGroups(id)]);
         const first = tasks[0];
-        set({ tasks, selectedTaskId: first?.id ?? null });
+        set({ tasks, groups: grps, selectedTaskId: first?.id ?? null });
         if (first) {
           await get().selectTask(first.id);
         } else {
@@ -474,6 +487,53 @@ export const useSynapse = create<SynapseState>((set, get) => ({
 
   addPrompt: (p) => set((s) => ({ prompts: [...s.prompts, p] })),
 
+  setActiveGroup: (id: string | null) => set({ activeGroupId: id }),
+
+  createGroup: async (name: string, color = '#38bdf8', icon = 'folder') => {
+    const { activeWorkspaceId, dbMode } = get();
+    const g: TeamGroup = {
+      id: uid('grp'),
+      workspace_id: activeWorkspaceId,
+      name: name.trim(),
+      color,
+      icon,
+      created_at: new Date().toISOString(),
+    };
+    if (dbMode === 'sqlite') {
+      await insertGroup(g).catch(() => {});
+    }
+    set((s) => ({
+      groups: [...s.groups, g],
+      activeGroupId: g.id,
+      hudMessage: `Yangi guruh yaratildi: ${g.name}`,
+    }));
+  },
+
+  deleteGroup: async (id: string) => {
+    const { dbMode, activeGroupId } = get();
+    if (dbMode === 'sqlite') {
+      await deleteGroupFromDb(id).catch(() => {});
+    }
+    set((s) => ({
+      groups: s.groups.filter((g) => g.id !== id),
+      tasks: s.tasks.map((t) => (t.group_id === id ? { ...t, group_id: null } : t)),
+      activeGroupId: activeGroupId === id ? null : activeGroupId,
+      hudMessage: "Guruh o'chirildi",
+    }));
+  },
+
+  assignTaskToGroup: async (taskId: string, groupId: string | null) => {
+    const { dbMode } = get();
+    if (dbMode === 'sqlite') {
+      await updateTaskGroup(taskId, groupId).catch(() => {});
+    }
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, group_id: groupId } : t)),
+      hudMessage: "Vazifa guruhi yangilandi",
+    }));
+  },
+
+
   triggerStandup: async () => {
     const { tasks, dbMode } = get();
     set({ hudMessage: 'Standup tuzilmoqda (Ollama / AI)...' });
@@ -507,8 +567,12 @@ export function filteredTasks(
   search: string,
   workspaceId: string,
   sortOrder: SortOrder = 'newest',
+  activeGroupId?: string | null,
 ): Task[] {
   let out = tasks.filter((t) => t.workspace_id === workspaceId);
+  if (activeGroupId) {
+    out = out.filter((t) => t.group_id === activeGroupId);
+  }
   if (f === 'mine') out = out.filter((t) => t.assignee_name === 'Farhod');
   if (f === 'high') out = out.filter((t) => t.priority === 'P0 Blocker' || t.priority === 'Critical');
   if (f === 'claude') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('claude'));

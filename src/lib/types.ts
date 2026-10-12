@@ -10,9 +10,20 @@ export interface Workspace {
   created_at: string;
 }
 
+export interface TeamGroup {
+  id: string;
+  workspace_id: string;
+  name: string;
+  color: string;
+  icon?: string;
+  created_at: string;
+}
+
+
 export interface Task {
   id: string;
   workspace_id: string;
+  group_id?: string | null;
   title: string;
   status: TaskStatus;
   priority: TaskPriority;
