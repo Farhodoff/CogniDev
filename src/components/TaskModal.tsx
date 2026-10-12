@@ -17,7 +17,6 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
   const { tasks, activeWorkspaceId, addTask, selectTask, dbMode, setHud } = useSynapse();
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('Normal');
-  const [branch, setBranch] = useState('');
   const [aiSource, setAiSource] = useState(AI_SOURCES[0]);
   const [tagsInput, setTagsInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,7 +34,7 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
       title: title.trim(),
       status: (priority === 'P0 Blocker' ? 'blocker' : 'active') as 'blocker' | 'active',
       priority,
-      git_branch: branch.trim() || null,
+      git_branch: null,
       pr_url: null,
       ai_source: aiSource,
       assignee_name: 'Farhod',
@@ -107,15 +106,6 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
               </select>
             </label>
           </div>
-          <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Git branch</span>
-            <input
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="feat/cache-layer"
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
-            />
-          </label>
           <label className="block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Teglar (vergul bilan)</span>
             <input

@@ -19,19 +19,6 @@ export interface TeamGroup {
   created_at: string;
 }
 
-export interface GitCommit {
-  hash: string;
-  author: string;
-  relative_time: string;
-  message: string;
-}
-
-export interface GitRepoInfo {
-  branch: string | null;
-  modified_count: number;
-  is_clean: boolean;
-}
-
 export interface Task {
   id: string;
   workspace_id: string;

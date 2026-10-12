@@ -31,7 +31,7 @@
 As modern engineers, we spend hours brainstorming solutions with **Gemini, Claude, ChatGPT, and local Ollama models**. However:
 - ❌ **Fragmented Brain**: Breakthrough architectures and bug resolutions remain stranded across browser chat tabs.
 - ❌ **Jira & Agile Fatigue**: Traditional project management tools are bogged down by story-point poker, hour tracking, and slow web UIs.
-- ❌ **Lost Context**: Commits on Git and notes in Notion don't connect with the AI prompt that actually solved the problem.
+- ❌ **Lost Context**: Engineering notes and solutions don't connect with the AI prompt that actually solved the problem.
 
 **CogniDev solves this.** It is a native macOS desktop application engineered with **Tauri v2, Rust, and React 19** that serves as your single engineering cockpit.
 
@@ -61,12 +61,11 @@ A radical alternative to heavy enterprise issue trackers.
 
 ---
 
-### 3. 🎯 macOS Spotlight HUD (`⌘K`) & Git Commit Auto-Sync
+### 3. 🎯 macOS Spotlight HUD (`⌘K`)
 Designed specifically for keyboard-first developers.
 
-* **Global Spotlight (⌘K)**: Trigger a Raycast/Alfred-style HUD anywhere to search tasks, inspect commits, or quick-capture thoughts.
-* **Local Git Auto-Sync**: Native Rust backend monitors `git log` and `git status`, letting you turn commits into documented resolutions in 1 click.
-* **Inline Dictation**: Voice-to-note transcription for swift audio capture during code review sessions.
+* **Global Spotlight (⌘K)**: Trigger a Raycast/Alfred-style HUD anywhere to search tasks or quick-capture thoughts.
+* **Inline Dictation**: Voice-to-note transcription for swift audio capture during review sessions.
 
 ---
 
@@ -95,7 +94,7 @@ graph TD
 
     subgraph Desktop["Tauri v2 Rust Core"]
         Bridge[Tauri IPC Bridge]
-        GitCmd[Native Git Inspector - log & status]
+        SttCmd[Native Whisper STT Engine]
         SqlitePlugin[Tauri SQL Plugin]
     end
 
@@ -108,7 +107,7 @@ graph TD
     HUD --> Store
     Radar --> Store
     Store --> Bridge
-    Bridge --> GitCmd
+    Bridge --> SttCmd
     Bridge --> SqlitePlugin
     SqlitePlugin --> DB
     Store -.-> Ollama
@@ -184,7 +183,7 @@ CogniDev/
 │       └── cognidev-stream-notes.jpg
 ├── src-tauri/                 # Native Rust backend
 │   ├── src/
-│   │   ├── main.rs           # Native commands (Git inspect, window handlers)
+│   │   ├── main.rs           # Native commands & STT engine
 │   │   ├── migrations.sql    # v1 core schema
 │   │   ├── migrations2.sql   # v2 prompt vault & retro schema
 │   │   └── migrations3.sql   # v3 team groups & squad foreign keys
@@ -199,7 +198,6 @@ CogniDev/
 │   │   └── Sidebar.tsx             # Squads & Live Blocker Radar
 │   ├── lib/
 │   │   ├── ai.ts             # Heuristic parser & coach intelligence engine
-│   │   ├── git.ts            # Git commands bridge
 │   │   ├── db.ts             # SQLite queries & migrations
 │   │   ├── store.ts          # Zustand state store
 │   │   └── types.ts          # TypeScript domain definitions

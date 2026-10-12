@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Search,
   Sparkles,
-  GitCommit as GitCommitIcon,
   CheckCircle2,
   ArrowRight,
   X,
@@ -10,7 +9,6 @@ import {
   Code2,
   Layers,
   Users,
-  Plus,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 
@@ -19,9 +17,6 @@ export const SpotlightModal: React.FC = () => {
     showSpotlight,
     setSpotlight,
     quickCapture,
-    syncGitCommits,
-    gitCommits,
-    convertCommitToTask,
     triggerWeeklyCoach,
     triggerStandup,
     setChatModal,
@@ -32,7 +27,7 @@ export const SpotlightModal: React.FC = () => {
   } = useSynapse();
 
   const [input, setInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'capture' | 'git' | 'groups'>('capture');
+  const [activeTab, setActiveTab] = useState<'capture' | 'groups'>('capture');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,12 +43,6 @@ export const SpotlightModal: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showSpotlight, setSpotlight]);
-
-  useEffect(() => {
-    if (showSpotlight) {
-      syncGitCommits();
-    }
-  }, [showSpotlight, syncGitCommits]);
 
   if (!showSpotlight) return null;
 
@@ -114,17 +103,6 @@ export const SpotlightModal: React.FC = () => {
           >
             <Zap size={13} />
             <span>Tezkor</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('git')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-medium transition ${
-              activeTab === 'git'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <GitCommitIcon size={13} />
-            <span>Git Commits ({gitCommits.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('groups')}
@@ -215,72 +193,6 @@ export const SpotlightModal: React.FC = () => {
                 </div>
                 <span className="text-[11px] font-mono text-zinc-500 group-hover:text-emerald-400">⌘S</span>
               </button>
-            </div>
-          )}
-
-          {activeTab === 'git' && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between px-2 pb-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                  So'nggi commitlar
-                </p>
-                <div className="flex items-center gap-2">
-                  {gitCommits.length > 0 && (
-                    <button
-                      onClick={async () => {
-                        await useSynapse.getState().syncAllCommits();
-                        setSpotlight(false);
-                      }}
-                      className="rounded-lg bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/30 transition"
-                    >
-                      Hammasini sync ({gitCommits.length})
-                    </button>
-                  )}
-                  <button
-                    onClick={() => syncGitCommits()}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
-                  >
-                    Yangilash
-                  </button>
-                </div>
-              </div>
-
-              {gitCommits.length === 0 ? (
-                <div className="py-8 text-center text-zinc-500 text-[12.5px]">
-                  Lokal git commitlar topilmadi yoki bu papka git repozitoriy emas.
-                </div>
-              ) : (
-                gitCommits.map((c) => (
-                  <div
-                    key={c.hash}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 transition group"
-                  >
-                    <div className="flex items-start gap-2.5 min-w-0 pr-3">
-                      <span className="mt-0.5 rounded px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 font-mono text-[11px]">
-                        {c.hash}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[12.5px] font-medium text-zinc-200 truncate group-hover:text-white">
-                          {c.message}
-                        </p>
-                        <p className="text-[11px] text-zinc-500">
-                          {c.author} • {c.relative_time}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        await convertCommitToTask(c);
-                        setSpotlight(false);
-                      }}
-                      className="shrink-0 flex items-center gap-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-1 text-[11.5px] font-semibold border border-emerald-400/30 transition"
-                    >
-                      <Plus size={12} />
-                      <span>Taskga</span>
-                    </button>
-                  </div>
-                ))
-              )}
             </div>
           )}
 

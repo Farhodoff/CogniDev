@@ -237,12 +237,6 @@ export default function WorkspaceEditor() {
                   {task.id}
                 </span>
 
-                {task.git_branch && (
-                  <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-zinc-300">
-                    git: {task.git_branch}
-                  </span>
-                )}
-
                 {task.ai_source && (
                   <span className="rounded-md border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300 flex items-center gap-1">
                     <Sparkles size={11} /> {task.ai_source}
