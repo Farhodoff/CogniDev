@@ -60,13 +60,13 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// Signal successful boot and dismiss splash overlay
-(window as unknown as { __cognidevBooted: boolean }).__cognidevBooted = true;
+// Dismiss initial splash overlay smoothly
 const splashEl = document.getElementById('cognidev-splash');
 if (splashEl) {
   splashEl.style.opacity = '0';
   splashEl.style.pointerEvents = 'none';
   setTimeout(() => {
     splashEl.remove();
-  }, 250);
+  }, 200);
 }
+

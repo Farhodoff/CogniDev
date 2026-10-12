@@ -54,39 +54,6 @@
         color: #64748b;
       }
     </style>
-    <script>
-      window.__cognidevBooted = false;
-      function showSplashError(msg) {
-        console.error('[CogniDev Boot]', msg);
-        var textEl = document.getElementById('cognidev-splash-text');
-        var subEl = document.getElementById('cognidev-splash-sub');
-        if (textEl && !window.__cognidevBooted) {
-          textEl.style.color = '#f87171';
-          textEl.textContent = 'Yuklashda xatolik: ' + msg;
-          if (subEl) {
-            subEl.innerHTML = '<button onclick="window.location.reload()" style="background:#38bdf8;color:#000;border:none;padding:5px 12px;border-radius:6px;font-weight:600;cursor:pointer;margin-top:8px;">Qayta yuklash (Cmd+R)</button>';
-          }
-        }
-      }
-      window.addEventListener('error', function (e) {
-        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
-          showSplashError('Fayl yuklanmadi: ' + (e.target.src || e.target.href || '').split('/').pop());
-          return;
-        }
-        showSplashError((e.error && (e.error.stack || e.error.message)) || e.message || 'Skript xatosi');
-      }, true);
-      window.addEventListener('unhandledrejection', function (e) {
-        showSplashError((e.reason && (e.reason.stack || e.reason.message || e.reason)) || 'Async xatolik');
-      });
-      setTimeout(function () {
-        if (!window.__cognidevBooted) {
-          var subEl = document.getElementById('cognidev-splash-sub');
-          if (subEl) {
-            subEl.innerHTML = 'Yuklanish cho‘zilmoqda... <button onclick="window.location.reload()" style="background:#38bdf8;color:#000;border:none;padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;margin-left:6px;">Qayta yuklash</button>';
-          }
-        }
-      }, 4000);
-    </script>
   </head>
   <body>
     <div id="cognidev-splash">
