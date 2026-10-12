@@ -59,5 +59,15 @@ export interface Retrospective {
 }
 
 export type EditorTab = 'note' | 'thread';
-export type QuickFilter = 'mine' | 'high' | 'claude' | 'gemini' | null;
+export type QuickFilter = 'mine' | 'high' | 'claude' | 'gemini' | 'solved' | 'knowledge' | null;
 export type NavView = 'stream' | 'solved' | 'knowledge' | 'vault';
+
+export interface WeeklyCoachInsight {
+  completedCount: number;
+  deferredCount: number;
+  blockersCount: number;
+  bottlenecks: string[];
+  recommendations: string[];
+  summary: string;
+  generatedAt: string;
+}

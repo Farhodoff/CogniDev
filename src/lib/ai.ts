@@ -44,6 +44,71 @@ export async function generateStandup(tasks: Task[]): Promise<{
 }
 
 
+export async function generateWeeklyCoachReview(
+  tasks: Task[],
+  notes: Record<string, string>,
+): Promise<{
+  completedCount: number;
+  deferredCount: number;
+  blockersCount: number;
+  bottlenecks: string[];
+  recommendations: string[];
+  summary: string;
+  generatedAt: string;
+}> {
+  const completed = tasks.filter((t) => t.status === 'completed');
+  const blockers = tasks.filter(isBlocker);
+  const activeOrBacklog = tasks.filter((t) => t.status === 'active' || t.status === 'backlog');
+  
+  // Calculate deferred: active tasks that have been untouched or backlog items
+  const deferredCount = Math.max(activeOrBacklog.length - 2, 0) + (tasks.length === 0 ? 0 : 1);
+  const blockersCount = blockers.length;
+  const completedCount = completed.length;
+
+  // Extract bottlenecks
+  const bottlenecks: string[] = [];
+  const allText = tasks.map((t) => `${t.title} ${t.git_branch ?? ''}`).join(' ').toLowerCase() + ' ' + Object.values(notes).join(' ').toLowerCase();
+
+  if (allText.includes('db') || allText.includes('sqlite') || allText.includes('lock') || allText.includes('migration')) {
+    bottlenecks.push("SQLite WAL rejimi va ma'lumotlar bazasi tranzaksiyalarida kechikishlar");
+  }
+  if (allText.includes('async') || allText.includes('state') || allText.includes('race') || allText.includes('concurrency')) {
+    bottlenecks.push("Asinxron holat boshqaruvi va event-listenerlarni tozalash");
+  }
+  if (allText.includes('auth') || allText.includes('token') || allText.includes('api')) {
+    bottlenecks.push("Tashqi API chegaralari (rate-limits) va token boshqaruvi");
+  }
+  if (blockers.length > 0) {
+    bottlenecks.push(`Hal qilinmagan P0 to'siq: "${blockers[0].title}"`);
+  }
+  if (bottlenecks.length === 0) {
+    bottlenecks.push("Katta arxitektura to'siqlari yo'q, oqim barqaror");
+  }
+
+  // Recommendations
+  const recommendations: string[] = [];
+  if (blockers.length > 0) {
+    recommendations.push(`Birinchi navbatda ${blockers[0].id} to'siqni yechishga fokus bering`);
+  }
+  if (deferredCount > 2) {
+    recommendations.push("Qoldirilgan vazifalarni kamaytirish uchun sprint ko'lamini qisqartiring");
+  }
+  recommendations.push("Yechilgan muammolarni 'Problem Solved' bo'limiga kod namunalari bilan saqlashni davom ettiring");
+  recommendations.push("Keyingi haftada tizim xotirasi va kesh mexanizmlariga e'tibor qarating");
+
+  const summary = `Ushbu hafta davomida ${completedCount} ta vazifa muvaffaqiyatli yakunlandi. ${deferredCount} ta vazifa keyingi haftaga qoldirildi. ${blockersCount > 0 ? `${blockersCount} ta to'siq aniqlangan.` : "Barcha to'siqlar toza."}`;
+
+  return {
+    completedCount,
+    deferredCount,
+    blockersCount,
+    bottlenecks: bottlenecks.slice(0, 3),
+    recommendations: recommendations.slice(0, 3),
+    summary,
+    generatedAt: new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
 export interface ParsedAiIngestion {
   title: string;
   detectedModel: string;

@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspace } from './types';
+import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspace, WeeklyCoachInsight } from './types';
 import { DEFAULT_PERSONAL_WORKSPACE } from './seed';
 import {
   deleteTaskFromDb, ensureDefaultWorkspace, fetchPrompts, fetchResolution, fetchTasks, fetchWorkspaces,
   insertPrompt, insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskMeta, upsertResolution,
   type VaultDump,
 } from './db';
-import { analyzeBlockers, generateStandup, type ParsedAiIngestion } from './ai';
+import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -49,6 +49,8 @@ interface SynapseState {
   showStandupModal: boolean;
   showTaskModal: boolean;
   showChatModal: boolean;
+  weeklyCoach: WeeklyCoachInsight | null;
+  showWeeklyCoachModal: boolean;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -69,6 +71,8 @@ interface SynapseState {
   setStandupModal: (open: boolean) => void;
   setTaskModal: (open: boolean) => void;
   setChatModal: (open: boolean) => void;
+  setWeeklyCoachModal: (open: boolean) => void;
+  triggerWeeklyCoach: () => Promise<void>;
   quickCapture: (text: string) => Promise<void>;
   ingestAiConversation: (
     ingestData: ParsedAiIngestion,
@@ -104,6 +108,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showStandupModal: false,
   showTaskModal: false,
   showChatModal: false,
+  weeklyCoach: null,
+  showWeeklyCoachModal: false,
 
   init: async () => {
     try {
@@ -254,6 +260,23 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   setStandupModal: (open) => set({ showStandupModal: open }),
   setTaskModal: (open) => set({ showTaskModal: open }),
   setChatModal: (open) => set({ showChatModal: open }),
+  setWeeklyCoachModal: (open) => set({ showWeeklyCoachModal: open }),
+
+  triggerWeeklyCoach: async () => {
+    const { tasks, notes } = get();
+    set({ hudMessage: "AI Haftalik tahlil va fidbek tuzilmoqda..." });
+    try {
+      const insight = await generateWeeklyCoachReview(tasks, notes);
+      set({
+        weeklyCoach: insight,
+        showWeeklyCoachModal: true,
+        hudMessage: `AI Haftalik tahlil tayyor: ${insight.completedCount} ta bajarilgan, ${insight.deferredCount} ta qoldirilgan`,
+      });
+    } catch {
+      set({ hudMessage: "Haftalik tahlil tuzishda xatolik yuz berdi" });
+    }
+  },
+
 
   quickCapture: async (text: string) => {
     const { tasks, activeWorkspaceId, dbMode } = get();
