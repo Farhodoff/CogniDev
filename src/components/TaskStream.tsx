@@ -61,7 +61,7 @@ export default function TaskStream() {
       <div className="flex items-center justify-between px-4 pb-2 pt-3.5 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <h2 className="text-[13px] font-bold text-zinc-100 flex items-center gap-2">
-            Daily Engineering Stream
+            Kunlik Oqim
           </h2>
           <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300 font-mono text-[10.5px] font-semibold">
             {activeCount} Faol
@@ -90,10 +90,10 @@ export default function TaskStream() {
               <p className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500 border-b border-white/[0.06]">
                 Saralash tartibi
               </p>
-              <SortItem label="Eng yangi" active={sortOrder === 'newest'} onClick={() => { setSortOrder('newest'); setSortOpen(false); }} />
-              <SortItem label="Eng eski" active={sortOrder === 'oldest'} onClick={() => { setSortOrder('oldest'); setSortOpen(false); }} />
-              <SortItem label="Muhimlik darajasi" active={sortOrder === 'priority'} onClick={() => { setSortOrder('priority'); setSortOpen(false); }} />
-              <SortItem label="Nomi bo'yicha (A-Z)" active={sortOrder === 'title'} onClick={() => { setSortOrder('title'); setSortOpen(false); }} />
+              <SortItem label="Yangi" active={sortOrder === 'newest'} onClick={() => { setSortOrder('newest'); setSortOpen(false); }} />
+              <SortItem label="Eski" active={sortOrder === 'oldest'} onClick={() => { setSortOrder('oldest'); setSortOpen(false); }} />
+              <SortItem label="Muhimlik" active={sortOrder === 'priority'} onClick={() => { setSortOrder('priority'); setSortOpen(false); }} />
+              <SortItem label="Nom (A-Z)" active={sortOrder === 'title'} onClick={() => { setSortOrder('title'); setSortOpen(false); }} />
             </div>
           )}
 
@@ -225,7 +225,7 @@ export default function TaskStream() {
           <input
             value={quickInput}
             onChange={(e) => setQuickInput(e.target.value)}
-            placeholder="Nima qildingiz, o'rgandingiz yoki rejalashtirdingiz? (Enter)"
+            placeholder="Bugun nima qildingiz? (Enter)"
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-3 pr-9 text-[12px] text-zinc-200 placeholder:text-zinc-500 focus:border-sky-400 focus:outline-none transition shadow-inner"
           />
           <button
@@ -262,10 +262,10 @@ function keyStyle(t: Task): string {
 
 function statusBadge(t: Task): { label: string; cls: string } {
   if (t.status === 'blocker') return { label: "P0 To'siq", cls: 'bg-amber-500/15 text-amber-300 border-amber-400/40' };
-  if (t.status === 'in_review') return { label: "Ko'rib chiqilmoqda", cls: 'bg-sky-500/12 text-sky-300 border-sky-400/30' };
+  if (t.status === 'in_review') return { label: "Tekshiruvda", cls: 'bg-sky-500/12 text-sky-300 border-sky-400/30' };
   if (t.status === 'completed') return { label: 'Bajarildi', cls: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/30' };
-  if (t.priority === 'Critical') return { label: "O'ta muhim", cls: 'bg-pink-500/15 text-pink-300 border-pink-400/30' };
-  if (t.priority === 'High Priority') return { label: 'Yuqori daraja', cls: 'bg-violet-500/12 text-violet-300 border-violet-400/30' };
+  if (t.priority === 'Critical') return { label: "Kritik", cls: 'bg-pink-500/15 text-pink-300 border-pink-400/30' };
+  if (t.priority === 'High Priority') return { label: 'Yuqori', cls: 'bg-violet-500/12 text-violet-300 border-violet-400/30' };
   return { label: 'Oddiy', cls: 'bg-zinc-500/12 text-zinc-300 border-zinc-500/30' };
 }
 
@@ -327,7 +327,7 @@ function TaskCard({
         )}
         {done && (
           <span className="ml-auto rounded-md border border-emerald-400/30 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1">
-            <CheckCircle2 size={11} /> Solved
+            <CheckCircle2 size={11} /> Yechildi
           </span>
         )}
       </div>
@@ -339,7 +339,7 @@ function TaskCard({
         <div className="mt-2.5 rounded-xl border border-white/[0.07] bg-black/40 p-2.5">
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-violet-300 mb-1">
             <Bot size={11} />
-            <span>Attached AI prompt ({task.ai_source ?? 'AI Synced'})</span>
+            <span>Biriktirilgan prompt ({task.ai_source ?? 'AI'})</span>
           </div>
           <p className="line-clamp-2 text-zinc-400 font-mono text-[11px] leading-relaxed">
             {promptSnippet || (noteSnippet ? noteSnippet.replace(/^[#\s]+/, '').slice(0, 120) : "AI suhbati va kontekst ushbu vazifaga biriktirilgan...")}

@@ -186,7 +186,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
           >
             <Search size={14} className="text-zinc-500 group-hover:text-zinc-300 transition shrink-0" />
             <span className="w-full truncate text-[12.5px] text-zinc-400">
-              {search || '⌘K Quick Search across tasks, solutions, and AI notes...'}
+              {search || '⌘K Qidiruv: vazifalar, yechimlar, qaydlar...'}
             </span>
             <kbd className="hidden shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 sm:block">
               ⌘K
@@ -207,7 +207,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-semibold">Multi-AI Sync</span>
+              <span className="font-semibold">AI Sync</span>
               <span className="hidden xl:inline text-zinc-400 text-[11px]">• Claude • ChatGPT • Gemini</span>
               <ChevronDown size={13} className={`text-emerald-400 transition-transform ${aiSyncOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -215,7 +215,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             {aiSyncOpen && (
               <div className="absolute right-0 top-10 z-50 w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#16171d] shadow-2xl p-2.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between px-2 py-1 border-b border-white/[0.06]">
-                  <span className="font-mono text-[10.5px] uppercase tracking-wider text-zinc-400 font-semibold">Ulangan AI Modellar</span>
+                  <span className="font-mono text-[10.5px] uppercase tracking-wider text-zinc-400 font-semibold">AI holati</span>
                   <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full font-mono">Barchasi faol</span>
                 </div>
                 <div className="space-y-1 pt-1">
@@ -280,7 +280,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 transition"
                 >
                   <ClipboardList size={14} className="text-sky-400" />
-                  <span>Yangi Vazifa</span>
+                  <span>Vazifa</span>
                   <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">⌘N</kbd>
                 </button>
                 <button
@@ -291,7 +291,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 transition"
                 >
                   <Bot size={14} className="text-violet-400" />
-                  <span>Universal AI Ingest</span>
+                  <span>AI Import</span>
                 </button>
                 <button
                   onClick={() => {
@@ -326,10 +326,10 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   </span>
                 </div>
                 <button onClick={doExport} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
-                  <Download size={14} className="text-sky-300" /> Omborni eksport qilish (.json)
+                  <Download size={14} className="text-sky-300" /> Eksport (.json)
                 </button>
                 <button onClick={doImport} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
-                  <Upload size={14} className="text-emerald-300" /> Omborni import qilish (.json)
+                  <Upload size={14} className="text-emerald-300" /> Import (.json)
                 </button>
                 <button onClick={() => { setProvidersOpen(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <Bot size={14} className="text-violet-300" /> AI provayderlar

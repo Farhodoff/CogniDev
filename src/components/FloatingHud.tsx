@@ -48,7 +48,7 @@ export default function FloatingHud() {
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-[13px] font-semibold text-white shadow-[0_0_24px_-4px_rgba(56,189,248,0.8)] transition hover:brightness-110 disabled:opacity-60"
           >
             {busy === 'standup' ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            Kunlik Standup Generatsiya Qilish
+            Kunlik Standup
           </button>
           <button
             onClick={onBlockers}
@@ -56,7 +56,7 @@ export default function FloatingHud() {
             className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60"
           >
             {busy === 'blockers' ? <Loader2 size={14} className="animate-spin" /> : <TriangleAlert size={14} />}
-            To'siqlarni Tahlil Qilish ({blockers.length} ta aniqlandi)
+            To'siqlar ({blockers.length})
           </button>
         </div>
       </div>

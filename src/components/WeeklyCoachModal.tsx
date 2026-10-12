@@ -49,13 +49,13 @@ export default function WeeklyCoachModal() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-[16px] font-bold text-white">AI Weekly Coach & Retrospective</h2>
+                <h2 className="text-[16px] font-bold text-white">Haftalik Tahlil</h2>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${weeklyCoach.aiPowered ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300' : 'border-amber-400/30 bg-amber-500/15 text-amber-300'}`}>
                   {weeklyCoach.aiPowered ? 'AI yozgan' : 'Lokal shablon'}
                 </span>
               </div>
               <p className="text-[12px] text-zinc-400">
-                Haftalik faoliyat, qoldirilgan vazifalar va AI xolis tahlili · {weeklyCoach.generatedAt}
+                Haftalik ishlar va AI xulosasi · {weeklyCoach.generatedAt}
               </p>
             </div>
           </div>
@@ -77,7 +77,7 @@ export default function WeeklyCoachModal() {
                 <CheckCircle2 size={16} />
               </div>
               <p className="mt-2 text-2xl font-bold text-white font-mono">{weeklyCoach.completedCount}</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">Muvaffaqiyatli tasklar</p>
+              <p className="text-[11px] text-zinc-400 mt-0.5">Bajarilgan</p>
             </div>
 
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-3.5">
@@ -86,7 +86,7 @@ export default function WeeklyCoachModal() {
                 <TrendingUp size={16} />
               </div>
               <p className="mt-2 text-2xl font-bold text-white font-mono">{weeklyCoach.deferredCount}</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">Keyinga surilgan</p>
+              <p className="text-[11px] text-zinc-400 mt-0.5">Qoldirilgan</p>
             </div>
 
             <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.05] p-3.5">
@@ -95,14 +95,14 @@ export default function WeeklyCoachModal() {
                 <AlertTriangle size={16} />
               </div>
               <p className="mt-2 text-2xl font-bold text-white font-mono">{weeklyCoach.blockersCount}</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">P0 Blockerlar</p>
+              <p className="text-[11px] text-zinc-400 mt-0.5">To'siqlar</p>
             </div>
           </div>
 
           {/* Umumiy xulosa */}
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
             <h3 className="text-[12px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center gap-1.5">
-              <Sparkles size={14} className="text-violet-400" /> Tizim Xulosasi
+              <Sparkles size={14} className="text-violet-400" /> Xulosa
             </h3>
             <p className="text-[13.5px] leading-relaxed text-zinc-200">
               {weeklyCoach.summary}
@@ -112,7 +112,7 @@ export default function WeeklyCoachModal() {
           {/* Aniqlangan to'siqlar */}
           <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4 space-y-2">
             <h3 className="text-[12px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <AlertTriangle size={14} /> Aniqlangan Asosiy To'siqlar (Bottlenecks)
+              <AlertTriangle size={14} /> Asosiy to'siqlar
             </h3>
             <ul className="space-y-1.5 pl-1">
               {weeklyCoach.bottlenecks.map((b, i) => (
@@ -127,7 +127,7 @@ export default function WeeklyCoachModal() {
           {/* Tavsiyalar */}
           <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.04] p-4 space-y-2">
             <h3 className="text-[12px] font-bold uppercase tracking-wider text-violet-300 flex items-center gap-1.5">
-              <Lightbulb size={14} /> Sun'iy Intellekt Shaxsiy Tavsiyalari
+              <Lightbulb size={14} /> AI tavsiyalari
             </h3>
             <ul className="space-y-2 pl-1">
               {weeklyCoach.recommendations.map((r, i) => (
@@ -150,7 +150,7 @@ export default function WeeklyCoachModal() {
             className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-[12px] font-medium text-zinc-300 hover:bg-white/10 transition disabled:opacity-50"
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            Qayta tahlil qilish
+            Yangilash
           </button>
 
           <div className="flex items-center gap-2">
@@ -165,7 +165,7 @@ export default function WeeklyCoachModal() {
               onClick={() => setWeeklyCoachModal(false)}
               className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-[12.5px] font-semibold text-white hover:brightness-110 shadow-lg shadow-violet-600/20 transition"
             >
-              Tushunarli
+              Yopish
             </button>
           </div>
         </div>

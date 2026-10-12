@@ -24,7 +24,7 @@ export default function StandupModal() {
       >
         <div className="flex items-center gap-2 border-b border-white/[0.07] px-5 py-3.5">
           <Cpu size={15} className="text-violet-300" />
-          <h2 className="text-[14px] font-bold text-white">Kunlik Standup Hisoboti</h2>
+          <h2 className="text-[14px] font-bold text-white">Kunlik Standup</h2>
           <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10.5px] ${standupSource === 'fallback' ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
             {standupSource ? SOURCE_LABELS[standupSource] : 'Oflayn shablon'}
           </span>
@@ -41,7 +41,7 @@ export default function StandupModal() {
             className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[12.5px] font-medium text-zinc-200 hover:bg-white/10 transition"
           >
             {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-            {copied ? 'Nusxalandi' : 'Markdown nusxasini olish'}
+            {copied ? 'Olindi' : 'Nusxa olish'}
           </button>
           <button
             onClick={() => setStandupModal(false)}

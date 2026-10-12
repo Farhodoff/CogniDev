@@ -113,7 +113,7 @@ export const SpotlightModal: React.FC = () => {
             }`}
           >
             <Zap size={13} />
-            <span>Tezkor Buyruqlar</span>
+            <span>Tezkor</span>
           </button>
           <button
             onClick={() => setActiveTab('git')}
@@ -135,7 +135,7 @@ export const SpotlightModal: React.FC = () => {
             }`}
           >
             <Users size={13} />
-            <span>Team Groups ({groups.length})</span>
+            <span>Guruhlar ({groups.length})</span>
           </button>
         </div>
 
@@ -144,7 +144,7 @@ export const SpotlightModal: React.FC = () => {
           {activeTab === 'capture' && (
             <div className="space-y-1">
               <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                1-Tugma Harakatlar
+                Harakatlar
               </p>
 
               <button
@@ -160,7 +160,7 @@ export const SpotlightModal: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-[13px] font-semibold text-zinc-100 group-hover:text-sky-300 transition">
-                      Universal AI Prompt & Chat Ingest
+                      AI Import
                     </h4>
                     <p className="text-[11.5px] text-zinc-400">
                       Gemini / ChatGPT / Claude xulosasi va kodlarini 1 tugma bilan taskka aylantirish
@@ -183,7 +183,7 @@ export const SpotlightModal: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-[13px] font-semibold text-zinc-100 group-hover:text-violet-300 transition">
-                      AI Haftalik Tahlil & Retro
+                      Haftalik Tahlil
                     </h4>
                     <p className="text-[11.5px] text-zinc-400">
                       Bajarilgan vazifalar, sekinlashtirgan muammolar va yangi o'rganilgan bilimlar xulosasi
@@ -206,7 +206,7 @@ export const SpotlightModal: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-[13px] font-semibold text-zinc-100 group-hover:text-emerald-300 transition">
-                      Kunlik AI Standup Generatsiya
+                      Kunlik Standup
                     </h4>
                     <p className="text-[11.5px] text-zinc-400">
                       Bugungi yutuqlar, faol tasklar va jamoaviy blockerlar hisobotini darhol tayyorlash
@@ -222,7 +222,7 @@ export const SpotlightModal: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between px-2 pb-1">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                  Oxirgi Git Commitlar (Lokal Repo)
+                  So'nggi commitlar
                 </p>
                 <div className="flex items-center gap-2">
                   {gitCommits.length > 0 && (
@@ -233,14 +233,14 @@ export const SpotlightModal: React.FC = () => {
                       }}
                       className="rounded-lg bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/30 transition"
                     >
-                      Barchasini taskga aylantirish ({gitCommits.length})
+                      Hammasini sync ({gitCommits.length})
                     </button>
                   )}
                   <button
                     onClick={() => syncGitCommits()}
                     className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
                   >
-                    Qayta yangilash
+                    Yangilash
                   </button>
                 </div>
               </div>
@@ -276,7 +276,7 @@ export const SpotlightModal: React.FC = () => {
                       className="shrink-0 flex items-center gap-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-1 text-[11.5px] font-semibold border border-emerald-400/30 transition"
                     >
                       <Plus size={12} />
-                      <span>Taskka aylantirish</span>
+                      <span>Taskga</span>
                     </button>
                   </div>
                 ))
@@ -287,7 +287,7 @@ export const SpotlightModal: React.FC = () => {
           {activeTab === 'groups' && (
             <div className="space-y-1.5">
               <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                Team Groups (Guruhlar & Squadlar)
+                Guruhlar
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -299,8 +299,8 @@ export const SpotlightModal: React.FC = () => {
                 >
                   <Layers size={15} className="text-sky-400" />
                   <div>
-                    <h5 className="text-[12.5px] font-medium text-zinc-200">Barcha Guruhlar</h5>
-                    <p className="text-[11px] text-zinc-500">Hamma tasklar ko'rinishi</p>
+                    <h5 className="text-[12.5px] font-medium text-zinc-200">Barchasi</h5>
+                    <p className="text-[11px] text-zinc-500">Hamma tasklar</p>
                   </div>
                 </button>
 
@@ -341,7 +341,7 @@ export const SpotlightModal: React.FC = () => {
               <kbd className="rounded bg-white/10 px-1 py-0.5 text-zinc-300">⌘K</kbd> qidiruv
             </span>
           </div>
-          <span className="text-zinc-500 font-medium">CogniDev AI OS • Jira Alternative</span>
+          <span className="text-zinc-500 font-medium">CogniDev AI</span>
         </div>
       </div>
     </div>

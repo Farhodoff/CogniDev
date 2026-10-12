@@ -193,7 +193,7 @@ export default function Sidebar() {
             <span className="text-[13px] font-bold tracking-tight text-white">CogniDev</span>
             <span className="rounded bg-sky-500/20 px-1 py-0.2 font-mono text-[9px] text-sky-300 border border-sky-400/30">v1.0</span>
           </div>
-          <p className="truncate font-mono text-[10px] text-zinc-500">AI Command Center</p>
+          <p className="truncate font-mono text-[10px] text-zinc-500">AI Markaz</p>
         </div>
       </div>
 
@@ -208,7 +208,7 @@ export default function Sidebar() {
           }`}
         >
           <Layers size={15} className="text-sky-400" />
-          <span>Daily Stream</span>
+          <span>Kunlik Oqim</span>
           <span className="ml-auto rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">
             {tasks.filter((t) => t.workspace_id === activeWorkspaceId).length}
           </span>
@@ -221,7 +221,7 @@ export default function Sidebar() {
           }`}
         >
           <Trophy size={15} className="text-emerald-400" />
-          <span>Problems Solved</span>
+          <span>Hal Qilinganlar</span>
           <span className="ml-auto rounded-md bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] text-emerald-400">
             {completedCount}
           </span>
@@ -234,7 +234,7 @@ export default function Sidebar() {
           }`}
         >
           <BookOpen size={15} className="text-violet-400" />
-          <span>Knowledge Vault</span>
+          <span>Bilimlar Ombori</span>
           <span className="ml-auto rounded-md bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-300">
             {archCount}
           </span>
@@ -245,7 +245,7 @@ export default function Sidebar() {
           className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition"
         >
           <Bot size={15} className="text-cyan-400" />
-          <span>AI Prompt Vault</span>
+          <span>AI Prompt Ombori</span>
           <span className="ml-auto rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">
             {promptCount}
           </span>
@@ -297,7 +297,7 @@ export default function Sidebar() {
       {/* Workspaces (Omborlar) */}
       <nav className="space-y-1">
         <div className="flex items-center justify-between px-2.5 pb-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Omborlar (Workspaces)</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Omborlar</p>
           <button
             onClick={() => setCreatingWs((v) => !v)}
             title="Yangi ombor qo'shish"
@@ -394,7 +394,7 @@ export default function Sidebar() {
       <nav className="space-y-1">
         <div className="flex items-center justify-between px-2.5 pb-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-            Team Groups ({groups.length})
+            Guruhlar ({groups.length})
           </p>
           <button
             onClick={() => setCreatingGroup((v) => !v)}
@@ -465,7 +465,7 @@ export default function Sidebar() {
           }`}
         >
           <span className="h-2 w-2 rounded-full bg-zinc-400" />
-          <span className="truncate">Barcha Vazifalar</span>
+          <span className="truncate">Barchasi</span>
           <span className="ml-auto rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10.5px] text-zinc-400">
             {tasks.filter((t) => t.workspace_id === activeWorkspaceId).length}
           </span>
@@ -513,7 +513,7 @@ export default function Sidebar() {
           className="mt-2 flex w-full items-center gap-2.5 rounded-xl bg-violet-500/10 px-2.5 py-2 text-left text-[12.5px] font-medium text-violet-200 hover:bg-violet-500/20 transition"
         >
           <Sparkles size={14} className="text-violet-300" />
-          AI Kunlik Standup
+          AI Standup
           <span className="ml-auto h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_8px_2px_rgba(167,139,250,0.7)]" />
         </button>
       </nav>
@@ -522,10 +522,10 @@ export default function Sidebar() {
       <div className="rounded-2xl border border-rose-500/25 bg-rose-500/[0.03] p-3 shadow-sm hover:border-rose-500/40 transition">
         <div className="flex items-center justify-between pb-1.5">
           <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-            <Users size={12} className="text-rose-400" /> Blocker Radar
+            <Users size={12} className="text-rose-400" /> To'siq Radari
           </span>
           <span className="rounded-full bg-rose-500/20 border border-rose-400/30 px-1.5 py-0.5 text-[9.5px] font-mono text-rose-300 animate-pulse">
-            Live
+            Jonli
           </span>
         </div>
 

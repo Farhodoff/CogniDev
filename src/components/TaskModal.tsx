@@ -6,8 +6,8 @@ import type { TaskPriority } from '../lib/types';
 
 const PRIORITIES: Array<{ id: TaskPriority; label: string }> = [
   { id: 'Normal', label: 'Oddiy' },
-  { id: 'High Priority', label: 'Yuqori daraja' },
-  { id: 'Critical', label: "O'ta muhim" },
+  { id: 'High Priority', label: 'Yuqori' },
+  { id: 'Critical', label: 'Kritik' },
   { id: 'P0 Blocker', label: "P0 To'siq (Blocker)" },
 ];
 
@@ -64,12 +64,12 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
       <div className="w-full max-w-[520px] overflow-hidden rounded-2xl border border-white/10 bg-[#17181d] shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-white/[0.07] px-5 py-3.5">
           <Plus size={15} className="text-sky-300" />
-          <h2 className="text-[14px] font-bold text-white">Yangi Vazifa <span className="ml-1 font-mono text-[11px] text-zinc-500">{id}</span></h2>
+          <h2 className="text-[14px] font-bold text-white">Yangi vazifa <span className="ml-1 font-mono text-[11px] text-zinc-500">{id}</span></h2>
           <button onClick={onClose} className="ml-auto rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-white"><X size={16} /></button>
         </div>
         <div className="space-y-3.5 px-5 py-4">
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Vazifa Sarlavhasi</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Sarlavha</span>
             <input
               autoFocus
               value={title}
@@ -81,7 +81,7 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Muhimlik Darajasi</span>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Muhimlik</span>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
@@ -95,7 +95,7 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">AI Manbasi</span>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">AI manba</span>
               <select
                 value={aiSource}
                 onChange={(e) => setAiSource(e.target.value)}
@@ -108,7 +108,7 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
             </label>
           </div>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Git Filiali (Branch)</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Git branch</span>
             <input
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
@@ -128,14 +128,14 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
         </div>
         <div className="flex justify-end gap-2 border-t border-white/[0.07] px-5 py-3">
           <button onClick={onClose} className="rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[12.5px] font-medium text-zinc-200 hover:bg-white/10">
-            Bekor qilish
+            Bekor
           </button>
           <button
             onClick={submit}
             disabled={!title.trim() || saving}
             className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110 disabled:opacity-50 transition"
           >
-            {saving ? 'Yaratilmoqda…' : `Yaratish (${id})`}
+            {saving ? 'Yaratilmoqda…' : 'Yaratish'}
           </button>
         </div>
       </div>

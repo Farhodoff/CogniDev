@@ -4,7 +4,7 @@
  * Chain: enabled cloud provider → local Ollama → offline template.
  */
 
-export type CloudProviderId = 'deepseek' | 'gemini' | 'claude' | 'llama';
+export type CloudProviderId = 'deepseek' | 'gemini' | 'claude' | 'llama' | 'muse';
 export type AiSource = 'ollama' | 'fallback' | CloudProviderId;
 
 export interface ProviderDef {
@@ -20,6 +20,7 @@ export const PROVIDERS: ProviderDef[] = [
   { id: 'gemini', name: 'Gemini', modelDefault: 'gemini-2.5-flash', keyHint: 'AIza… (aistudio.google.com)', keyUrl: 'https://aistudio.google.com/apikey' },
   { id: 'claude', name: 'Claude', modelDefault: 'claude-sonnet-4-5-20250929', keyHint: 'sk-ant-… (console.anthropic.com)', keyUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'llama', name: 'Llama (Meta)', modelDefault: 'Llama-4-Scout-17B-16E-Instruct', keyHint: 'LLM… (llama.developer.meta.com)', keyUrl: 'https://llama.developer.meta.com/' },
+  { id: 'muse', name: 'Muse', modelDefault: 'muse-spark-1.3', keyHint: 'MODEL_API_KEY (api.meta.ai)', keyUrl: 'https://api.meta.ai/' },
 ];
 
 export interface ProviderState {
@@ -81,6 +82,7 @@ export const SOURCE_LABELS: Record<AiSource, string> = {
   gemini: 'Gemini · Cloud',
   claude: 'Claude · Cloud',
   llama: 'Llama · Cloud',
+  muse: 'Muse · Cloud',
 };
 
 async function withTimeout(ms: number): Promise<{ ctrl: AbortController; done: () => void }> {
@@ -250,6 +252,35 @@ export interface ProviderHit {
   model: string;
 }
 
+/**
+ * Muse (Meta Model API, api.meta.ai) — OpenAI-compatible chat endpoint.
+ * Reasoning model: only model/messages/stream are sent (no temperature
+ * tweaks — docs recommend defaults). Response: choices[0].message.content.
+ */
+async function chatMuse(prompt: string, system: string, key: string, model: string): Promise<string | null> {
+  try {
+    const { ctrl, done } = await withTimeout(45000);
+    const res = await fetch('https://api.meta.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          { role: 'user', content: prompt },
+        ],
+        stream: false,
+      }),
+      signal: ctrl.signal,
+    });
+    done();
+    if (!res.ok) return null;
+    return extractOpenAiText(await res.json());
+  } catch {
+    return null;
+  }
+}
+
 /** Try enabled cloud providers in registry order. Returns null when none works. */
 export async function tryCloudProviders(prompt: string, system = ''): Promise<ProviderHit | null> {
   for (const id of enabledProviders()) {
@@ -259,6 +290,7 @@ export async function tryCloudProviders(prompt: string, system = ''): Promise<Pr
     else if (id === 'gemini') text = await chatGemini(prompt, system, s.apiKey.trim(), s.model.trim());
     else if (id === 'claude') text = await chatClaude(prompt, system, s.apiKey.trim(), s.model.trim());
     else if (id === 'llama') text = await chatLlama(prompt, system, s.apiKey.trim(), s.model.trim());
+    else if (id === 'muse') text = await chatMuse(prompt, system, s.apiKey.trim(), s.model.trim());
     if (text) return { text, source: id, model: s.model.trim() };
   }
   return null;
@@ -272,6 +304,7 @@ export async function testProvider(id: CloudProviderId): Promise<{ ok: boolean; 
     if (id === 'deepseek') return chatDeepSeek('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     if (id === 'gemini') return chatGemini('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     if (id === 'claude') return chatClaude('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
+    if (id === 'muse') return chatMuse('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     return chatLlama('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
   })();
   if (text) return { ok: true, detail: `Ulandi ✓ (${s.model.trim()})` };

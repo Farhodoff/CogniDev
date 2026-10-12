@@ -189,13 +189,13 @@ export default function WorkspaceEditor() {
         <TabBtn
           active={editorTab === 'note'}
           onClick={() => setTab('note')}
-          label="Yechim & Arxitektura Qaydlari"
+          label="Qaydlar"
           icon={<FileText size={14} />}
         />
         <TabBtn
           active={editorTab === 'thread'}
           onClick={() => setTab('thread')}
-          label="AI Suhbatlar Ombori"
+          label="AI Suhbatlar"
           badge={String(threadCount)}
           icon={<MessagesSquare size={14} />}
         />
@@ -255,10 +255,10 @@ export default function WorkspaceEditor() {
                   onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
                   className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
                 >
-                  <option value="active" className="bg-[#17181d] text-zinc-200">Holat: Faol</option>
-                  <option value="in_review" className="bg-[#17181d] text-sky-300">Holat: Ko'rib chiqilmoqda</option>
-                  <option value="completed" className="bg-[#17181d] text-emerald-300">Holat: Bajarildi</option>
-                  <option value="blocker" className="bg-[#17181d] text-amber-300">Holat: P0 To'siq</option>
+                  <option value="active" className="bg-[#17181d] text-zinc-200">Faol</option>
+                  <option value="in_review" className="bg-[#17181d] text-sky-300">Tekshiruvda</option>
+                  <option value="completed" className="bg-[#17181d] text-emerald-300">Bajarildi</option>
+                  <option value="blocker" className="bg-[#17181d] text-amber-300">P0 To'siq</option>
                 </select>
 
                 {/* Muhimlik darajasi tanlash */}
@@ -267,10 +267,10 @@ export default function WorkspaceEditor() {
                   onChange={(e) => updateTaskPriority(task.id, e.target.value as any)}
                   className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
                 >
-                  <option value="Normal" className="bg-[#17181d] text-zinc-200">Muhimlik: Oddiy</option>
-                  <option value="High Priority" className="bg-[#17181d] text-violet-300">Muhimlik: Yuqori daraja</option>
-                  <option value="Critical" className="bg-[#17181d] text-red-300">Muhimlik: O'ta muhim</option>
-                  <option value="P0 Blocker" className="bg-[#17181d] text-amber-300">Muhimlik: P0 To'siq</option>
+                  <option value="Normal" className="bg-[#17181d] text-zinc-200">Oddiy</option>
+                  <option value="High Priority" className="bg-[#17181d] text-violet-300">Yuqori</option>
+                  <option value="Critical" className="bg-[#17181d] text-red-300">Kritik</option>
+                  <option value="P0 Blocker" className="bg-[#17181d] text-amber-300">P0 To'siq</option>
                 </select>
 
                 {/* Team Group / Squad tanlash */}
@@ -279,7 +279,7 @@ export default function WorkspaceEditor() {
                   onChange={(e) => assignTaskToGroup(task.id, e.target.value ? e.target.value : null)}
                   className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
                 >
-                  <option value="" className="bg-[#17181d] text-zinc-400">Guruh: Umumiy</option>
+                  <option value="" className="bg-[#17181d] text-zinc-400">Umumiy</option>
                   {groups.map((g) => (
                     <option key={g.id} value={g.id} className="bg-[#17181d] text-zinc-200">
                       Guruh: {g.name}
@@ -330,7 +330,7 @@ export default function WorkspaceEditor() {
               <div className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
                 <p className="flex-1 font-mono text-[12px] text-emerald-200">Qo'shishga tayyor: <span className="text-zinc-300">{dictation.finalText}{dictation.interim && ` ${dictation.interim}`}</span></p>
                 <button onClick={dictation.commit} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-400">Qaydga qo'shish</button>
-                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Bekor qilish</button>
+                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Bekor</button>
               </div>
             )}
 
@@ -352,7 +352,7 @@ export default function WorkspaceEditor() {
             <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">Yechim Nazorat Ro'yxati</h3>
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">Nazorat Ro'yxati</h3>
                   <span className="rounded-full bg-white/[0.08] px-2 py-0.5 font-mono text-[10.5px] text-zinc-400">
                     {list.filter((c) => c.done).length}/{list.length} bajarildi
                   </span>
@@ -396,7 +396,7 @@ export default function WorkspaceEditor() {
                     onClick={() => { setAddingItem(false); setNewItemText(''); }}
                     className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
                   >
-                    Bekor qilish
+                    Bekor
                   </button>
                 </form>
               )}
@@ -441,7 +441,7 @@ export default function WorkspaceEditor() {
                 onClick={() => setChatModal(true)}
                 className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-violet-500 transition shadow-sm"
               >
-                <Plus size={13} /> Yangi AI suhbat qo'shish
+                <Plus size={13} /> + Suhbat
               </button>
             </div>
 
@@ -497,7 +497,7 @@ function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: 
           onClick={onOpenChat}
           className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/80 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-violet-600 transition"
         >
-          <Plus size={13} /> AI Prompt Omboriga saqlash
+          <Plus size={13} /> Saqlash
         </button>
       </section>
     );
@@ -512,17 +512,17 @@ function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: 
   return (
     <section className="overflow-hidden rounded-2xl border border-violet-400/20 bg-gradient-to-b from-violet-500/[0.08] to-transparent">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left">
-        <span className="text-[13px] font-bold text-violet-100">AI Prompt Ombori <span className="font-normal text-violet-300/80">(Yechim Generatori)</span></span>
+          <span className="text-[13px] font-bold text-violet-100">AI Prompt Ombori</span>
         <span className="ml-auto rounded-md bg-violet-500/15 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">Xesh: {first.prompt_hash ?? '#—'}</span>
         <ChevronDown size={15} className={`text-violet-300 transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
       {open && (
         <div className="border-t border-violet-400/10 px-4 py-3">
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">{first.model_name ?? 'AI'} ga yuborilgan aniq prompt:</p>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">{first.model_name ?? 'AI'} prompti:</p>
           <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-black/50 p-3.5 font-mono text-[12px] leading-relaxed text-zinc-300">{first.raw_prompt}</pre>
           <div className="mt-2.5 flex items-center gap-2">
             <button onClick={copy} className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 px-3 py-1.5 text-[12px] font-semibold text-violet-100 hover:bg-violet-500/30">
-              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Nusxa olindi' : 'Promptdan nusxa olish'}
+              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Olindi' : 'Nusxa olish'}
             </button>
             <span className="font-mono text-[11px] text-zinc-600">vazifa: {taskId}</span>
           </div>
@@ -606,10 +606,10 @@ function CollapsibleWeeklyCoach({
         <button
           onClick={() => setExpanded(true)}
           className="flex items-center gap-2 rounded-full border border-violet-500/30 bg-[#12131a]/95 px-3.5 py-1.5 shadow-xl backdrop-blur-xl text-[12px] font-semibold text-violet-200 hover:text-white hover:border-violet-400/50 transition group"
-          title="AI Haftalik murabbiy va retrospektivani ochish"
+          title="Haftalik tahlilni ochish"
         >
           <Sparkles size={13} className="text-violet-300 group-hover:rotate-12 transition-transform" />
-          <span>AI Weekly Coach</span>
+          <span>Haftalik Tahlil</span>
           <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-mono text-violet-300">
             {completed}/{tasks.length || 1}
           </span>
@@ -625,7 +625,7 @@ function CollapsibleWeeklyCoach({
           <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-600/30 text-violet-300">
             <Sparkles size={13} />
           </div>
-          <span className="text-[12.5px] font-bold text-white tracking-tight">AI Weekly Coach</span>
+          <span className="text-[12.5px] font-bold text-white tracking-tight">Haftalik Tahlil</span>
         </div>
         <button
           onClick={() => setExpanded(false)}

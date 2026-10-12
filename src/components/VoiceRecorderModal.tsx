@@ -111,7 +111,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
 
   function startSpeechRecognition() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { setError('Web Speech API not supported in this browser'); return; }
+    if (!SR) { setError('Brauzer ovozli kiritishni qo‘llamaydi'); return; }
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
@@ -195,7 +195,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
       <div className="w-full max-w-[560px] overflow-hidden rounded-2xl border border-white/10 bg-[#17181d] shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-white/[0.07] px-5 py-3.5">
           <Mic size={15} className="text-emerald-300" />
-          <h2 className="text-[14px] font-bold text-white">Voice Note</h2>
+          <h2 className="text-[14px] font-bold text-white">Ovozli eslatma</h2>
           <button onClick={onClose} className="ml-auto rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-white"><X size={16} /></button>
         </div>
 
@@ -216,16 +216,16 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
           )}
 
           <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-2">
-            <button onClick={() => setMode('task')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${mode === 'task' ? 'bg-emerald-500/20 text-emerald-200' : 'text-zinc-400 hover:text-white'}`}>Save as New Task</button>
-            <button onClick={() => setMode('append')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${mode === 'append' ? 'bg-sky-500/20 text-sky-200' : 'text-zinc-400 hover:text-white'}`}>Append to Active Note</button>
+            <button onClick={() => setMode('task')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${mode === 'task' ? 'bg-emerald-500/20 text-emerald-200' : 'text-zinc-400 hover:text-white'}`}>Yangi vazifa</button>
+            <button onClick={() => setMode('append')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${mode === 'append' ? 'bg-sky-500/20 text-sky-200' : 'text-zinc-400 hover:text-white'}`}>Qaydga qo'shish</button>
           </div>
 
           <div className="relative rounded-xl border border-white/[0.07] bg-black/40 p-4 min-h-[140px]">
             <div className="mb-2 flex items-center gap-2 font-mono text-[12px] text-zinc-400">
               {recording && <span className="flex items-center gap-1 text-red-400 animate-pulse">● <span>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</span> Recording…</span>}
               {transcribing && <span className="flex items-center gap-1.5 text-emerald-300"><Loader2 size={12} className="animate-spin" /> RubaiSTT transkripsiya qilmoqda…</span>}
-              {!recording && !transcribing && finalTranscript && <span className="text-emerald-400">✓ Transcribed</span>}
-              {!recording && !transcribing && !finalTranscript && <span className="text-zinc-600">Click Mic to start</span>}
+              {!recording && !transcribing && finalTranscript && <span className="text-emerald-400">✓ Tayyor</span>}
+              {!recording && !transcribing && !finalTranscript && <span className="text-zinc-600">Boshlash uchun bosing</span>}
             </div>
             <div className="font-mono text-[13px] leading-relaxed text-zinc-200 min-h-[80px] whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: displayText }} />
           </div>
@@ -245,12 +245,12 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
               {recording ? (
                 <>
                   <span className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
-                  Stop & Transcribe
+                  Stop
                 </>
               ) : (
                 <>
                   <Mic size={14} />
-                  {finalTranscript ? 'Record Again' : 'Start Recording'}
+                  {finalTranscript ? 'Qayta' : 'Yozish'}
                 </>
               )}
             </button>
@@ -261,7 +261,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
                 </button>
               )}
               <button onClick={onSave} disabled={processing || !(finalTranscript || transcript)} className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50">
-                {processing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} className="inline-block mr-1" />} {mode === 'task' ? 'Create Task' : 'Append to Note'}
+                {processing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} className="inline-block mr-1" />} {mode === 'task' ? 'Yaratish' : "Qo'shish"}
               </button>
             </div>
           </div>

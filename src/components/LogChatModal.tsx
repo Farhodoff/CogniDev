@@ -80,9 +80,9 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-[15px] font-bold text-white">Universal AI Context Ingestion</h2>
+                <h2 className="text-[15px] font-bold text-white">AI Import</h2>
                 <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-300">
-                  1-Click Import
+                  1-Click
                 </span>
               </div>
               <p className="text-[11.5px] text-zinc-400">
@@ -100,7 +100,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
           {/* Model tanlash */}
           <div>
             <div className="flex items-center justify-between pb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">AI Manbasi</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">AI manba</span>
               <button
                 type="button"
                 onClick={handlePasteFromClipboard}
@@ -132,7 +132,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
           <div>
             <div className="flex items-center justify-between pb-1">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                AI Suhbat Matni yoki Yechim Kodi
+                Suhbat matni
               </span>
               {rawText && (
                 <button
@@ -140,7 +140,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
                   onClick={handleAutoParse}
                   className="flex items-center gap-1 text-[11px] font-semibold text-violet-400 hover:text-violet-300 transition"
                 >
-                  <Sparkles size={11} /> 1-Click Tahlil qilish
+                  <Sparkles size={11} /> Tahlil qilish
                 </button>
               )}
             </div>
@@ -164,14 +164,14 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
             <div className="rounded-2xl border border-violet-500/25 bg-violet-500/[0.04] p-3.5 space-y-3 animate-in fade-in duration-200">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300 flex items-center gap-1.5">
-                  <Sparkles size={13} /> Ajratib olingan struktura
+                  <Sparkles size={13} /> Tahlil natijasi
                 </span>
                 <span className="font-mono text-[10.5px] text-zinc-400">Model: {parsed.detectedModel}</span>
               </div>
 
               {/* Sarlavha */}
               <div className="rounded-xl border border-white/[0.08] bg-black/40 p-2.5">
-                <p className="text-[10px] font-mono uppercase text-zinc-500">Aniqlangan Sarlavha / Vazifa:</p>
+                <p className="text-[10px] font-mono uppercase text-zinc-500">Sarlavha:</p>
                 <input
                   value={parsed.title}
                   onChange={(e) => setParsed({ ...parsed, title: e.target.value })}
@@ -183,7 +183,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
               {parsed.solutionSnippet && (
                 <div className="rounded-xl border border-white/[0.08] bg-black/50 p-2.5 font-mono text-[11px]">
                   <p className="text-[10px] uppercase text-zinc-500 flex items-center gap-1 mb-1">
-                    <Code size={11} className="text-emerald-400" /> Yechim Kodi:
+                    <Code size={11} className="text-emerald-400" /> Kod:
                   </p>
                   <pre className="max-h-24 overflow-x-auto text-emerald-300 leading-relaxed">
                     {parsed.solutionSnippet.slice(0, 300)}...
@@ -223,7 +223,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
           {/* Saqlash rejimi (Yangi vazifa vs Mavjudga biriktirish) */}
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
             <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-              Qanday saqlansin?
+              Qayerga saqlansin?
             </span>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -235,7 +235,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
                     : 'border border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:text-white'
                 }`}
               >
-                <Plus size={14} /> Yangi Vazifa yaratish
+                <Plus size={14} /> Yangi vazifa
               </button>
 
               <button
@@ -247,7 +247,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
                     : 'border border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:text-white'
                 }`}
               >
-                <ArrowRight size={14} /> Mavjud vazifaga biriktirish
+                <ArrowRight size={14} /> Biriktirish
               </button>
             </div>
 
@@ -276,7 +276,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
             onClick={onClose}
             className="rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-[12.5px] font-medium text-zinc-300 hover:bg-white/10 transition"
           >
-            Bekor qilish
+            Bekor
           </button>
           <button
             type="button"
@@ -285,7 +285,7 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-[12.5px] font-semibold text-white hover:brightness-110 shadow-lg shadow-violet-600/25 disabled:opacity-40 transition"
           >
             <Sparkles size={14} />
-            <span>{saving ? 'Import qilinmoqda…' : 'Omborga Import Qilish'}</span>
+            <span>{saving ? 'Yuklanmoqda…' : 'Import'}</span>
           </button>
         </div>
       </div>
