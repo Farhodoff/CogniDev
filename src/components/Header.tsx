@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ChevronDown, Mic, Search, TriangleAlert } from 'lucide-react';
+import { ChevronDown, Mic, Search, TriangleAlert, Bot } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import TaskModal from './TaskModal';
 import LogChatModal from './LogChatModal';
@@ -73,6 +73,9 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             <kbd className="rounded bg-white/10 px-1 font-mono text-[10px] text-zinc-400">⌘K</kbd>
           </button>
 
+          <button onClick={() => setChatModal(true)} className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1.5 text-[12px] font-semibold text-violet-200 hover:bg-violet-500/20">
+            <Bot size={13} className="text-violet-400" /> Universal Ingest
+          </button>
           <button onClick={() => setTaskModal(true)} className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[12px] font-medium text-sky-200 hover:bg-sky-500/20">
             <span>+</span> Vazifa
           </button>
