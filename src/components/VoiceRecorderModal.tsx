@@ -77,7 +77,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
     rec.lang = 'en-US';
     recognitionRef.current = rec;
 
-    rec.onresult = (e: SpeechRecognitionEvent) => {
+    rec.onresult = (e: any) => {
       let interim = '';
       let final = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -93,7 +93,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
         setTranscript(interim);
       }
     };
-    rec.onerror = (e: SpeechRecognitionErrorEvent) => {
+    rec.onerror = (e: any) => {
       if (e.error !== 'no-speech') console.warn('SpeechRecognition error', e.error);
     };
     rec.start();
