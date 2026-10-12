@@ -7,6 +7,7 @@ import FloatingHud from './components/FloatingHud';
 import StandupModal from './components/StandupModal';
 import WeeklyCoachModal from './components/WeeklyCoachModal';
 import CommandPalette from './components/CommandPalette';
+import { SpotlightModal } from './components/SpotlightModal';
 import { useSynapse } from './lib/store';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [init]);
 
+  // Escape clears the header search when the palette is closed.
   useEffect(() => {
     if (paletteOpen) return;
     const onEsc = (e: KeyboardEvent) => {
@@ -39,7 +41,7 @@ export default function App() {
       <div className="flex h-screen items-center justify-center bg-obsidian-950">
         <div className="flex items-center gap-3 text-sm text-zinc-500">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
-          CogniDev ishga tushirilmoqda…
+          CogniDev ishga tushirilmoqda — shaxsiy ombor ochilmoqda…
         </div>
       </div>
     );
@@ -56,6 +58,7 @@ export default function App() {
       <FloatingHud />
       <StandupModal />
       <WeeklyCoachModal />
+      <SpotlightModal />
       {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
