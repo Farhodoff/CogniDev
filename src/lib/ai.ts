@@ -1,48 +1,101 @@
 import type { Task } from './types';
 
+const OLLAMA_URL = 'http://localhost:11434/api/generate';
+const MODEL_CANDIDATES = ['llama3.2:3b', 'qwen2.5-coder:3b'];
+
+export interface StandupResult {
+  content: string;
+  source: 'ollama' | 'fallback';
+  model?: string;
+}
+
+function ruleBasedStandup(done: Task[], blockers: Task[], active: Task[]): string {
+  const y = done.length ? done.map((t) => `${t.id} — ${t.title}`).join('\n') : "Oxirgi 24 soat ichida yopilgan vazifalar yo'q.";
+  const today = active.length
+    ? active.slice(0, 4).map((t) => `${t.id} — ${t.title}`).join('\n')
+    : "Rejalashtirilgan faol vazifalar yo'q.";
+  const b = blockers.length
+    ? blockers.map((t) => `${t.id} [${t.priority}] — ${t.title}`).join('\n')
+    : "Ochiq P0 to'siqlar yo'q. Barcha bog'liqliklar toza.";
+  return `## Kunlik Standup — ${new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}\n\n**Kecha — bajarildi**\n${y}\n\n**Bugun — reja**\n${today}\n\n**To'siqlar va muammolar**\n${b}`;
+}
+
+/** A task counts as a blocker if flagged P0/Critical or stuck in blocker status. */
 export function isBlocker(t: Task): boolean {
   return t.status === 'blocker' || t.priority === 'P0 Blocker' || t.priority === 'Critical';
 }
 
 export function analyzeBlockers(tasks: Task[]): string {
   const blockers = tasks.filter(isBlocker);
-  if (blockers.length === 0) return "Faol blockerlar yo'q.";
-  return blockers.map((b) => `- ${b.id}: ${b.title} (${b.priority})`).join('\n');
+  if (!blockers.length) return "Hal qilinmagan P0 muammolar yo'q. Oqim toza — 0 ta to'siq aniqlandi.";
+  return `⚠ ${blockers.length} ta to'siq aniqlandi:\n` + blockers.map((t) => `• ${t.id} [${t.priority}] ${t.title} — filial: ${t.git_branch ?? "yo'q"} (${t.ai_source ?? "AI yozuvi yo'q"})`).join('\n');
 }
 
-export function taskText(t: Task): string {
-  return `${t.id} [${t.status}] ${t.title} (${t.priority})`;
+async function tryOllama(prompt: string): Promise<{ text: string; model: string } | null> {
+  for (const model of MODEL_CANDIDATES) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 45000);
+      const res = await fetch(OLLAMA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, prompt, stream: false }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.response) return { text: data.response as string, model };
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
-export async function generateStandup(tasks: Task[]): Promise<{
-  content: string;
-  source: 'ollama' | 'fallback';
-  model: string;
-}> {
-  const active = tasks.filter((t) => t.status === 'active' || t.status === 'in_review');
-  const done = tasks.filter((t) => t.status === 'completed');
+export async function generateStandup(tasks: Task[]): Promise<StandupResult> {
+  const cutoff = Date.now() - 24 * 3600 * 1000;
+  const done = tasks.filter((t) => {
+    if (t.status !== 'completed') return false;
+    const ts = Date.parse(t.updated_at);
+    return Number.isFinite(ts) && ts >= cutoff;
+  });
   const blockers = tasks.filter(isBlocker);
+  const active = tasks.filter((t) => t.status === 'active' || t.status === 'in_review');
 
-  const lines: string[] = [
-    `# Kunlik Muhandislik Standupi — ${new Date().toISOString().slice(0, 10)}`,
-    '',
-    '## 1. Kecha nimalar qilindi?',
-    done.length === 0 ? '- Hozircha bajarilgan vazifalar qayd etilmagan.' : done.map((t) => `- ${taskText(t)}`).join('\n'),
-    '',
-    '## 2. Bugun nimalar rejalashtirilmoqda?',
-    active.length === 0 ? '- Faol vazifalar roʻyxati boʻsh.' : active.map((t) => `- ${taskText(t)}`).join('\n'),
-    '',
-    '## 3. Toʻsiqlar (Blockers)',
-    blockers.length === 0 ? '- Bloklovchi omillar mavjud emas.' : blockers.map((t) => `- ⚠️ ${taskText(t)}`).join('\n'),
-  ];
+  const prompt = `Siz dasturchilar uchun kunlik standup hisoboti tuzuvchi AI yordamchisiz. O'zbek tilida aniq 3 ta bo'limda markdown formatida xulosa bering:
+1. Kecha nimalar hal qilindi
+2. Bugun nimalar rejalashtirilgan
+3. To'siqlar va muammolar
 
-  return {
-    content: lines.join('\n'),
-    source: 'fallback',
-    model: 'built-in engine',
-  };
+Bajarilgan vazifalar (oxirgi 24 soat):
+${done.map((t) => `- ${t.id}: ${t.title}`).join('\n') || '- mavjud emas'}
+
+Faol / ko'rib chiqilmoqda:
+${active.map((t) => `- ${t.id} [${t.priority}]: ${t.title}`).join('\n') || '- mavjud emas'}
+
+To'siqlar:
+${blockers.map((t) => `- ${t.id}: ${t.title}`).join('\n') || '- mavjud emas'}
+
+Qisqa, professional, kirish so'zlarisiz faqat markdown xulosa bering.`;
+
+  const hit = await tryOllama(prompt);
+  if (hit) return { content: hit.text, source: 'ollama', model: hit.model };
+  return { content: ruleBasedStandup(done, blockers, active), source: 'fallback' };
 }
 
+export async function checkOllama(): Promise<{ online: boolean; model?: string }> {
+  try {
+    const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return { online: false };
+    const data = await res.json();
+    const names: string[] = (data?.models ?? []).map((m: { name: string }) => m.name);
+    const model = MODEL_CANDIDATES.find((c) => names.some((n) => n.startsWith(c.split(':')[0]))) ?? names[0];
+    return { online: true, model };
+  } catch {
+    return { online: false };
+  }
+}
 
 export async function generateWeeklyCoachReview(
   tasks: Task[],
