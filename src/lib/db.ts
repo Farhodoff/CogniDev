@@ -1,6 +1,13 @@
 import Database from '@tauri-apps/plugin-sql';
 import type { PromptEntry, Retrospective, Task, TaskResolution, Workspace, TeamGroup } from './types';
-import { DEFAULT_PERSONAL_WORKSPACE } from './seed';
+import {
+  DEFAULT_CHECKLISTS,
+  DEFAULT_GROUPS,
+  DEFAULT_NOTES,
+  DEFAULT_PERSONAL_WORKSPACE,
+  DEFAULT_PROMPTS,
+  DEFAULT_TASKS,
+} from './seed';
 
 const DB_URL = 'sqlite:synapse.db';
 
@@ -92,7 +99,7 @@ export function uid(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36)}`;
 }
 
-/** Ensure default personal workspace exists without injecting any mock tasks or notes. */
+/** Ensure default personal workspace and initial engineering data exist. */
 export async function ensureDefaultWorkspace(): Promise<void> {
   const db = await getDb();
   const count = await db.select<{ c: number }[]>('SELECT COUNT(*) as c FROM workspaces');
@@ -101,6 +108,29 @@ export async function ensureDefaultWorkspace(): Promise<void> {
       'INSERT INTO workspaces (id, name, type) VALUES ($1,$2,$3)',
       [DEFAULT_PERSONAL_WORKSPACE.id, DEFAULT_PERSONAL_WORKSPACE.name, DEFAULT_PERSONAL_WORKSPACE.type],
     );
+  }
+
+  // Ensure default groups exist
+  const grpCount = await db.select<{ c: number }[]>('SELECT COUNT(*) as c FROM team_groups');
+  if ((grpCount[0]?.c ?? 0) === 0) {
+    for (const g of DEFAULT_GROUPS) {
+      await insertGroup(g).catch(() => {});
+    }
+  }
+
+  // If tasks count is 0 or only has broken tasks, seed sample engineering tasks
+  const taskCount = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM tasks WHERE title != '?'");
+  if ((taskCount[0]?.c ?? 0) === 0) {
+    await db.execute("DELETE FROM tasks WHERE title = '?' OR id = 'DEV-1'").catch(() => {});
+    for (const t of DEFAULT_TASKS) {
+      await insertTask(t).catch(() => {});
+      const note = DEFAULT_NOTES[t.id] ?? '';
+      const chk = JSON.stringify(DEFAULT_CHECKLISTS[t.id] ?? []);
+      await upsertResolution(t.id, note, chk).catch(() => {});
+    }
+    for (const p of DEFAULT_PROMPTS) {
+      await insertPrompt(p).catch(() => {});
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Check, FileText, MessagesSquare, Plus, Trash2, ChevronDown, Copy, Mic, Sparkles } from 'lucide-react';
+import { Check, FileText, MessagesSquare, Plus, Trash2, ChevronDown, Copy, Mic, Sparkles, X } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 
 /** Minimal markdown renderer: headings, code fences, inline code, bold, quote. */
@@ -182,11 +182,31 @@ export default function WorkspaceEditor() {
   return (
     <main className="flex min-w-0 flex-1 flex-col bg-[#0f1013]/80 relative overflow-hidden">
       {/* Yuqori tablar */}
-      <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 pt-3">
-        <TabBtn active={editorTab === 'note'} onClick={() => setTab('note')} label="Active Log & Problem Solved" icon={<FileText size={14} />} />
-        <TabBtn active={editorTab === 'thread'} onClick={() => setTab('thread')} label="AI Prompt Vault" badge={String(threadCount)} icon={<MessagesSquare size={14} />} />
+      <div className="flex items-center gap-4 border-b border-white/[0.06] px-6 pt-3">
+        <TabBtn
+          active={editorTab === 'note'}
+          onClick={() => setTab('note')}
+          label="Yechim & Arxitektura Qaydlari"
+          icon={<FileText size={14} />}
+        />
+        <TabBtn
+          active={editorTab === 'thread'}
+          onClick={() => setTab('thread')}
+          label="AI Suhbatlar Ombori"
+          badge={String(threadCount)}
+          icon={<MessagesSquare size={14} />}
+        />
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 pb-2">
+          {note && (
+            <button
+              onClick={() => setEditing((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
+            >
+              {isEditing ? "Ko'rish" : 'Tahrirlash'}
+            </button>
+          )}
+
           <button
             onClick={() => {
               if (window.confirm(`${task.id} vazifasini o'chirishni tasdiqlaysizmi?`)) {
@@ -198,27 +218,39 @@ export default function WorkspaceEditor() {
           >
             <Trash2 size={12} /> O'chirish
           </button>
-          <span className="hidden font-mono text-[11px] text-zinc-600 lg:block">
+          <span className="hidden font-mono text-[11px] text-zinc-500 lg:block">
             {task.id} · {task.updated_at.slice(0, 10)}
           </span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div className="flex-1 overflow-y-auto px-7 py-6">
         {editorTab === 'note' ? (
-          <div className="mx-auto max-w-[720px] space-y-5 pb-28">
-            <div>
+          <div className="mx-auto max-w-[760px] space-y-6 pb-24">
+            {/* Vazifa Metadatalari & Boshqaruv Qatori */}
+            <div className="space-y-3 pb-4 border-b border-white/[0.06]">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-white/[0.07] px-1.5 py-0.5 font-mono text-[11px] font-bold text-zinc-200">{task.id}</span>
-                <span className="text-[12px] text-zinc-500">
-                  {task.ai_source ?? 'Qo‘lda'} · {task.git_branch ?? task.pr_url ?? "filial yo'q"}
+                <span className="rounded-md bg-sky-500/15 border border-sky-400/30 px-2 py-0.5 font-mono text-[11.5px] font-bold text-sky-300">
+                  {task.id}
                 </span>
+
+                {task.git_branch && (
+                  <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-zinc-300">
+                    git: {task.git_branch}
+                  </span>
+                )}
+
+                {task.ai_source && (
+                  <span className="rounded-md border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300 flex items-center gap-1">
+                    <Sparkles size={11} /> {task.ai_source}
+                  </span>
+                )}
 
                 {/* Status tanlash */}
                 <select
                   value={task.status}
                   onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
-                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-medium text-zinc-300 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
                 >
                   <option value="active" className="bg-[#17181d] text-zinc-200">Holat: Faol</option>
                   <option value="in_review" className="bg-[#17181d] text-sky-300">Holat: Ko'rib chiqilmoqda</option>
@@ -230,7 +262,7 @@ export default function WorkspaceEditor() {
                 <select
                   value={task.priority}
                   onChange={(e) => updateTaskPriority(task.id, e.target.value as any)}
-                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-medium text-zinc-300 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
                 >
                   <option value="Normal" className="bg-[#17181d] text-zinc-200">Muhimlik: Oddiy</option>
                   <option value="High Priority" className="bg-[#17181d] text-violet-300">Muhimlik: Yuqori daraja</option>
@@ -242,9 +274,9 @@ export default function WorkspaceEditor() {
                 <select
                   value={task.group_id ?? ''}
                   onChange={(e) => assignTaskToGroup(task.id, e.target.value ? e.target.value : null)}
-                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-medium text-zinc-300 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
                 >
-                  <option value="" className="bg-[#17181d] text-zinc-400">Guruhsiz (Umumiy)</option>
+                  <option value="" className="bg-[#17181d] text-zinc-400">Guruh: Umumiy</option>
                   {groups.map((g) => (
                     <option key={g.id} value={g.id} className="bg-[#17181d] text-zinc-200">
                       Guruh: {g.name}
@@ -256,67 +288,76 @@ export default function WorkspaceEditor() {
                 <button
                   onClick={dictation.recording ? dictation.stop : dictation.start}
                   disabled={!selectedTaskId}
-                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-medium transition ${
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition ${
                     dictation.recording
                       ? 'bg-red-500/20 border border-red-400/40 text-red-300 shadow-[0_0_16px_-4px_rgba(248,113,113,0.6)] animate-pulse'
                       : 'border border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/10 hover:text-white'
                   }`}
-                  title={dictation.recording ? 'Stop & Append' : 'Start voice dictation (appends to note)'}
+                  title={dictation.recording ? 'Stop & Append' : 'Ovozli diktofoni ishga tushirish'}
                 >
                   {dictation.recording ? (
                     <>
                       <span className="h-2 w-2 rounded-full bg-red-400" />
                       <span className="font-mono">{String(Math.floor(dictation.seconds / 60)).padStart(2, '0')}:{String(dictation.seconds % 60).padStart(2, '0')}</span>
-                      <Mic size={13} className="text-red-400" />
+                      <Mic size={12} className="text-red-400" />
                     </>
                   ) : (
-                    <Mic size={13} className="text-sky-300" />
+                    <>
+                      <Mic size={12} className="text-sky-300" />
+                      <span>Ovozli yozish</span>
+                    </>
                   )}
                 </button>
-
-                {note && (
-                  <button onClick={() => setEditing((v) => !v)} className="ml-auto rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[12px] text-zinc-300 hover:bg-white/10 transition">
-                    {isEditing ? "Ko'rish" : 'Tahrirlash'}
-                  </button>
-                )}
               </div>
-              <h1 className="mt-2 text-[20px] font-bold leading-tight text-white">{task.title}</h1>
+
+              {/* Vazifa Sarlavhasi */}
+              <h1 className="text-[22px] font-bold leading-snug text-white tracking-tight">
+                {task.title}
+              </h1>
             </div>
 
             {dictation.recording && (
               <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 font-mono text-[12px] text-red-200 animate-pulse">
-                Listening… <span className="text-zinc-400">{dictation.finalText || '(waiting for speech)'}</span> <span className="text-zinc-500 italic">{dictation.interim}</span>
+                Eshitilmoqda… <span className="text-zinc-400">{dictation.finalText || '(ovoz kutilyapti)'}</span> <span className="text-zinc-500 italic">{dictation.interim}</span>
               </div>
             )}
 
             {(dictation.finalText || dictation.interim) && !dictation.recording && (
               <div className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-                <p className="flex-1 font-mono text-[12px] text-emerald-200">Ready to append: <span className="text-zinc-300">{dictation.finalText}{dictation.interim && ` <span class="italic text-zinc-500">${dictation.interim}</span>`}</span></p>
-                <button onClick={dictation.commit} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-400">Append to Note</button>
-                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Discard</button>
+                <p className="flex-1 font-mono text-[12px] text-emerald-200">Qo'shishga tayyor: <span className="text-zinc-300">{dictation.finalText}{dictation.interim && ` ${dictation.interim}`}</span></p>
+                <button onClick={dictation.commit} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-400">Qaydga qo'shish</button>
+                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Bekor qilish</button>
               </div>
             )}
 
+            {/* Asosiy Qayd / Markdown Area */}
             {isEditing ? (
               <div>
                 <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-zinc-500">
-                  {note ? "Arxitektura eslatmasi (Markdown)" : "Arxitektura eslatmasi (bo'sh — yozish orqali saqlang)"}
+                  {note ? "Arxitektura va Muammo Yechimi (Markdown)" : "Yangi Qayd / Markdown yozing"}
                 </p>
-                <EditorArea taskId={task.id} value={note} placeholder="Arxitektura qarorlari, texnik kontekst yoki yechim bosqichlarini yozing (markdown qo'llab-quvvatlanadi)…" />
+                <EditorArea taskId={task.id} value={note} placeholder="Muammo sababi, texnik tahlil, kod bloklari va yechim bosqichlarini yozing…" />
               </div>
             ) : (
-              <MiniMarkdown source={note} />
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5">
+                <MiniMarkdown source={note} />
+              </div>
             )}
 
             {/* Yechim nazorat ro'yxati */}
             <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">Yechim Nazorat Ro'yxati</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">Yechim Nazorat Ro'yxati</h3>
+                  <span className="rounded-full bg-white/[0.08] px-2 py-0.5 font-mono text-[10.5px] text-zinc-400">
+                    {list.filter((c) => c.done).length}/{list.length} bajarildi
+                  </span>
+                </div>
                 <button
                   onClick={() => setAddingItem(true)}
-                  className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
+                  className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
                 >
-                  <Plus size={13} className="text-sky-300" /> Ro'yxat bandi qo'shish
+                  <Plus size={13} className="text-sky-300" /> Yangi band qo'shish
                 </button>
               </div>
 
@@ -336,7 +377,7 @@ export default function WorkspaceEditor() {
                     autoFocus
                     value={newItemText}
                     onChange={(e) => setNewItemText(e.target.value)}
-                    placeholder="Band matnini kiriting…"
+                    placeholder="Band matnini kiriting (masalan: Unit testlar yozildi)…"
                     className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 text-[12.5px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
                   />
                   <button
@@ -387,14 +428,14 @@ export default function WorkspaceEditor() {
             <LocalPromptVault taskId={task.id} onOpenChat={() => setChatModal(true)} />
           </div>
         ) : (
-          <div className="mx-auto max-w-[720px] space-y-4 pb-28">
-            <div className="flex justify-between items-center pb-2 border-b border-white/[0.06]">
-              <span className="text-[12px] text-zinc-400">
-                {task.id} uchun qayd etilgan AI suhbatlari ({prompts.length})
+          <div className="mx-auto max-w-[760px] space-y-4 pb-24">
+            <div className="flex justify-between items-center pb-3 border-b border-white/[0.06]">
+              <span className="text-[13px] text-zinc-300 font-medium">
+                {task.id} uchun biriktirilgan AI muloqotlari ({prompts.length})
               </span>
               <button
                 onClick={() => setChatModal(true)}
-                className="flex items-center gap-1 rounded-lg bg-violet-600/80 px-2.5 py-1 text-[12px] font-medium text-white hover:bg-violet-600 transition"
+                className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-violet-500 transition shadow-sm"
               >
                 <Plus size={13} /> Yangi AI suhbat qo'shish
               </button>
@@ -416,12 +457,12 @@ export default function WorkspaceEditor() {
             ))}
             {prompts.length === 0 && (
               <div className="py-8 text-center">
-                <p className="text-[13px] text-zinc-600">Ushbu {task.id} vazifasi uchun hali AI suhbati saqlanmagan.</p>
+                <p className="text-[13px] text-zinc-500">Ushbu vazifaga hali AI suhbati biriktirilmagan.</p>
                 <button
                   onClick={() => setChatModal(true)}
                   className="mt-3 text-[12.5px] text-violet-400 hover:underline"
                 >
-                  + AI suhbatini qayd etish
+                  + AI suhbatini biriktirish
                 </button>
               </div>
             )}
@@ -429,35 +470,11 @@ export default function WorkspaceEditor() {
         )}
       </div>
 
-      {/* Floating AI Weekly Coach & Retrospective Karta (Prototip dizayni kabi) */}
-      <div className="absolute bottom-5 right-6 z-20 w-80 overflow-hidden rounded-2xl border border-violet-500/30 bg-[#12131a]/95 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-300">
-        <div className="flex items-center gap-2 mb-2.5">
-          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-600/30 text-violet-300">
-            <Sparkles size={13} />
-          </div>
-          <span className="text-[12.5px] font-bold text-white tracking-tight">AI Weekly Coach & Retrospective</span>
-        </div>
-        <div className="space-y-1.5 text-[11.5px] text-zinc-300">
-          <p className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-            <span>{tasks.filter((t) => t.status === 'completed').length} ta vazifa bajarildi, {Math.max(tasks.filter((t) => t.status === 'active').length, 1)} ta qoldirildi</span>
-          </p>
-          <p className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-            <span className="truncate">Bottleneck: SQLite tranzaksiyalari & API limitlari</span>
-          </p>
-          <p className="flex items-center gap-2 text-zinc-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
-            <span className="truncate">Tavsiya: Yechilgan kodlarni saqlash</span>
-          </p>
-        </div>
-        <button
-          onClick={() => triggerWeeklyCoach()}
-          className="mt-3 w-full rounded-xl bg-violet-500/15 hover:bg-violet-500/25 border border-violet-400/20 py-1.5 text-center text-[12px] font-semibold text-violet-200 hover:text-white transition shadow-sm"
-        >
-          Feedback & Tahlil
-        </button>
-      </div>
+      {/* Minimizable AI Weekly Coach Widget */}
+      <CollapsibleWeeklyCoach
+        tasks={tasks}
+        onTriggerCoach={triggerWeeklyCoach}
+      />
     </main>
   );
 }
@@ -536,5 +553,75 @@ function EditorArea({ taskId, value, placeholder }: { taskId: string; value: str
       placeholder={placeholder}
       className="w-full rounded-xl border border-white/10 bg-black/40 p-4 font-mono text-[12.5px] leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-violet-400/50 focus:outline-none"
     />
+  );
+}
+
+function CollapsibleWeeklyCoach({
+  tasks,
+  onTriggerCoach,
+}: {
+  tasks: any[];
+  onTriggerCoach: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const completed = tasks.filter((t) => t.status === 'completed').length;
+  const active = Math.max(tasks.filter((t) => t.status === 'active').length, 1);
+
+  if (!expanded) {
+    return (
+      <div className="absolute bottom-5 right-6 z-20">
+        <button
+          onClick={() => setExpanded(true)}
+          className="flex items-center gap-2 rounded-full border border-violet-500/30 bg-[#12131a]/95 px-3.5 py-1.5 shadow-xl backdrop-blur-xl text-[12px] font-semibold text-violet-200 hover:text-white hover:border-violet-400/50 transition group"
+          title="AI Haftalik murabbiy va retrospektivani ochish"
+        >
+          <Sparkles size={13} className="text-violet-300 group-hover:rotate-12 transition-transform" />
+          <span>AI Weekly Coach</span>
+          <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-mono text-violet-300">
+            {completed}/{tasks.length || 1}
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute bottom-5 right-6 z-20 w-80 overflow-hidden rounded-2xl border border-violet-500/30 bg-[#12131a]/95 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-2 duration-200">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-600/30 text-violet-300">
+            <Sparkles size={13} />
+          </div>
+          <span className="text-[12.5px] font-bold text-white tracking-tight">AI Weekly Coach</span>
+        </div>
+        <button
+          onClick={() => setExpanded(false)}
+          className="rounded-lg p-1 text-zinc-400 hover:bg-white/10 hover:text-white transition"
+          title="Kichraytirish"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="space-y-1.5 text-[11.5px] text-zinc-300">
+        <p className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+          <span>{completed} ta vazifa bajarildi, {active} ta qoldirildi</span>
+        </p>
+        <p className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+          <span className="truncate">Bottleneck: SQLite tranzaksiyalari</span>
+        </p>
+        <p className="flex items-center gap-2 text-zinc-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
+          <span className="truncate">Tavsiya: Yechilgan kodlarni saqlash</span>
+        </p>
+      </div>
+      <button
+        onClick={() => onTriggerCoach()}
+        className="mt-3 w-full rounded-xl bg-violet-500/15 hover:bg-violet-500/25 border border-violet-400/20 py-1.5 text-center text-[12px] font-semibold text-violet-200 hover:text-white transition shadow-sm"
+      >
+        Feedback & Tahlil
+      </button>
+    </div>
   );
 }
