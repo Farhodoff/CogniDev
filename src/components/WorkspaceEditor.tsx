@@ -143,6 +143,8 @@ export default function WorkspaceEditor() {
     setChatModal,
     updateNote,
     triggerWeeklyCoach,
+    groups,
+    assignTaskToGroup,
   } = useSynapse();
 
   const dictation = useInlineDictation(selectedTaskId, notes, updateNote);
@@ -236,7 +238,19 @@ export default function WorkspaceEditor() {
                   <option value="P0 Blocker" className="bg-[#17181d] text-amber-300">Muhimlik: P0 To'siq</option>
                 </select>
 
-
+                {/* Team Group / Squad tanlash */}
+                <select
+                  value={task.group_id ?? ''}
+                  onChange={(e) => assignTaskToGroup(task.id, e.target.value ? e.target.value : null)}
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-medium text-zinc-300 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
+                >
+                  <option value="" className="bg-[#17181d] text-zinc-400">Guruhsiz (Umumiy)</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id} className="bg-[#17181d] text-zinc-200">
+                      Guruh: {g.name}
+                    </option>
+                  ))}
+                </select>
 
                 {/* Ovozli eslatma (Mic) */}
                 <button
