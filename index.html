@@ -4,8 +4,21 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SynapseLog — AI-First Developer OS</title>
+    <title>CogniDev — AI-First Developer OS</title>
     <style>html{background:#0f1013}</style>
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('Fatal Webview Error:', e.error || e.message);
+        var el = document.getElementById('cognidev-error-banner');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'cognidev-error-banner';
+          el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#ef4444;color:#fff;padding:16px;font-family:monospace;font-size:12px;white-space:pre-wrap;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
+          document.body.prepend(el);
+        }
+        el.textContent = '❌ Webview Error: ' + (e.error ? (e.error.stack || e.error.message) : e.message);
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
