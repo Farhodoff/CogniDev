@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Check, FileText, MessagesSquare, Plus, Trash2, ChevronDown, Copy, Mic, Sparkles, X } from 'lucide-react';
+import { Check, FileText, MessagesSquare, Plus, Trash2, ChevronDown, Copy, Mic, Sparkles, X, Tag } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 
 /** Minimal markdown renderer: headings, code fences, inline code, bold, quote. */
@@ -146,6 +146,8 @@ export default function WorkspaceEditor() {
     triggerWeeklyCoach,
     groups,
     assignTaskToGroup,
+    addTag,
+    removeTag,
   } = useSynapse();
 
   const dictation = useInlineDictation(selectedTaskId, notes, updateNote);
@@ -315,6 +317,7 @@ export default function WorkspaceEditor() {
               <h1 className="text-[22px] font-bold leading-snug text-white tracking-tight">
                 {task.title}
               </h1>
+              <TagEditor tags={task.tags ?? []} onAdd={(t) => addTag(task.id, t)} onRemove={(t) => removeTag(task.id, t)} />
             </div>
 
             {dictation.recording && (
@@ -529,8 +532,37 @@ function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: 
   );
 }
 
-function TabBtn({ active, onClick, label, icon, badge }: { active: boolean; onClick: () => void; label: string; icon?: React.ReactNode; badge?: string }) {
+function TagEditor({ tags, onAdd, onRemove }: { tags: string[]; onAdd: (t: string) => void; onRemove: (t: string) => void }) {
+  const [draft, setDraft] = useState('');
+  function commit() {
+    if (!draft.trim()) return;
+    onAdd(draft);
+    setDraft('');
+  }
   return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <Tag size={12} className="text-zinc-500" />
+      {tags.map((t) => (
+        <span key={t} className="group flex items-center gap-1 rounded-md border border-violet-400/25 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">
+          #{t}
+          <button onClick={() => onRemove(t)} title={`#${t} ni o'chirish`} className="text-violet-300/60 hover:text-rose-300 transition">
+            <X size={10} />
+          </button>
+        </span>
+      ))}
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+        onBlur={commit}
+        placeholder={tags.length ? '+ teg' : '+ teg qo‘shish (bugfix, arch)'}
+        className="w-36 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-mono text-[11px] text-zinc-300 placeholder:text-zinc-600 hover:border-white/10 focus:border-violet-400/50 focus:outline-none"
+      />
+    </div>
+  );
+}
+
+function TabBtn({ active, onClick, label, icon, badge }: { active: boolean; onClick: () => void; label: string; icon?: React.ReactNode; badge?: string }) {  return (
     <button
       onClick={onClick}
       className={`relative flex items-center gap-1.5 px-3 pb-3 pt-1 text-[13px] font-semibold transition ${active ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}

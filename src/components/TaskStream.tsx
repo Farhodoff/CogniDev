@@ -29,13 +29,15 @@ export default function TaskStream() {
     activeGroupId,
     groups,
     setActiveGroup,
+    activeTag,
+    setActiveTag,
   } = useSynapse();
 
   const [sortOpen, setSortOpen] = useState(false);
   const [quickInput, setQuickInput] = useState('');
 
   const workspaceTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
-  const visible = filteredTasks(tasks, quickFilter, search, activeWorkspaceId, sortOrder, activeGroupId);
+  const visible = filteredTasks(tasks, quickFilter, search, activeWorkspaceId, sortOrder, activeGroupId, activeTag);
   const activeCount = workspaceTasks.filter(
     (t) => t.status === 'active' || t.status === 'blocker' || t.status === 'in_review',
   ).length;
@@ -151,6 +153,22 @@ export default function TaskStream() {
         </div>
       )}
 
+      {/* Active Tag Filter Banner */}
+      {activeTag && (
+        <div className="mx-3.5 mt-2 flex items-center justify-between rounded-xl border border-violet-400/25 bg-violet-500/[0.08] px-3 py-1.5 text-[11.5px]">
+          <div className="flex items-center gap-2">
+            <span className="font-mono font-semibold text-violet-200">#{activeTag}</span>
+            <span className="text-zinc-500 font-mono text-[10px]">Teg</span>
+          </div>
+          <button
+            onClick={() => setActiveTag(null)}
+            className="text-[11px] text-zinc-400 hover:text-white transition"
+          >
+            Barchasi
+          </button>
+        </div>
+      )}
+
       {/* Vazifalar ro'yxati */}
       <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3 pb-20">
         {visible.map((t) => {
@@ -165,6 +183,7 @@ export default function TaskStream() {
               noteSnippet={notes[t.id]}
               promptSnippet={prompts.find((p) => p.task_id === t.id)?.raw_prompt}
               onSelect={() => selectTask(t.id)}
+              onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
             />
           );
         })}
@@ -191,7 +210,7 @@ export default function TaskStream() {
               Ushbu filtr bo'yicha hech qanday vazifa topilmadi.
             </p>
             <button
-              onClick={() => setFilter(null)}
+              onClick={() => { setFilter(null); setActiveTag(null); }}
               className="mt-2 text-[12px] text-sky-400 hover:underline"
             >
               Filtrni tozalash
@@ -266,6 +285,7 @@ function TaskCard({
   promptSnippet,
   groupName,
   groupColor,
+  onTagClick,
 }: {
   task: Task;
   selected: boolean;
@@ -274,6 +294,7 @@ function TaskCard({
   promptSnippet?: string;
   groupName?: string;
   groupColor?: string;
+  onTagClick?: (tag: string) => void;
 }) {
   const st = statusBadge(task);
   const ai = task.ai_source ? aiPill(task.ai_source) : null;
@@ -330,6 +351,16 @@ function TaskCard({
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {ai && <span className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] ${ai.cls}`}>{ai.label}</span>}
         {task.git_branch && <span className="rounded-md border border-white/10 bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">#{task.git_branch}</span>}
+        {(task.tags ?? []).map((tag) => (
+          <span
+            key={tag}
+            onClick={(e) => { e.stopPropagation(); onTagClick?.(tag); }}
+            title={`#${tag} bo'yicha filtrlash`}
+            className="cursor-pointer rounded-md border border-violet-400/25 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-200 hover:bg-violet-500/25 transition"
+          >
+            #{tag}
+          </span>
+        ))}
         {done && <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-200">#solved</span>}
         {task.pr_url && <span className="rounded-md border border-sky-400/25 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">✓ {task.pr_url}</span>}
         {(task.assignee_avatar || task.assignee_avatar2) && (

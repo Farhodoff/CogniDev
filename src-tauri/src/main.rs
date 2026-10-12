@@ -215,6 +215,12 @@ fn main() {
             sql: include_str!("./migrations3.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "add tags column for real tag system",
+            sql: include_str!("./migrations4.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

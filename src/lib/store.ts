@@ -34,6 +34,7 @@ import {
   saveRetrospective,
   uid,
   updateTaskMeta,
+  updateTaskTags,
   upsertResolution,
   fetchGroups,
   insertGroup,
@@ -60,6 +61,26 @@ export function nextTaskId(tasks: Task[]): string {
 
 const noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
+/** Normalize a raw tag: lowercase, no '#', no spaces, max 24 chars. Empty → null. */
+export function normalizeTag(raw: string): string | null {
+  const t = raw.trim().toLowerCase().replace(/^#+/, '').replace(/\s+/g, '-');
+  if (!t || t.length > 24) return null;
+  if (!/^[a-z0-9/_-]+$/i.test(t)) return null;
+  return t;
+}
+
+/** Parse free-form input ("bugfix, #arch ui") into unique normalized tags (max 8). */
+export function parseTagsInput(input: string): string[] {
+  const out: string[] = [];
+  for (const part of input.split(/[,;\n]+/)) {
+    for (const sub of part.trim().split(/\s+/)) {
+      const t = normalizeTag(sub);
+      if (t && !out.includes(t) && out.length < 8) out.push(t);
+    }
+  }
+  return out;
+}
+
 /** Fire-and-forget write-through of a task's note + checklist. */
 function persistResolution(taskId: string) {
   const { dbMode, notes, checklists } = useSynapse.getState();
@@ -80,6 +101,7 @@ interface SynapseState {
   selectedTaskId: string | null;
   editorTab: EditorTab;
   quickFilter: QuickFilter;
+  activeTag: string | null;
   sortOrder: SortOrder;
   search: string;
   notes: Record<string, string>;
@@ -112,6 +134,9 @@ interface SynapseState {
   selectTask: (id: string) => Promise<void>;
   setTab: (t: EditorTab) => void;
   setFilter: (f: QuickFilter) => void;
+  setActiveTag: (tag: string | null) => void;
+  addTag: (taskId: string, tag: string) => void;
+  removeTag: (taskId: string, tag: string) => void;
   setSortOrder: (s: SortOrder) => void;
   setSearch: (s: string) => void;
   toggleCheck: (taskId: string, itemId: string) => void;
@@ -152,6 +177,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   selectedTaskId: 'TSK-101',
   editorTab: 'note',
   quickFilter: null,
+  activeTag: null,
   sortOrder: 'newest',
   search: '',
   notes: DEFAULT_NOTES,
@@ -231,16 +257,17 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     const sel = d.tasks[0] ?? null;
     set({
       workspaces: d.workspaces.length ? d.workspaces : [DEFAULT_PERSONAL_WORKSPACE],
-      tasks: d.tasks,
+      tasks: d.tasks.map((t) => ({ ...t, tags: Array.isArray(t.tags) ? t.tags : [] })),
       notes,
       checklists,
       prompts: d.prompts.filter((p) => p.task_id === sel?.id),
       selectedTaskId: sel?.id ?? null,
+      activeTag: null,
     });
   },
 
   setWorkspace: async (id) => {
-    set({ activeWorkspaceId: id, quickFilter: null, search: '' });
+    set({ activeWorkspaceId: id, quickFilter: null, activeTag: null, search: '' });
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
       try {
@@ -288,6 +315,33 @@ export const useSynapse = create<SynapseState>((set, get) => ({
 
   setTab: (editorTab) => set({ editorTab }),
   setFilter: (quickFilter) => set({ quickFilter }),
+  setActiveTag: (activeTag) => set({ activeTag }),
+
+  addTag: (taskId, raw) => {
+    const tag = normalizeTag(raw);
+    if (!tag) return;
+    const cur = get().tasks.find((t) => t.id === taskId)?.tags ?? [];
+    if (cur.includes(tag)) return;
+    const next = [...cur, tag];
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, tags: next } : t)),
+    }));
+    if (get().dbMode === 'sqlite') {
+      updateTaskTags(taskId, next).catch(() => {});
+    }
+  },
+
+  removeTag: (taskId, tag) => {
+    const cur = get().tasks.find((t) => t.id === taskId)?.tags ?? [];
+    if (!cur.includes(tag)) return;
+    const next = cur.filter((t) => t !== tag);
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, tags: next } : t)),
+    }));
+    if (get().dbMode === 'sqlite') {
+      updateTaskTags(taskId, next).catch(() => {});
+    }
+  },
   setSortOrder: (sortOrder) => set({ sortOrder }),
   setSearch: (search) => set({ search }),
 
@@ -384,6 +438,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       assignee_avatar: 'F',
       assignee_name2: null,
       assignee_avatar2: null,
+      tags: [],
       created_at: now,
       updated_at: now,
     };
@@ -437,6 +492,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         assignee_avatar: 'F',
         assignee_name2: null,
         assignee_avatar2: null,
+        tags: ingestData.tags.map((t) => normalizeTag(t)).filter((t): t is string => !!t),
         created_at: now,
         updated_at: now,
       };
@@ -662,6 +718,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       assignee_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
       assignee_name2: null,
       assignee_avatar2: null,
+      tags: ['git'],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -730,6 +787,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         assignee_avatar: (commit.author || 'F')[0]?.toUpperCase() ?? 'F',
         assignee_name2: null,
         assignee_avatar2: null,
+        tags: ['git'],
         created_at: now,
         updated_at: now,
       };
@@ -797,10 +855,14 @@ export function filteredTasks(
   workspaceId: string,
   sortOrder: SortOrder = 'newest',
   activeGroupId?: string | null,
+  activeTag?: string | null,
 ): Task[] {
   let out = tasks.filter((t) => t.workspace_id === workspaceId);
   if (activeGroupId) {
     out = out.filter((t) => t.group_id === activeGroupId);
+  }
+  if (activeTag) {
+    out = out.filter((t) => (t.tags ?? []).includes(activeTag));
   }
   if (f === 'mine') out = out.filter((t) => t.assignee_name === 'Farhod');
   if (f === 'high') out = out.filter((t) => t.priority === 'P0 Blocker' || t.priority === 'Critical');

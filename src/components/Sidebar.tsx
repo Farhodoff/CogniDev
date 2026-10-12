@@ -28,6 +28,8 @@ export default function Sidebar() {
     setWorkspace,
     setFilter,
     quickFilter,
+    activeTag,
+    setActiveTag,
     setSearch,
     triggerStandup,
     triggerWeeklyCoach,
@@ -114,12 +116,6 @@ export default function Sidebar() {
 
   // Compute fallback / in-memory counts
   const memPromptCount = prompts.length;
-  const memBugCount = tasks.filter(
-    (t) =>
-      t.title.toLowerCase().includes('bug') ||
-      t.title.toLowerCase().includes('fix') ||
-      (t.git_branch && (t.git_branch.includes('bug') || t.git_branch.includes('fix'))),
-  ).length;
   const memBlockerCount = tasks.filter(isBlocker).length;
   const memArchCount = tasks.filter(
     (t) =>
@@ -129,16 +125,23 @@ export default function Sidebar() {
   ).length;
 
   const promptCount = dbTagCounts ? dbTagCounts.promptLibrary : memPromptCount;
-  const bugCount = dbTagCounts ? dbTagCounts.bugFix : memBugCount;
   const blockerCount = dbTagCounts ? dbTagCounts.blocker : memBlockerCount;
   const archCount = dbTagCounts ? dbTagCounts.architecture : memArchCount;
 
-  const streams = [
-    { tag: '#prompt-ombori', count: String(promptCount), hot: false, action: () => setSearch('prompt') },
-    { tag: '#xatoliklar-tuzatish', count: String(bugCount), hot: false, action: () => setSearch('fix') },
-    { tag: '#blokirlar', count: blockerCount > 0 ? `${blockerCount} faol` : '0', hot: blockerCount > 0, action: () => setFilter('high') },
-    { tag: '#arxitektura', count: String(archCount), hot: false, action: () => setSearch('arch') },
-  ];
+  // --- Haqiqiy teglar statistikasi (joriy workspace) ---
+  const wsTagTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
+  const tagStats: Array<{ tag: string; count: number }> = (() => {
+    const map = new Map<string, number>();
+    for (const t of wsTagTasks) {
+      for (const tag of t.tags ?? []) {
+        map.set(tag, (map.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...map.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+      .slice(0, 8);
+  })();
 
   const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
   const isPersonal = !activeWs || activeWs.type === 'personal';
@@ -557,22 +560,39 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Bilimlar oqimi */}
+      {/* Teglar — real taglar bo'yicha aniq filtr */}
       <div>
-        <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Teglar & Oqimlar</p>
+        <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Teglar</p>
         <div className="space-y-0.5">
-          {streams.map((s) => (
-            <button
-              key={s.tag}
-              onClick={s.action}
-              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1 font-mono text-[11.5px] hover:bg-white/5 ${s.hot ? 'bg-amber-500/[0.07] text-amber-200' : 'text-zinc-400 hover:text-zinc-200'}`}
-            >
-              <span>{s.tag}</span>
-              <span className={`rounded-md border px-1.5 py-0.5 text-[10.5px] ${s.hot ? 'border-amber-400/40 bg-amber-500/15 text-amber-300' : 'border-transparent bg-white/5 text-zinc-500'}`}>
-                {s.count}
-              </span>
-            </button>
-          ))}
+          {tagStats.map(({ tag, count }) => {
+            const on = activeTag === tag;
+            return (
+              <button
+                key={tag}
+                onClick={() => setActiveTag(on ? null : tag)}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1 font-mono text-[11.5px] hover:bg-white/5 ${on ? 'bg-violet-500/[0.12] text-violet-200' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                <span>#{tag}</span>
+                <span className={`rounded-md border px-1.5 py-0.5 text-[10.5px] ${on ? 'border-violet-400/40 bg-violet-500/15 text-violet-200' : 'border-transparent bg-white/5 text-zinc-500'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+          {tagStats.length === 0 && (
+            <p className="px-2.5 py-1 font-mono text-[11px] text-zinc-600">
+              Hali teglar yo'q — vazifaga teg qo'shing
+            </p>
+          )}
+          <button
+            onClick={() => setFilter('high')}
+            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1 font-mono text-[11.5px] hover:bg-white/5 ${blockerCount > 0 ? 'bg-amber-500/[0.07] text-amber-200' : 'text-zinc-400 hover:text-zinc-200'}`}
+          >
+            <span>#blokirlar</span>
+            <span className={`rounded-md border px-1.5 py-0.5 text-[10.5px] ${blockerCount > 0 ? 'border-amber-400/40 bg-amber-500/15 text-amber-300' : 'border-transparent bg-white/5 text-zinc-500'}`}>
+              {blockerCount > 0 ? `${blockerCount} faol` : '0'}
+            </span>
+          </button>
         </div>
       </div>
 

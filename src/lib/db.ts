@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     assignee_avatar TEXT,
     assignee_name2 TEXT,
     assignee_avatar2 TEXT,
+    tags TEXT DEFAULT '[]',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
@@ -91,19 +92,32 @@ CREATE TABLE IF NOT EXISTS retrospectives (
 `;
 
 /** Mirrors the Rust-side migrations:
- *  creates schema and ensures v2 and v3 columns exist. */
+ *  creates schema and ensures v2, v3 and v4 columns exist. */
 export async function migrate(): Promise<void> {
   const db = await getDb();
   for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
     await db.execute(stmt);
   }
-  for (const col of ['assignee_name2 TEXT', 'assignee_avatar2 TEXT', 'group_id TEXT']) {
+  for (const col of ['assignee_name2 TEXT', 'assignee_avatar2 TEXT', 'group_id TEXT', "tags TEXT DEFAULT '[]'"]) {
     try {
       await db.execute(`ALTER TABLE tasks ADD COLUMN ${col}`);
     } catch {
       /* column already exists on upgraded DBs */
     }
   }
+}
+
+/** Parse the tags JSON column; tolerant to missing/legacy values. */
+export function parseTagJson(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === 'string');
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (Array.isArray(v)) return v.filter((t): t is string => typeof t === 'string');
+  } catch {
+    /* fall through */
+  }
+  return [];
 }
 
 export function uid(prefix = 'id'): string {
@@ -196,10 +210,11 @@ export async function deleteWorkspaceFromDb(id: string): Promise<void> {
 
 export async function fetchTasks(workspaceId?: string): Promise<Task[]> {
   const db = await getDb();
-  if (workspaceId) {
-    return db.select<Task[]>('SELECT * FROM tasks WHERE workspace_id = $1 ORDER BY updated_at DESC', [workspaceId]);
-  }
-  return db.select<Task[]>('SELECT * FROM tasks ORDER BY updated_at DESC');
+  type Row = Omit<Task, 'tags'> & { tags: unknown };
+  const rows = workspaceId
+    ? await db.select<Row[]>('SELECT * FROM tasks WHERE workspace_id = $1 ORDER BY updated_at DESC', [workspaceId])
+    : await db.select<Row[]>('SELECT * FROM tasks ORDER BY updated_at DESC');
+  return rows.map((r) => ({ ...r, tags: parseTagJson(r.tags) }));
 }
 
 export async function fetchResolution(taskId: string): Promise<TaskResolution | null> {
@@ -216,8 +231,8 @@ export async function fetchPrompts(taskId: string): Promise<PromptEntry[]> {
 export async function insertTask(t: Omit<Task, 'created_at' | 'updated_at'>): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `INSERT INTO tasks (id, workspace_id, group_id, title, status, priority, git_branch, pr_url, ai_source, assignee_name, assignee_avatar, assignee_name2, assignee_avatar2)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    `INSERT INTO tasks (id, workspace_id, group_id, title, status, priority, git_branch, pr_url, ai_source, assignee_name, assignee_avatar, assignee_name2, assignee_avatar2, tags)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [
       t.id,
       t.workspace_id,
@@ -232,8 +247,14 @@ export async function insertTask(t: Omit<Task, 'created_at' | 'updated_at'>): Pr
       t.assignee_avatar,
       t.assignee_name2 ?? null,
       t.assignee_avatar2 ?? null,
+      JSON.stringify(t.tags ?? []),
     ],
   );
+}
+
+export async function updateTaskTags(id: string, tags: string[]): Promise<void> {
+  const db = await getDb();
+  await db.execute('UPDATE tasks SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [JSON.stringify(tags), id]);
 }
 
 export async function updateTaskMeta(id: string, status: Task['status'], priority: Task['priority']): Promise<void> {

@@ -169,6 +169,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
           git_branch: null, pr_url: null, ai_source: 'Voice Memo',
           assignee_name: 'Farhod', assignee_avatar: 'F',
           assignee_name2: null, assignee_avatar2: null,
+          tags: ['voice-memo'],
           created_at: now, updated_at: now,
         };
         if (dbMode === 'sqlite') await insertTask(t);

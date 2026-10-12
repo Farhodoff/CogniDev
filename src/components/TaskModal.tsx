@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { nextTaskId, useSynapse } from '../lib/store';
+import { nextTaskId, parseTagsInput, useSynapse } from '../lib/store';
 import { insertTask } from '../lib/db';
 import type { TaskPriority } from '../lib/types';
 
@@ -19,6 +19,7 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
   const [priority, setPriority] = useState<TaskPriority>('Normal');
   const [branch, setBranch] = useState('');
   const [aiSource, setAiSource] = useState(AI_SOURCES[0]);
+  const [tagsInput, setTagsInput] = useState('');
   const [saving, setSaving] = useState(false);
 
   if (!open) return null;
@@ -41,6 +42,7 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
       assignee_avatar: 'F',
       assignee_name2: null,
       assignee_avatar2: null,
+      tags: parseTagsInput(tagsInput),
       created_at: now,
       updated_at: now,
     };
@@ -111,6 +113,15 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               placeholder="feat/cache-layer"
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Teglar (vergul bilan)</span>
+            <input
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="bugfix, database, arch"
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
             />
           </label>

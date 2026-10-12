@@ -46,6 +46,8 @@ export interface Task {
   assignee_avatar: string | null;
   assignee_name2: string | null;
   assignee_avatar2: string | null;
+  /** Normalized tags without '#' prefix, e.g. ['bugfix', 'arch'] */
+  tags: string[];
   created_at: string;
   updated_at: string;
 }
