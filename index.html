@@ -9,7 +9,7 @@
       html, body {
         margin: 0;
         padding: 0;
-        background: #0f1013;
+        background: #0b0d14;
         overflow: hidden;
         user-select: none;
       }
@@ -17,37 +17,86 @@
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.65; transform: scale(0.97); }
       }
-      .cognidev-splash {
+      #cognidev-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 100vh;
+        background: #0b0d14;
         gap: 14px;
+        transition: opacity 0.25s ease-out;
+      }
+      #cognidev-splash .splash-logo-box {
         animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
       }
-      .cognidev-splash img {
-        width: 52px;
-        height: 52px;
+      #cognidev-splash img {
+        width: 56px;
+        height: 56px;
         border-radius: 14px;
         box-shadow: 0 8px 32px rgba(56, 189, 248, 0.25);
       }
-      .cognidev-splash span {
+      #cognidev-splash-text {
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
         font-size: 13px;
         font-weight: 600;
         letter-spacing: -0.01em;
         color: #94a3b8;
+        max-width: 500px;
+        text-align: center;
+        line-height: 1.4;
+      }
+      #cognidev-splash-sub {
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+        font-size: 11px;
+        color: #64748b;
       }
     </style>
+    <script>
+      window.__cognidevBooted = false;
+      function showSplashError(msg) {
+        console.error('[CogniDev Boot]', msg);
+        var textEl = document.getElementById('cognidev-splash-text');
+        var subEl = document.getElementById('cognidev-splash-sub');
+        if (textEl && !window.__cognidevBooted) {
+          textEl.style.color = '#f87171';
+          textEl.textContent = 'Yuklashda xatolik: ' + msg;
+          if (subEl) {
+            subEl.innerHTML = '<button onclick="window.location.reload()" style="background:#38bdf8;color:#000;border:none;padding:5px 12px;border-radius:6px;font-weight:600;cursor:pointer;margin-top:8px;">Qayta yuklash (Cmd+R)</button>';
+          }
+        }
+      }
+      window.addEventListener('error', function (e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          showSplashError('Fayl yuklanmadi: ' + (e.target.src || e.target.href || '').split('/').pop());
+          return;
+        }
+        showSplashError((e.error && (e.error.stack || e.error.message)) || e.message || 'Skript xatosi');
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        showSplashError((e.reason && (e.reason.stack || e.reason.message || e.reason)) || 'Async xatolik');
+      });
+      setTimeout(function () {
+        if (!window.__cognidevBooted) {
+          var subEl = document.getElementById('cognidev-splash-sub');
+          if (subEl) {
+            subEl.innerHTML = 'Yuklanish cho‘zilmoqda... <button onclick="window.location.reload()" style="background:#38bdf8;color:#000;border:none;padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;margin-left:6px;">Qayta yuklash</button>';
+          }
+        }
+      }, 4000);
+    </script>
   </head>
   <body>
-    <div id="root">
-      <div class="cognidev-splash">
+    <div id="cognidev-splash">
+      <div class="splash-logo-box">
         <img src="/logo.svg" alt="CogniDev" />
-        <span>CogniDev yuklanmoqda...</span>
       </div>
+      <span id="cognidev-splash-text">CogniDev yuklanmoqda...</span>
+      <span id="cognidev-splash-sub">Tayyorlanmoqda...</span>
     </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

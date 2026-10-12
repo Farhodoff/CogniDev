@@ -1,7 +1,10 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-const host = process.env.TAURI_DEV_HOST
+// Pinned IPv4 loopback on both ends (vite + tauri devUrl).
+// `localhost` resolves to ::1 or 127.0.0.1 depending on the client
+// (curl vs WKWebView), which caused black-window failures.
+// 127.0.0.1 removes all ambiguity.
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -10,8 +13,8 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
-    hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
+    host: '127.0.0.1',
+    hmr: { protocol: 'ws', host: '127.0.0.1' },
     watch: { ignored: ['**/src-tauri/**'] },
   },
 }))
