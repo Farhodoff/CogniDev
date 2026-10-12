@@ -5,6 +5,7 @@ import TaskStream from './components/TaskStream';
 import WorkspaceEditor from './components/WorkspaceEditor';
 import FloatingHud from './components/FloatingHud';
 import StandupModal from './components/StandupModal';
+import WeeklyCoachModal from './components/WeeklyCoachModal';
 import CommandPalette from './components/CommandPalette';
 import { useSynapse } from './lib/store';
 
@@ -54,6 +55,7 @@ export default function App() {
       </div>
       <FloatingHud />
       <StandupModal />
+      <WeeklyCoachModal />
       {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
