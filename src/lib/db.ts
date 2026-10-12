@@ -1,5 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import type { PromptEntry, Retrospective, Task, TaskResolution, Workspace, TeamGroup } from './types';
+import { isTauri } from './vault';
 import {
   DEFAULT_CHECKLISTS,
   DEFAULT_GROUPS,
@@ -13,9 +14,19 @@ const DB_URL = 'sqlite:synapse.db';
 
 let dbPromise: Promise<Database> | null = null;
 
-/** Lazily open (or reuse) the SQLite connection. In browser dev mode this throws — callers fall back to memory mode. */
+/** Lazily open (or reuse) the SQLite connection with timeout guard. */
 export async function getDb(): Promise<Database> {
-  if (!dbPromise) dbPromise = Database.load(DB_URL);
+  if (!isTauri) {
+    throw new Error('Not running in Tauri desktop environment');
+  }
+  if (!dbPromise) {
+    dbPromise = Promise.race([
+      Database.load(DB_URL),
+      new Promise<Database>((_, reject) =>
+        setTimeout(() => reject(new Error('SQLite Database.load timed out')), 2500),
+      ),
+    ]);
+  }
   return dbPromise;
 }
 

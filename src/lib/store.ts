@@ -43,6 +43,7 @@ import {
 } from './db';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
 import { fetchRecentCommits, fetchGitStatus } from './git';
+import { isTauri } from './vault';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -139,7 +140,7 @@ interface SynapseState {
 }
 
 export const useSynapse = create<SynapseState>((set, get) => ({
-  ready: false,
+  ready: true, // App starts instantly with 0ms delay!
   dbMode: 'memory',
   workspaces: [DEFAULT_PERSONAL_WORKSPACE],
   activeWorkspaceId: DEFAULT_PERSONAL_WORKSPACE.id,
@@ -167,15 +168,29 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showSpotlight: false,
 
   init: async () => {
-    try {
-      await migrate();
-      await purgeMockDataIfPresent();
-      await ensureDefaultWorkspace();
-      await get().refresh();
-      set({ ready: true, dbMode: 'sqlite' });
-    } catch {
-      // Browser dev without Tauri — memory mode with clean state.
+    if (!isTauri) {
       set({ ready: true, dbMode: 'memory' });
+      return;
+    }
+    try {
+      // Fast background hydration with 2s timeout guard
+      await Promise.race([
+        (async () => {
+          await migrate().catch((e) => console.warn('SQLite migration warning:', e));
+          await purgeMockDataIfPresent().catch(() => {});
+          await ensureDefaultWorkspace().catch(() => {});
+          await get().refresh().catch(() => {});
+          set({ dbMode: 'sqlite' });
+        })(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('SQLite init timed out')), 2000),
+        ),
+      ]);
+    } catch (e) {
+      console.warn('SQLite background init fallback to memory mode:', e);
+      set({ dbMode: 'memory' });
+    } finally {
+      set({ ready: true });
     }
   },
 

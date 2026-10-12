@@ -11,7 +11,7 @@ import { SpotlightModal } from './components/SpotlightModal';
 import { useSynapse } from './lib/store';
 
 export default function App() {
-  const { init, ready, setSearch } = useSynapse();
+  const { init, setSearch } = useSynapse();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -35,17 +35,6 @@ export default function App() {
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
   }, [paletteOpen, setSearch]);
-
-  if (!ready) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-obsidian-950">
-        <div className="flex items-center gap-3 text-sm text-zinc-500">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
-          CogniDev ishga tushirilmoqda — shaxsiy ombor ochilmoqda…
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-obsidian-950 text-zinc-200 antialiased">
