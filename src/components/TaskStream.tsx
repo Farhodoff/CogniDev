@@ -42,6 +42,10 @@ export default function TaskStream() {
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
 
+  const [todayLabel] = useState(
+    () => new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' }),
+  );
+
   async function handleQuickCapture(e: React.FormEvent) {
     e.preventDefault();
     if (!quickInput.trim()) return;
@@ -107,7 +111,7 @@ export default function TaskStream() {
         <div className="flex items-center gap-1.5 pb-2 text-[11.5px] font-medium text-zinc-400">
           <Calendar size={13} className="text-zinc-500" />
           <span>Bugun</span>
-          <span className="text-zinc-600">· {new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}</span>
+          <span className="text-zinc-600">· {todayLabel}</span>
         </div>
 
         <div className="flex flex-wrap gap-1.5">

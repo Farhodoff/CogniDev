@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Sparkles, TriangleAlert, X, Loader2 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker, analyzeBlockers } from '../lib/ai';
+import { getJevKey, jevTriage, triageToMarkdown } from '../lib/jev';
 
 export default function FloatingHud() {
   const { tasks, setStandup, setStandupModal, setHud, setFilter, hudMessage, triggerStandup } = useSynapse();
@@ -17,14 +18,24 @@ export default function FloatingHud() {
     }
   }
 
-  function onBlockers() {
+  async function onBlockers() {
     setBusy('blockers');
     setFilter('high');
-    setTimeout(() => {
-      setStandup(`## To'siqlar Tahlili\n\n${analyzeBlockers(tasks)}`, 'fallback');
+    try {
+      let extra = '';
+      // Jev triage when a key is configured — calibrated priority scoring.
+      if (getJevKey().trim()) {
+        try {
+          extra = triageToMarkdown(await jevTriage(tasks));
+        } catch {
+          extra = '\n\n*Jev ulanmadi — lokal tahlil ko‘rsatilmoqda.*';
+        }
+      }
+      setStandup(`## To'siqlar Tahlili\n\n${analyzeBlockers(tasks)}${extra}`, 'fallback');
       setStandupModal(true);
+    } finally {
       setBusy(null);
-    }, 350);
+    }
   }
 
   return (

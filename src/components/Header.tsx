@@ -1,11 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
+import { rubaiStatus } from '../lib/stt';
+import { enabledProviders } from '../lib/providers';
 import TaskModal from './TaskModal';
 import LogChatModal from './LogChatModal';
 import VoiceRecorderModal from './VoiceRecorderModal';
+import AiProvidersModal from './AiProvidersModal';
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -31,6 +34,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
   const [wsOpen, setWsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [providersOpen, setProvidersOpen] = useState(false);
+  const enabledCount = enabledProviders().length;
   const [aiSyncOpen, setAiSyncOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -326,6 +331,11 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 <button onClick={doImport} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <Upload size={14} className="text-emerald-300" /> Omborni import qilish (.json)
                 </button>
+                <button onClick={() => { setProvidersOpen(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
+                  <Bot size={14} className="text-violet-300" /> AI provayderlar
+                  {enabledCount > 0 && <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[10.5px] text-emerald-300">{enabledCount}</span>}
+                </button>
+                <SttStatusRow />
               </div>
             )}
           </div>
@@ -341,6 +351,35 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       {showTaskModal && <TaskModal open={showTaskModal} onClose={() => setTaskModal(false)} />}
       {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
       {voiceOpen && <VoiceRecorderModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />}
+      {providersOpen && <AiProvidersModal open={providersOpen} onClose={() => setProvidersOpen(false)} />}
     </>
+  );
+}
+
+/** Lokal rubaiSTT holati — dropdown ochilganda bir marta tekshiriladi. */
+function SttStatusRow() {
+  const [label, setLabel] = useState('RubaiSTT tekshirilmoqda…');
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    rubaiStatus()
+      .then((s) => {
+        if (s?.ready) {
+          setOk(true);
+          setLabel('RubaiSTT · rubaistt v2 (lokal, tayyor)');
+        } else {
+          setOk(false);
+          setLabel('RubaiSTT topilmadi (faqat Web Speech)');
+        }
+      })
+      .catch(() => {
+        setOk(false);
+        setLabel('RubaiSTT topilmadi (faqat Web Speech)');
+      });
+  }, []);
+  return (
+    <div className="mt-1 flex items-center gap-2 border-t border-white/[0.06] px-3 py-2" title={label}>
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ok ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+      <span className="truncate font-mono text-[10.5px] text-zinc-500">{label}</span>
+    </div>
   );
 }

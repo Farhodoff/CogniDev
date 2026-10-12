@@ -36,6 +36,7 @@ function renderMarkdown(src: string): React.ReactNode[] {
     if (line.startsWith('> ')) { out.push(<blockquote key={key++} className="rounded-r-lg border-l-2 border-violet-400/60 bg-violet-500/[0.06] px-3 py-2 text-zinc-300">{inline(line.slice(2))}</blockquote>); i++; continue; }
     if (line.trim() === '') { i++; continue; }
     out.push(<p key={key++}>{inline(line)}</p>);
+    i++;
   }
   return out;
 }
@@ -119,7 +120,7 @@ function useInlineDictation(taskId: string | null, notes: Record<string, string>
     updateNote(taskId, (notes[taskId] ?? '') + block);
     setFinalText('');
     setInterim('');
-  }, [taskId, notes, updateNote]);
+  }, [taskId, notes, updateNote, finalText, interim]);
 
   return { recording, seconds, interim, finalText, start, stop, commit };
 }

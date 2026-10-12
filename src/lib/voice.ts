@@ -1,5 +1,8 @@
+import { tryCloudProviders } from './providers';
+
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
-const MODEL_CANDIDATES = ['qwen2.5-coder:3b', 'llama3.2:3b'];
+// Same chain as ai.ts: cloud flagships → local 3b offline fallback.
+const MODEL_CANDIDATES = ['gpt-oss:20b-cloud', 'gpt-oss:120b-cloud', 'qwen2.5-coder:3b', 'llama3.2:3b'];
 
 const SYSTEM_PROMPT = `You are a technical writing assistant for engineers. Format the following raw voice transcript from a developer into clean, structured Markdown with these sections:
 
@@ -17,6 +20,9 @@ Keep it concise, use imperative mood, and preserve technical terminology.`;
 
 export async function formatVoiceWithOllama(text: string): Promise<string> {
   const prompt = `${SYSTEM_PROMPT}\n\nRaw transcript:\n${text}`;
+  // Chain: enabled cloud provider → local Ollama → offline template.
+  const cloud = await tryCloudProviders(prompt, SYSTEM_PROMPT).catch(() => null);
+  if (cloud) return cloud.text;
   for (const model of MODEL_CANDIDATES) {
     try {
       const ctrl = new AbortController();

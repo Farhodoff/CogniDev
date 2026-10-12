@@ -93,4 +93,5 @@ export interface WeeklyCoachInsight {
   recommendations: string[];
   summary: string;
   generatedAt: string;
+  aiPowered?: boolean;
 }

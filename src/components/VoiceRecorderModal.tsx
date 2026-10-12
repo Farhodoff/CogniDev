@@ -1,16 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Mic, Loader2, Save, X, Copy } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { insertTask } from '../lib/db';
 import { nextTaskId } from '../lib/store';
 import { formatVoiceWithOllama } from '../lib/voice';
+import { blobToWav16k, pickAudioMime, rubaiStatus, transcribeRubai, type SttStatus } from '../lib/stt';
 import type { Task } from '../lib/types';
 
 type Mode = 'task' | 'append';
+type Engine = 'web' | 'rubai';
 
 export default function VoiceRecorderModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { selectedTaskId, addTask, updateNote, dbMode, setHud } = useSynapse();
   const [mode, setMode] = useState<Mode>('task');
+  const [engine, setEngine] = useState<Engine>('rubai');
+  const [stt, setStt] = useState<SttStatus | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
@@ -24,29 +29,36 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
   const recognitionRef = useRef<any>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!open) { cleanup(); return; }
-    setTranscript(''); setFinalTranscript(''); setError(null); setSeconds(0);
-    return () => cleanup();
-  }, [open]);
-
-  function cleanup() {
+  const cleanup = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
     if (timerRef.current) clearInterval(timerRef.current);
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch { /* ignore */ }
     }
-    mediaRecorderRef.current = null; chunksRef.current = [];
-    timerRef.current = null; silenceTimerRef.current = null; recognitionRef.current = null;
+    mediaRecorderRef.current = null;
+    chunksRef.current = [];
+    timerRef.current = null;
+    silenceTimerRef.current = null;
+    recognitionRef.current = null;
     setRecording(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      rubaiStatus().then(setStt).catch(() => setStt(null));
+    }
+    return () => {
+      cleanup();
+    };
+  }, [open, cleanup]);
 
   async function startRecording() {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 } });
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      const mime = pickAudioMime();
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
@@ -54,18 +66,47 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
       setRecording(true);
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-      startSpeechRecognition();
+      if (engine === 'web') startSpeechRecognition();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Microphone access denied');
     }
   }
 
-  function stopRecording() {
+  async function stopRecording() {
     if (!recording) return;
-    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current?.state === 'recording') {
+      await new Promise<void>((resolve) => {
+        const mr = mediaRecorderRef.current!;
+        mr.onstop = () => resolve();
+        mr.stop();
+        // Fallback: never hang if onstop misfires.
+        setTimeout(() => resolve(), 1500);
+      });
+    }
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch {}; }
     setRecording(false);
+    if (engine === 'rubai') await transcribeWithRubai();
+  }
+
+  async function transcribeWithRubai() {
+    if (!chunksRef.current.length) { setError('Audio yozilmadi'); return; }
+    setTranscribing(true);
+    setError(null);
+    try {
+      const blob = new Blob(chunksRef.current, { type: pickAudioMime() || 'audio/webm' });
+      const wav = await blobToWav16k(blob);
+      const text = await transcribeRubai(wav, 'uz');
+      if (!text) {
+        setError('Transkripsiya bo‘sh qaytdi — qayta urinib ko‘ring');
+      } else {
+        setFinalTranscript((prev) => (prev ? prev + ' ' : '') + text);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'RubaiSTT xatosi');
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   function startSpeechRecognition() {
@@ -159,6 +200,21 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
 
         <div className="px-5 py-4 space-y-4">
           <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-2">
+            <button onClick={() => setEngine('rubai')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${engine === 'rubai' ? 'bg-emerald-500/20 text-emerald-200' : 'text-zinc-400 hover:text-white'}`}>
+              RubaiSTT · O‘zbekcha
+            </button>
+            <button onClick={() => setEngine('web')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${engine === 'web' ? 'bg-sky-500/20 text-sky-200' : 'text-zinc-400 hover:text-white'}`}>
+              Web Speech · English
+            </button>
+            <span title={stt?.ready ? `Model: ${stt.modelPath}` : 'Lokal model topilmadi'} className={`h-2 w-2 shrink-0 rounded-full ${stt?.ready ? 'bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]' : 'bg-zinc-600'}`} />
+          </div>
+          {engine === 'rubai' && !stt?.ready && (
+            <p className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+              Lokal rubaiSTT topilmadi (whisper-cli yoki ggml-rubaistt.bin). Web Speech rejimiga o‘ting yoki modelni `~/rubai-stt/models/` ga joylashtiring.
+            </p>
+          )}
+
+          <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-2">
             <button onClick={() => setMode('task')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${mode === 'task' ? 'bg-emerald-500/20 text-emerald-200' : 'text-zinc-400 hover:text-white'}`}>Save as New Task</button>
             <button onClick={() => setMode('append')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${mode === 'append' ? 'bg-sky-500/20 text-sky-200' : 'text-zinc-400 hover:text-white'}`}>Append to Active Note</button>
           </div>
@@ -166,8 +222,9 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
           <div className="relative rounded-xl border border-white/[0.07] bg-black/40 p-4 min-h-[140px]">
             <div className="mb-2 flex items-center gap-2 font-mono text-[12px] text-zinc-400">
               {recording && <span className="flex items-center gap-1 text-red-400 animate-pulse">● <span>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</span> Recording…</span>}
-              {!recording && finalTranscript && <span className="text-emerald-400">✓ Transcribed</span>}
-              {!recording && !finalTranscript && <span className="text-zinc-600">Click Mic to start</span>}
+              {transcribing && <span className="flex items-center gap-1.5 text-emerald-300"><Loader2 size={12} className="animate-spin" /> RubaiSTT transkripsiya qilmoqda…</span>}
+              {!recording && !transcribing && finalTranscript && <span className="text-emerald-400">✓ Transcribed</span>}
+              {!recording && !transcribing && !finalTranscript && <span className="text-zinc-600">Click Mic to start</span>}
             </div>
             <div className="font-mono text-[13px] leading-relaxed text-zinc-200 min-h-[80px] whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: displayText }} />
           </div>
@@ -177,8 +234,8 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={recording ? stopRecording : startRecording}
-              disabled={processing}
-              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
+              disabled={processing || transcribing}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition disabled:opacity-60 ${
                 recording
                   ? 'bg-red-500/20 border border-red-400/30 text-red-300 hover:bg-red-500/30'
                   : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:brightness-110'

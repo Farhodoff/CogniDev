@@ -50,8 +50,8 @@ export default function WeeklyCoachModal() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-[16px] font-bold text-white">AI Weekly Coach & Retrospective</h2>
-                <span className="rounded-full border border-violet-400/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-300">
-                  Avtomatik tahlil
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${weeklyCoach.aiPowered ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300' : 'border-amber-400/30 bg-amber-500/15 text-amber-300'}`}>
+                  {weeklyCoach.aiPowered ? 'AI yozgan' : 'Lokal shablon'}
                 </span>
               </div>
               <p className="text-[12px] text-zinc-400">

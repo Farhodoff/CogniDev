@@ -224,12 +224,25 @@ export const SpotlightModal: React.FC = () => {
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
                   Oxirgi Git Commitlar (Lokal Repo)
                 </p>
-                <button
-                  onClick={() => syncGitCommits()}
-                  className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
-                >
-                  Qayta yangilash
-                </button>
+                <div className="flex items-center gap-2">
+                  {gitCommits.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        await useSynapse.getState().syncAllCommits();
+                        setSpotlight(false);
+                      }}
+                      className="rounded-lg bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/30 transition"
+                    >
+                      Barchasini taskga aylantirish ({gitCommits.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => syncGitCommits()}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
+                  >
+                    Qayta yangilash
+                  </button>
+                </div>
               </div>
 
               {gitCommits.length === 0 ? (

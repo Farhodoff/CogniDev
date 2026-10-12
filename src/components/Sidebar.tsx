@@ -5,10 +5,24 @@ import { useSynapse } from '../lib/store';
 import { isBlocker } from '../lib/ai';
 import { fetchTagCounts } from '../lib/db';
 
+/** 5 o'qli radar poligoni: qiymatlar 0..1, markaz (50,48), radius 36. */
+function radarPoints(values: number[]): string {
+  const cx = 50, cy = 48, R = 36;
+  return values
+    .map((v, i) => {
+      const a = ((-90 + i * 72) * Math.PI) / 180;
+      const r = R * Math.max(0.06, Math.min(1, v));
+      return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
+    })
+    .join(' ');
+}
+
 export default function Sidebar() {
   const {
     tasks,
     prompts,
+    notes,
+    search,
     workspaces,
     activeWorkspaceId,
     setWorkspace,
@@ -142,6 +156,30 @@ export default function Sidebar() {
   const totalTasks = tasks.length || 1;
   const progressPercent = Math.min(Math.round((completedCount / totalTasks) * 100), 100);
 
+  // --- Jonli radar ma'lumotlari (5 o'q: Reja, Bajarildi, Yechim, Bilim, AI) ---
+  const wsTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
+  const wsTotal = wsTasks.length || 1;
+  const radarValues = [
+    wsTasks.filter((t) => t.status === 'active' || t.status === 'backlog' || t.status === 'in_review').length / wsTotal,
+    wsTasks.filter((t) => t.status === 'completed').length / wsTotal,
+    wsTasks.filter((t) => (notes[t.id] ?? '').trim().length > 0).length / wsTotal,
+    wsTasks.filter((t) => /arch|refactor|design|bilim|o'rgan/i.test(t.title)).length / wsTotal,
+    wsTasks.filter((t) => !!t.ai_source).length / wsTotal,
+  ];
+
+  // --- Blocker Radar odamlari: avval blokerlardagi assignee'lar, keyin qolganlar ---
+  const radarPeople = (() => {
+    const names: string[] = [];
+    const push = (n?: string | null) => {
+      if (n && n.trim() && !names.includes(n.trim()) && names.length < 4) names.push(n.trim());
+    };
+    wsTasks.filter((t) => t.status === 'blocker').forEach((t) => { push(t.assignee_name); push(t.assignee_name2); });
+    wsTasks.forEach((t) => { push(t.assignee_name); push(t.assignee_name2); });
+    push('Farhod');
+    while (names.length < 4) names.push('—');
+    return names;
+  })();
+
   return (
     <aside className="flex w-[246px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-white/[0.06] bg-[#0f1013]/80 px-3 py-4">
       {/* Brand Header */}
@@ -163,7 +201,7 @@ export default function Sidebar() {
         <button
           onClick={() => { setFilter(null); setSearch(''); }}
           className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
-            quickFilter === null && !tasks.length ? 'bg-white/[0.08] text-white font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+            quickFilter === null && search.trim() === '' ? 'bg-white/[0.08] text-white font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
           }`}
         >
           <Layers size={15} className="text-sky-400" />
@@ -231,17 +269,11 @@ export default function Sidebar() {
             {/* Pentagon grid */}
             <polygon points="50,6 94,36 78,84 22,84 6,36" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
             <polygon points="50,22 75,39 65,68 35,68 25,39" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-            {/* Radar Lines */}
+            {/* Jonli ma'lumot poligoni */}
             <polygon
-              points="50,15 88,40 70,80 30,75 15,38"
+              points={radarPoints(radarValues)}
               fill="rgba(56,189,248,0.18)"
               stroke="#38bdf8"
-              strokeWidth="1.5"
-            />
-            <polygon
-              points="50,25 78,48 62,70 38,72 24,42"
-              fill="rgba(168,85,247,0.18)"
-              stroke="#c084fc"
               strokeWidth="1.5"
             />
             {/* Labels */}
@@ -504,16 +536,16 @@ export default function Sidebar() {
             <line x1="50" y1="12" x2="50" y2="70" stroke="rgba(244,63,94,0.4)" strokeWidth="1.5" />
 
             <circle cx="50" cy="12" r="5" fill="#f43f5e" />
-            <text x="50" y="5" textAnchor="middle" fill="#e4e4e7" fontSize="6.5">Farhod</text>
+            <text x="50" y="5" textAnchor="middle" fill="#e4e4e7" fontSize="6.5">{radarPeople[0]}</text>
 
             <circle cx="85" cy="45" r="4.5" fill="#38bdf8" />
-            <text x="92" y="47" textAnchor="start" fill="#a1a1aa" fontSize="6">Sanjar</text>
+            <text x="92" y="47" textAnchor="start" fill="#a1a1aa" fontSize="6">{radarPeople[1]}</text>
 
             <circle cx="50" cy="70" r="4.5" fill="#a855f7" />
-            <text x="50" y="78" textAnchor="middle" fill="#a1a1aa" fontSize="6">Jasur</text>
+            <text x="50" y="78" textAnchor="middle" fill="#a1a1aa" fontSize="6">{radarPeople[2]}</text>
 
             <circle cx="15" cy="45" r="4.5" fill="#34d399" />
-            <text x="8" y="47" textAnchor="end" fill="#a1a1aa" fontSize="6">Malika</text>
+            <text x="8" y="47" textAnchor="end" fill="#a1a1aa" fontSize="6">{radarPeople[3]}</text>
           </svg>
         </div>
 

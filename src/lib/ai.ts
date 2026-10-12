@@ -1,11 +1,14 @@
 import type { Task } from './types';
+import { tryCloudProviders, type AiSource } from './providers';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
-const MODEL_CANDIDATES = ['llama3.2:3b', 'qwen2.5-coder:3b'];
+// Cloud flagships first (fast fail when offline/unsigned), local 3b as offline fallback.
+// NOTE: Ollama retired qwen3-coder/deepseek/kimi cloud IDs in mid-2026 — verify via /api/show.
+const MODEL_CANDIDATES = ['gpt-oss:20b-cloud', 'gpt-oss:120b-cloud', 'llama3.2:3b', 'qwen2.5-coder:3b'];
 
 export interface StandupResult {
   content: string;
-  source: 'ollama' | 'fallback';
+  source: AiSource;
   model?: string;
 }
 
@@ -77,8 +80,11 @@ ${active.map((t) => `- ${t.id} [${t.priority}]: ${t.title}`).join('\n') || '- ma
 To'siqlar:
 ${blockers.map((t) => `- ${t.id}: ${t.title}`).join('\n') || '- mavjud emas'}
 
-Qisqa, professional, kirish so'zlarisiz faqat markdown xulosa bering.`;
+  Qisqa, professional, kirish so'zlarisiz faqat markdown xulosa bering.`;
 
+  // Chain: enabled cloud provider → local Ollama → offline template.
+  const cloud = await tryCloudProviders(prompt);
+  if (cloud) return { content: cloud.text, source: cloud.source, model: cloud.model };
   const hit = await tryOllama(prompt);
   if (hit) return { content: hit.text, source: 'ollama', model: hit.model };
   return { content: ruleBasedStandup(done, blockers, active), source: 'fallback' };
@@ -97,6 +103,52 @@ export async function checkOllama(): Promise<{ online: boolean; model?: string }
   }
 }
 
+export interface WeeklyCoachAi {
+  bottlenecks: string[];
+  recommendations: string[];
+  summary: string;
+}
+
+/** AI-first weekly review: real model writes bottlenecks/recommendations/summary as JSON. */
+async function tryCoachAi(
+  completed: Task[],
+  active: Task[],
+  blockers: Task[],
+  notes: Record<string, string>,
+): Promise<WeeklyCoachAi | null> {
+  const ctx = [
+    `Bajarilgan (${completed.length}):`,
+    ...completed.slice(0, 10).map((t) => `- ${t.id}: ${t.title}`),
+    `Bajarilmagan/faol (${active.length}):`,
+    ...active.slice(0, 10).map((t) => `- ${t.id} [${t.priority}]: ${t.title}`),
+    `To'siqlar (${blockers.length}):`,
+    ...blockers.map((t) => `- ${t.id}: ${t.title}`),
+    'Eslatmalardan parcha:',
+    Object.values(notes).join('\n').slice(0, 2000),
+  ].join('\n');
+
+  const prompt = `Sen dasturchining shaxsiy AI coachisan. Quyidagi haftalik ish ma'lumotini tahlil qilib, O'ZBEK tilida STRICT JSON qaytar (faqat JSON, boshqa matn yo'q):
+{"bottlenecks": ["3 tagacha aniq to'siq"], "recommendations": ["3 tagacha amaliy tavsiya"], "summary": "2-3 gaplik samimiy xulosa: nima bajarildi, nima qoldi, nimani o'rganish kerak"}
+Qamrash kerak: bajarilgan/yangi tasklar, QILINMAGAN (qoldirilgan) ishlar, hal qilingan muammolar, o'rganilgan bilimlar, keyingi hafta nimani o'rganish kerak.\n\n${ctx}`;
+
+  const cloud = await tryCloudProviders(prompt).catch(() => null);
+  const text = cloud?.text ?? (await tryOllama(prompt).catch(() => null))?.text;
+  if (!text) return null;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]) as Partial<WeeklyCoachAi>;
+    if (!Array.isArray(j.bottlenecks) || !Array.isArray(j.recommendations) || typeof j.summary !== 'string') return null;
+    return {
+      bottlenecks: j.bottlenecks.filter((s): s is string => typeof s === 'string').slice(0, 3),
+      recommendations: j.recommendations.filter((s): s is string => typeof s === 'string').slice(0, 3),
+      summary: j.summary.slice(0, 600),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function generateWeeklyCoachReview(
   tasks: Task[],
   notes: Record<string, string>,
@@ -108,15 +160,25 @@ export async function generateWeeklyCoachReview(
   recommendations: string[];
   summary: string;
   generatedAt: string;
+  aiPowered: boolean;
 }> {
   const completed = tasks.filter((t) => t.status === 'completed');
   const blockers = tasks.filter(isBlocker);
   const activeOrBacklog = tasks.filter((t) => t.status === 'active' || t.status === 'backlog');
-  
+
   // Calculate deferred: active tasks that have been untouched or backlog items
   const deferredCount = Math.max(activeOrBacklog.length - 2, 0) + (tasks.length === 0 ? 0 : 1);
   const blockersCount = blockers.length;
   const completedCount = completed.length;
+  const generatedAt = new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  // Smart path: real AI writes the narrative; counts stay local (always truthful).
+  const ai = await tryCoachAi(completed, activeOrBacklog, blockers, notes);
+  if (ai && (ai.bottlenecks.length || ai.recommendations.length)) {
+    return { completedCount, deferredCount, blockersCount, ...ai, generatedAt, aiPowered: true };
+  }
+
+  // Rule-based fallback (offline):
 
   // Extract bottlenecks
   const bottlenecks: string[] = [];
@@ -158,7 +220,8 @@ export async function generateWeeklyCoachReview(
     bottlenecks: bottlenecks.slice(0, 3),
     recommendations: recommendations.slice(0, 3),
     summary,
-    generatedAt: new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    generatedAt,
+    aiPowered: false,
   };
 }
 

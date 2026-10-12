@@ -53,8 +53,8 @@ export default function LogChatModal({ open, onClose }: { open: boolean; onClose
     if (!rawText.trim() || saving) return;
     setSaving(true);
     try {
-      const ingestData: ParsedAiIngestion = parsed ?? parseRawAiConversation(rawText.trim());
-      ingestData.detectedModel = model;
+      const baseData = parsed ?? parseRawAiConversation(rawText.trim());
+      const ingestData: ParsedAiIngestion = { ...baseData, detectedModel: model };
 
       await ingestAiConversation(ingestData, mode, targetId);
       onClose();

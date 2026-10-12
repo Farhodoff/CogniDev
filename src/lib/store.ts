@@ -44,6 +44,7 @@ import {
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
 import { fetchRecentCommits, fetchGitStatus } from './git';
 import { isTauri } from './vault';
+import type { AiSource } from './providers';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -85,7 +86,7 @@ interface SynapseState {
   checklists: Record<string, ChecklistItem[]>;
   prompts: PromptEntry[];
   standup: string | null;
-  standupSource: 'ollama' | 'fallback' | null;
+  standupSource: AiSource | null;
   hudMessage: string | null;
   showStandupModal: boolean;
   showTaskModal: boolean;
@@ -106,6 +107,7 @@ interface SynapseState {
   assignTaskToGroup: (taskId: string, groupId: string | null) => Promise<void>;
   syncGitCommits: () => Promise<void>;
   convertCommitToTask: (commit: GitCommit) => Promise<void>;
+  syncAllCommits: () => Promise<number>;
   setSpotlight: (open: boolean) => void;
   selectTask: (id: string) => Promise<void>;
   setTab: (t: EditorTab) => void;
@@ -117,7 +119,7 @@ interface SynapseState {
   removeChecklistItem: (taskId: string, itemId: string) => void;
   updateNote: (taskId: string, md: string) => void;
   flagBlocker: (id: string) => void;
-  setStandup: (content: string | null, source: 'ollama' | 'fallback' | null) => void;
+  setStandup: (content: string | null, source: AiSource | null) => void;
   setHud: (msg: string | null) => void;
   setStandupModal: (open: boolean) => void;
   setTaskModal: (open: boolean) => void;
@@ -683,6 +685,83 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   setSpotlight: (open) => set({ showSpotlight: open }),
+
+  /**
+   * Bulk auto-sync: convert all not-yet-imported local commits to
+   * completed tasks in one click. Dedupe by commit hash (notes + LS set).
+   * Returns the number of newly created tasks.
+   */
+  syncAllCommits: async () => {
+    const LS_KEY = 'cognidev.git.synced.v1';
+    let synced: string[] = [];
+    try {
+      synced = JSON.parse(localStorage.getItem(LS_KEY) ?? '[]') as string[];
+    } catch {
+      synced = [];
+    }
+    const syncedSet = new Set(synced);
+    const { tasks, notes, activeWorkspaceId, activeGroupId, gitStatus, dbMode } = get();
+    const fresh = get().gitCommits.filter(
+      (c) =>
+        !syncedSet.has(c.hash) &&
+        !tasks.some((t) => (notes[t.id] ?? '').includes(c.hash)),
+    );
+    if (!fresh.length) {
+      set({ hudMessage: 'Yangi commitlar yo‘q — barchasi sync qilingan' });
+      return 0;
+    }
+    let created = 0;
+    let selectId: string | null = null;
+    for (const commit of fresh) {
+      const id = nextTaskId(get().tasks);
+      if (!selectId) selectId = id;
+      const now = new Date().toISOString();
+      const newTask: Task = {
+        id,
+        workspace_id: activeWorkspaceId,
+        group_id: activeGroupId,
+        title: commit.message,
+        status: 'completed',
+        priority: 'Normal',
+        git_branch: gitStatus?.branch ?? null,
+        pr_url: null,
+        ai_source: 'Git Sync',
+        assignee_name: commit.author || 'Farhod',
+        assignee_avatar: (commit.author || 'F')[0]?.toUpperCase() ?? 'F',
+        assignee_name2: null,
+        assignee_avatar2: null,
+        created_at: now,
+        updated_at: now,
+      };
+      const note = `## Git Commit: ${commit.hash}\n- **Muallif:** ${commit.author}\n- **Vaqti:** ${commit.relative_time}\n\n### Vazifa Ta'rifi\n${commit.message}\n\n*Ushbu yechim Git commitdan avtomatik sinxronlashtirildi.*`;
+      if (dbMode === 'sqlite') {
+        try {
+          await insertTask(newTask);
+          await upsertResolution(id, note, '[]');
+        } catch {
+          /* keep in memory */
+        }
+      }
+      syncedSet.add(commit.hash);
+      created++;
+      set((s) => ({
+        tasks: [newTask, ...s.tasks],
+        notes: { ...s.notes, [id]: note },
+      }));
+    }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify([...syncedSet]));
+    } catch {
+      /* ignore */
+    }
+    const firstId = selectId ?? get().tasks[0]?.id;
+    set({
+      selectedTaskId: firstId ?? get().selectedTaskId,
+      hudMessage: `${created} ta commit avtomatik taskga aylandi — bugungi log tayyor`,
+    });
+    if (firstId) await get().selectTask(firstId);
+    return created;
+  },
 
   triggerStandup: async () => {
     const { tasks, dbMode } = get();

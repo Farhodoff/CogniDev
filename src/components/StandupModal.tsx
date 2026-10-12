@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Cpu, Check, Copy } from 'lucide-react';
 import { useSynapse } from '../lib/store';
+import { SOURCE_LABELS } from '../lib/providers';
 import { MiniMarkdown } from './WorkspaceEditor';
 
 export default function StandupModal() {
@@ -24,8 +25,8 @@ export default function StandupModal() {
         <div className="flex items-center gap-2 border-b border-white/[0.07] px-5 py-3.5">
           <Cpu size={15} className="text-violet-300" />
           <h2 className="text-[14px] font-bold text-white">Kunlik Standup Hisoboti</h2>
-          <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10.5px] ${standupSource === 'ollama' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
-            {standupSource === 'ollama' ? 'Ollama · Mahalliy AI' : 'Oflayn shablon'}
+          <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10.5px] ${standupSource === 'fallback' ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+            {standupSource ? SOURCE_LABELS[standupSource] : 'Oflayn shablon'}
           </span>
           <button onClick={() => setStandupModal(false)} className="ml-auto rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-white">
             <X size={16} />
