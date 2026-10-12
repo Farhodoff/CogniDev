@@ -1,0 +1,383 @@
+import { create } from 'zustand';
+import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspace } from './types';
+import { DEFAULT_PERSONAL_WORKSPACE } from './seed';
+import {
+  deleteTaskFromDb, ensureDefaultWorkspace, fetchPrompts, fetchResolution, fetchTasks, fetchWorkspaces,
+  insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskMeta, upsertResolution,
+  type VaultDump,
+} from './db';
+import { analyzeBlockers, generateStandup } from './ai';
+
+export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
+
+export function nextTaskId(tasks: Task[]): string {
+  let max = 0;
+  for (const t of tasks) {
+    const m = /^(?:DEV|TASK)-(\d+)$/.exec(t.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `DEV-${max + 1}`;
+}
+
+const noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+function persistResolution(taskId: string) {
+  const { dbMode, notes, checklists } = useSynapse.getState();
+  if (dbMode !== 'sqlite') return;
+  const md = notes[taskId] ?? '';
+  const cl = JSON.stringify(checklists[taskId] ?? []);
+  upsertResolution(taskId, md, cl).catch(() => {});
+}
+
+interface SynapseState {
+  ready: boolean;
+  dbMode: 'sqlite' | 'memory';
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  tasks: Task[];
+  selectedTaskId: string | null;
+  editorTab: EditorTab;
+  quickFilter: QuickFilter;
+  sortOrder: SortOrder;
+  search: string;
+  notes: Record<string, string>;
+  checklists: Record<string, ChecklistItem[]>;
+  prompts: PromptEntry[];
+  standup: string | null;
+  standupSource: 'ollama' | 'fallback' | null;
+  hudMessage: string | null;
+  showStandupModal: boolean;
+  showTaskModal: boolean;
+  showChatModal: boolean;
+
+  init: () => Promise<void>;
+  refresh: () => Promise<void>;
+  restoreAll: (d: VaultDump) => void;
+  setWorkspace: (id: string) => Promise<void>;
+  selectTask: (id: string) => Promise<void>;
+  setTab: (t: EditorTab) => void;
+  setFilter: (f: QuickFilter) => void;
+  setSortOrder: (s: SortOrder) => void;
+  setSearch: (s: string) => void;
+  toggleCheck: (taskId: string, itemId: string) => void;
+  addChecklistItem: (taskId: string, text: string) => void;
+  removeChecklistItem: (taskId: string, itemId: string) => void;
+  updateNote: (taskId: string, md: string) => void;
+  flagBlocker: (id: string) => void;
+  setStandup: (content: string | null, source: 'ollama' | 'fallback' | null) => void;
+  setHud: (msg: string | null) => void;
+  setStandupModal: (open: boolean) => void;
+  setTaskModal: (open: boolean) => void;
+  setChatModal: (open: boolean) => void;
+  addTask: (t: Task) => void;
+  deleteTask: (id: string) => Promise<void>;
+  updateTaskStatus: (id: string, status: Task['status']) => void;
+  updateTaskPriority: (id: string, priority: Task['priority']) => void;
+  createWorkspace: (name: string, type: 'personal' | 'team') => Promise<void>;
+  addPrompt: (p: PromptEntry) => void;
+  triggerStandup: () => Promise<void>;
+}
+
+export const useSynapse = create<SynapseState>((set, get) => ({
+  ready: false,
+  dbMode: 'memory',
+  workspaces: [DEFAULT_PERSONAL_WORKSPACE],
+  activeWorkspaceId: DEFAULT_PERSONAL_WORKSPACE.id,
+  tasks: [],
+  selectedTaskId: null,
+  editorTab: 'note',
+  quickFilter: null,
+  sortOrder: 'newest',
+  search: '',
+  notes: {},
+  checklists: {},
+  prompts: [],
+  standup: null,
+  standupSource: null,
+  hudMessage: null,
+  showStandupModal: false,
+  showTaskModal: false,
+  showChatModal: false,
+
+  init: async () => {
+    try {
+      await migrate();
+      await purgeMockDataIfPresent();
+      await ensureDefaultWorkspace();
+      await get().refresh();
+      set({ ready: true, dbMode: 'sqlite' });
+    } catch {
+      set({ ready: true, dbMode: 'memory' });
+    }
+  },
+
+  refresh: async () => {
+    const [ws, tasks] = await Promise.all([fetchWorkspaces().catch(() => []), fetchTasks().catch(() => [])]);
+    const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
+    const currentSelected = get().selectedTaskId;
+    const sel = tasks.find((t) => t.id === currentSelected) ?? tasks[0] ?? null;
+    set({
+      workspaces: ws.length ? ws : [DEFAULT_PERSONAL_WORKSPACE],
+      activeWorkspaceId: activeWs.id,
+      tasks,
+      selectedTaskId: sel?.id ?? null,
+    });
+    if (sel) {
+      await get().selectTask(sel.id);
+    } else {
+      set({ prompts: [] });
+    }
+  },
+
+  restoreAll: (d) => {
+    const notes: Record<string, string> = {};
+    const checklists: Record<string, ChecklistItem[]> = {};
+    for (const r of d.resolutions) {
+      if (r.markdown_note) notes[r.task_id] = r.markdown_note;
+      if (r.checklist_json) {
+        try { checklists[r.task_id] = JSON.parse(r.checklist_json); } catch { /* keep */ }
+      }
+    }
+    const sel = d.tasks[0] ?? null;
+    set({
+      workspaces: d.workspaces.length ? d.workspaces : [DEFAULT_PERSONAL_WORKSPACE],
+      tasks: d.tasks,
+      notes,
+      checklists,
+      prompts: d.prompts.filter((p) => p.task_id === sel?.id),
+      selectedTaskId: sel?.id ?? null,
+    });
+  },
+
+  setWorkspace: async (id) => {
+    set({ activeWorkspaceId: id, quickFilter: null, search: '' });
+    const { dbMode } = get();
+    if (dbMode === 'sqlite') {
+      try {
+        const tasks = await fetchTasks(id);
+        const first = tasks[0];
+        set({ tasks, selectedTaskId: first?.id ?? null });
+        if (first) {
+          await get().selectTask(first.id);
+        } else {
+          set({ prompts: [] });
+        }
+        return;
+      } catch { /* fall through */ }
+    }
+    const tasks = get().tasks.filter((t) => t.workspace_id === id);
+    const first = tasks[0];
+    set({ tasks, selectedTaskId: first?.id ?? null });
+    if (first) {
+      set((s) => ({ prompts: s.prompts.filter((p) => p.task_id === first.id) }));
+    } else {
+      set({ prompts: [] });
+    }
+  },
+
+  selectTask: async (id) => {
+    set({ selectedTaskId: id });
+    const { dbMode, notes, checklists } = get();
+    if (dbMode === 'sqlite') {
+      try {
+        const [res, pr] = await Promise.all([fetchResolution(id), fetchPrompts(id)]);
+        set({
+          notes: res?.markdown_note !== undefined && res?.markdown_note !== null
+            ? { ...notes, [id]: res.markdown_note }
+            : notes,
+          checklists: res?.checklist_json
+            ? { ...checklists, [id]: JSON.parse(res.checklist_json) }
+            : checklists,
+          prompts: pr,
+        });
+        return;
+      } catch { /* keep memory */ }
+    }
+  },
+
+  setTab: (t) => set({ editorTab: t }),
+  setFilter: (f) => set({ quickFilter: f }),
+  setSortOrder: (s) => set({ sortOrder: s }),
+  setSearch: (s) => set({ search: s }),
+
+  toggleCheck: (taskId, itemId) => {
+    const list = get().checklists[taskId] ?? [];
+    const next = list.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it));
+    set((s) => ({ checklists: { ...s.checklists, [taskId]: next } }));
+    persistResolution(taskId);
+  },
+
+  addChecklistItem: (taskId, text) => {
+    const list = get().checklists[taskId] ?? [];
+    const item: ChecklistItem = { id: uid('chk'), text: text.trim(), done: false };
+    set((s) => ({ checklists: { ...s.checklists, [taskId]: [...list, item] } }));
+    persistResolution(taskId);
+  },
+
+  removeChecklistItem: (taskId, itemId) => {
+    const list = get().checklists[taskId] ?? [];
+    set((s) => ({ checklists: { ...s.checklists, [taskId]: list.filter((it) => it.id !== itemId) } }));
+    persistResolution(taskId);
+  },
+
+  updateNote: (taskId, md) => {
+    set((s) => ({ notes: { ...s.notes, [taskId]: md } }));
+    clearTimeout(noteTimers[taskId]);
+    noteTimers[taskId] = setTimeout(() => persistResolution(taskId), 800);
+  },
+
+  flagBlocker: (id) => {
+    const { tasks, dbMode } = get();
+    const t = tasks.find((item) => item.id === id);
+    if (!t) return;
+    const nextStatus = t.status === 'blocker' ? 'active' : 'blocker';
+    const nextPriority = nextStatus === 'blocker' ? 'P0 Blocker' : 'Normal';
+    set((s) => ({
+      tasks: s.tasks.map((item) =>
+        item.id === id ? { ...item, status: nextStatus, priority: nextPriority } : item,
+      ),
+      hudMessage: nextStatus === 'blocker' ? `${id} P0 blocker deb belgilandi` : `${id} faol holatga qaytarildi`,
+    }));
+    if (dbMode === 'sqlite') {
+      updateTaskMeta(id, nextStatus, nextPriority).catch(() => {});
+    }
+  },
+
+  setStandup: (content, source) => set({ standup: content, standupSource: source }),
+  setHud: (msg) => set({ hudMessage: msg }),
+  setStandupModal: (open) => set({ showStandupModal: open }),
+  setTaskModal: (open) => set({ showTaskModal: open }),
+  setChatModal: (open) => set({ showChatModal: open }),
+
+  addTask: (t) => {
+    set((s) => ({
+      tasks: [t, ...s.tasks],
+      selectedTaskId: t.id,
+      hudMessage: `Yangi vazifa qo'shildi: ${t.id}`,
+    }));
+    if (get().dbMode === 'sqlite') {
+      insertTask(t).catch(() => {});
+    }
+  },
+
+  deleteTask: async (id) => {
+    const { dbMode, selectedTaskId, tasks } = get();
+    if (dbMode === 'sqlite') {
+      await deleteTaskFromDb(id).catch(() => {});
+    }
+    const remaining = tasks.filter((t) => t.id !== id);
+    const newSelected = selectedTaskId === id ? (remaining[0]?.id ?? null) : selectedTaskId;
+    set({
+      tasks: remaining,
+      selectedTaskId: newSelected,
+      hudMessage: `${id} vazifasi o'chirildi`,
+    });
+    if (newSelected) {
+      await get().selectTask(newSelected);
+    }
+  },
+
+  updateTaskStatus: (id, status) => {
+    const stamp = new Date().toISOString();
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, status, updated_at: stamp } : t)),
+      hudMessage: `${id} holati o'zgartirildi: ${status}`,
+    }));
+    const t = get().tasks.find((task) => task.id === id);
+    if (get().dbMode === 'sqlite' && t) {
+      updateTaskMeta(id, status, t.priority).catch(() => {});
+    }
+  },
+
+  updateTaskPriority: (id, priority) => {
+    const stamp = new Date().toISOString();
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, priority, updated_at: stamp } : t)),
+      hudMessage: `${id} muhimlik darajasi o'zgartirildi`,
+    }));
+    const t = get().tasks.find((task) => task.id === id);
+    if (get().dbMode === 'sqlite' && t) {
+      updateTaskMeta(id, t.status, priority).catch(() => {});
+    }
+  },
+
+  createWorkspace: async (name, type) => {
+    const w: Workspace = {
+      id: uid('ws'),
+      name: name.trim(),
+      type,
+      created_at: new Date().toISOString(),
+    };
+    if (get().dbMode === 'sqlite') {
+      await insertWorkspace(w).catch(() => {});
+    }
+    set((s) => ({
+      workspaces: [...s.workspaces, w],
+      activeWorkspaceId: w.id,
+      hudMessage: `Yangi ombor yaratildi: ${w.name}`,
+    }));
+    await get().setWorkspace(w.id);
+  },
+
+  addPrompt: (p) => set((s) => ({ prompts: [...s.prompts, p] })),
+
+  triggerStandup: async () => {
+    const { tasks, dbMode } = get();
+    set({ hudMessage: 'Standup tuzilmoqda (Ollama / AI)...' });
+    try {
+      const r = await generateStandup(tasks);
+      set({
+        standup: r.content,
+        standupSource: r.source,
+        showStandupModal: true,
+        hudMessage: r.source === 'ollama' ? `Standup ${r.model} orqali tuzildi` : 'Standup tayyorlandi',
+      });
+      if (dbMode === 'sqlite') {
+        saveRetrospective(new Date().toISOString().slice(0, 10), 'standup', r.content, analyzeBlockers(tasks)).catch(() => {});
+      }
+    } catch {
+      set({ hudMessage: 'Standup generatsiya qilishda xatolik yuz berdi' });
+    }
+  },
+}));
+
+const PRIORITY_ORDER: Record<Task['priority'], number> = {
+  'P0 Blocker': 0,
+  'Critical': 1,
+  'High Priority': 2,
+  'Normal': 3,
+};
+
+export function filteredTasks(
+  tasks: Task[],
+  f: QuickFilter,
+  search: string,
+  workspaceId: string,
+  sortOrder: SortOrder = 'newest',
+): Task[] {
+  let out = tasks.filter((t) => t.workspace_id === workspaceId);
+  if (f === 'mine') out = out.filter((t) => t.assignee_name === 'Farhod');
+  if (f === 'high') out = out.filter((t) => t.priority === 'P0 Blocker' || t.priority === 'Critical');
+  if (f === 'claude') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('claude'));
+  if (f === 'gemini') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('gemini'));
+
+  const q = search.trim().toLowerCase();
+  if (q) {
+    out = out.filter((t) => t.id.toLowerCase().includes(q) || t.title.toLowerCase().includes(q));
+  }
+
+  out = [...out].sort((a, b) => {
+    if (sortOrder === 'priority') {
+      return (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9);
+    }
+    if (sortOrder === 'title') {
+      return a.title.localeCompare(b.title);
+    }
+    if (sortOrder === 'oldest') {
+      return Date.parse(a.created_at) - Date.parse(b.created_at);
+    }
+    return Date.parse(b.created_at || b.updated_at) - Date.parse(a.created_at || a.updated_at);
+  });
+
+  return out;
+}
