@@ -3,10 +3,10 @@ import type { ChecklistItem, EditorTab, PromptEntry, QuickFilter, Task, Workspac
 import { DEFAULT_PERSONAL_WORKSPACE } from './seed';
 import {
   deleteTaskFromDb, ensureDefaultWorkspace, fetchPrompts, fetchResolution, fetchTasks, fetchWorkspaces,
-  insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskMeta, upsertResolution,
+  insertPrompt, insertTask, insertWorkspace, migrate, purgeMockDataIfPresent, saveRetrospective, uid, updateTaskMeta, upsertResolution,
   type VaultDump,
 } from './db';
-import { analyzeBlockers, generateStandup } from './ai';
+import { analyzeBlockers, generateStandup, type ParsedAiIngestion } from './ai';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -69,6 +69,12 @@ interface SynapseState {
   setStandupModal: (open: boolean) => void;
   setTaskModal: (open: boolean) => void;
   setChatModal: (open: boolean) => void;
+  quickCapture: (text: string) => Promise<void>;
+  ingestAiConversation: (
+    ingestData: ParsedAiIngestion,
+    mode: 'new_task' | 'attach_task',
+    targetTaskId?: string,
+  ) => Promise<string>;
   addTask: (t: Task) => void;
   deleteTask: (id: string) => Promise<void>;
   updateTaskStatus: (id: string, status: Task['status']) => void;
@@ -249,6 +255,130 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   setTaskModal: (open) => set({ showTaskModal: open }),
   setChatModal: (open) => set({ showChatModal: open }),
 
+  quickCapture: async (text: string) => {
+    const { tasks, activeWorkspaceId, dbMode } = get();
+    const id = nextTaskId(tasks);
+    const newTask: Task = {
+      id,
+      workspace_id: activeWorkspaceId,
+      title: text.trim(),
+      status: 'active',
+      priority: 'Normal',
+      git_branch: null,
+      pr_url: null,
+      ai_source: 'Quick Capture',
+      assignee_name: 'Farhod',
+      assignee_avatar: 'F',
+      assignee_name2: null,
+      assignee_avatar2: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    if (dbMode === 'sqlite') {
+      await insertTask(newTask).catch(() => {});
+    }
+    set((s) => ({
+      tasks: [newTask, ...s.tasks],
+      selectedTaskId: newTask.id,
+      hudMessage: `Yangi tezkor vazifa qo'shildi: ${newTask.id}`,
+    }));
+  },
+
+  ingestAiConversation: async (ingestData, mode, targetTaskId) => {
+    const { tasks, activeWorkspaceId, dbMode, notes } = get();
+    const now = new Date().toISOString();
+    const shortPromptHash = '#' + Math.random().toString(16).slice(2, 7);
+
+    if (mode === 'new_task') {
+      const id = nextTaskId(tasks);
+      const newTask: Task = {
+        id,
+        workspace_id: activeWorkspaceId,
+        title: ingestData.title,
+        status: 'completed',
+        priority: 'Normal',
+        git_branch: null,
+        pr_url: null,
+        ai_source: ingestData.detectedModel,
+        assignee_name: 'Farhod',
+        assignee_avatar: 'F',
+        assignee_name2: null,
+        assignee_avatar2: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const richNote = `# ${ingestData.title}\n\n` +
+        `> **AI Modeli:** ${ingestData.detectedModel}\n` +
+        `> **Sana:** ${new Date().toLocaleDateString('uz-UZ')}\n\n` +
+        `## Muammo & Kontekst\n${ingestData.problemSummary}\n\n` +
+        (ingestData.solutionSnippet ? `## Yechim Kodi\n${ingestData.solutionSnippet}\n\n` : '') +
+        `## Asosiy Bilimlar & Xulosalar\n` +
+        ingestData.keyLearnings.map((k) => `- ${k}`).join('\n') +
+        '\n';
+
+      const promptEntry: PromptEntry = {
+        id: uid('pv'),
+        task_id: id,
+        prompt_hash: shortPromptHash,
+        raw_prompt: ingestData.rawPrompt,
+        ai_response: ingestData.solutionSnippet || ingestData.problemSummary,
+        model_name: ingestData.detectedModel,
+        created_at: now,
+      };
+
+      if (dbMode === 'sqlite') {
+        try {
+          await insertTask(newTask);
+          await upsertResolution(id, richNote, '[]');
+          await insertPrompt(promptEntry);
+        } catch {}
+      }
+
+      set((s) => ({
+        tasks: [newTask, ...s.tasks],
+        selectedTaskId: id,
+        notes: { ...s.notes, [id]: richNote },
+        prompts: [promptEntry],
+        hudMessage: `AI yechimi muvaffaqiyatli import qilindi: ${id}`,
+      }));
+
+      return id;
+    } else {
+      const id = targetTaskId ?? get().selectedTaskId ?? tasks[0]?.id;
+      if (!id) return '';
+
+      const appendBlock = `\n\n---\n## 🤖 AI Yechimi (${ingestData.detectedModel})\n\n${ingestData.solutionSnippet}\n\n**O'rganilgan bilimlar:**\n${ingestData.keyLearnings.map((k) => `- ${k}`).join('\n')}\n`;
+      const currentNote = notes[id] ?? '';
+      const updatedNote = currentNote + appendBlock;
+
+      const promptEntry: PromptEntry = {
+        id: uid('pv'),
+        task_id: id,
+        prompt_hash: shortPromptHash,
+        raw_prompt: ingestData.rawPrompt,
+        ai_response: ingestData.solutionSnippet || ingestData.problemSummary,
+        model_name: ingestData.detectedModel,
+        created_at: now,
+      };
+
+      if (dbMode === 'sqlite') {
+        try {
+          await upsertResolution(id, updatedNote, '[]');
+          await insertPrompt(promptEntry);
+        } catch {}
+      }
+
+      set((s) => ({
+        notes: { ...s.notes, [id]: updatedNote },
+        prompts: [...s.prompts, promptEntry],
+        selectedTaskId: id,
+        hudMessage: `AI suhbati ${id} ga biriktirildi`,
+      }));
+
+      return id;
+    }
+  },
   addTask: (t) => {
     set((s) => ({
       tasks: [t, ...s.tasks],
