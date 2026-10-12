@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, TriangleAlert, X, Loader2 } from 'lucide-react';
+import { Sparkles, TriangleAlert, X, Loader2, Bot } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker, analyzeBlockers } from '../lib/ai';
 import { getJevKey, jevTriage, triageToMarkdown } from '../lib/jev';
+import { firstEnabledProvider } from '../lib/providers';
 
 export default function FloatingHud() {
-  const { tasks, setStandup, setStandupModal, setHud, setFilter, hudMessage, triggerStandup } = useSynapse();
+  const { tasks, setStandup, setStandupModal, setHud, setFilter, hudMessage, triggerStandup, setProvidersModal } = useSynapse();
   const [busy, setBusy] = useState<'standup' | 'blockers' | null>(null);
   const blockers = tasks.filter(isBlocker);
+  const activeAi = firstEnabledProvider();
 
   async function onStandup() {
     setBusy('standup');
@@ -42,6 +44,14 @@ export default function FloatingHud() {
     <>
       <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/[0.10] bg-[#17181d]/80 px-2.5 py-2 shadow-[0_16px_50px_-12px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
+          <button
+            onClick={() => setProvidersModal(true)}
+            title="Qaysi AI ishlashini tanlash"
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[12px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
+          >
+            <Bot size={13} className={activeAi ? 'text-emerald-300' : 'text-zinc-500'} />
+            <span className="max-w-[90px] truncate">AI: {activeAi ? activeAi.name : 'Ollama'}</span>
+          </button>
           <button
             onClick={onStandup}
             disabled={busy !== null}

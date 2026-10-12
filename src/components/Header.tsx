@@ -28,13 +28,12 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setTaskModal,
     showChatModal,
     setChatModal,
-    setSpotlight,
   } = useSynapse();
 
   const [wsOpen, setWsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const [providersOpen, setProvidersOpen] = useState(false);
+  const { showProvidersModal, setProvidersModal } = useSynapse();
   const enabledCount = enabledProviders().length;
   const [aiSyncOpen, setAiSyncOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -179,7 +178,6 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
           <button
             onClick={() => {
               if (onPalette) onPalette();
-              setSpotlight(true);
             }}
             className="flex w-full items-center gap-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-left text-zinc-400 hover:border-white/20 hover:bg-white/[0.06] transition shadow-inner group"
             title="Spotlight tezkor qidiruv (⌘K)"
@@ -331,7 +329,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 <button onClick={doImport} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <Upload size={14} className="text-emerald-300" /> Import (.json)
                 </button>
-                <button onClick={() => { setProvidersOpen(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
+                <button onClick={() => { setProvidersModal(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <Bot size={14} className="text-violet-300" /> AI provayderlar
                   {enabledCount > 0 && <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[10.5px] text-emerald-300">{enabledCount}</span>}
                 </button>
@@ -351,7 +349,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       {showTaskModal && <TaskModal open={showTaskModal} onClose={() => setTaskModal(false)} />}
       {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
       {voiceOpen && <VoiceRecorderModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />}
-      {providersOpen && <AiProvidersModal open={providersOpen} onClose={() => setProvidersOpen(false)} />}
+      {showProvidersModal && <AiProvidersModal open={showProvidersModal} onClose={() => setProvidersModal(false)} />}
     </>
   );
 }

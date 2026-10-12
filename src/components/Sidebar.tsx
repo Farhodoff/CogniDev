@@ -1,26 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Folder, Sparkles, Plus, Trophy, BookOpen, Layers, Bot, TrendingUp, Users, X } from 'lucide-react';
+import { Folder, Plus, Trophy, BookOpen, Layers, Users, X } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker } from '../lib/ai';
 import { fetchTagCounts } from '../lib/db';
-
-/** 5 o'qli radar poligoni: qiymatlar 0..1, markaz (50,48), radius 36. */
-function radarPoints(values: number[]): string {
-  const cx = 50, cy = 48, R = 36;
-  return values
-    .map((v, i) => {
-      const a = ((-90 + i * 72) * Math.PI) / 180;
-      const r = R * Math.max(0.06, Math.min(1, v));
-      return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
-    })
-    .join(' ');
-}
 
 export default function Sidebar() {
   const {
     tasks,
     prompts,
-    notes,
     search,
     workspaces,
     activeWorkspaceId,
@@ -30,8 +17,6 @@ export default function Sidebar() {
     activeTag,
     setActiveTag,
     setSearch,
-    triggerStandup,
-    triggerWeeklyCoach,
     createWorkspace,
     dbMode,
     groups,
@@ -71,7 +56,6 @@ export default function Sidebar() {
   }, [dbMode, tasks.length, prompts.length]);
 
   // Compute fallback / in-memory counts
-  const memPromptCount = prompts.length;
   const memBlockerCount = tasks.filter(isBlocker).length;
   const memArchCount = tasks.filter(
     (t) =>
@@ -80,7 +64,6 @@ export default function Sidebar() {
       t.title.toLowerCase().includes('design'),
   ).length;
 
-  const promptCount = dbTagCounts ? dbTagCounts.promptLibrary : memPromptCount;
   const blockerCount = dbTagCounts ? dbTagCounts.blocker : memBlockerCount;
   const archCount = dbTagCounts ? dbTagCounts.architecture : memArchCount;
 
@@ -112,47 +95,9 @@ export default function Sidebar() {
   );
 
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const totalTasks = tasks.length || 1;
-  const progressPercent = Math.min(Math.round((completedCount / totalTasks) * 100), 100);
-
-  // --- Jonli radar ma'lumotlari (5 o'q: Reja, Bajarildi, Yechim, Bilim, AI) ---
-  const wsTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
-  const wsTotal = wsTasks.length || 1;
-  const radarValues = [
-    wsTasks.filter((t) => t.status === 'active' || t.status === 'backlog' || t.status === 'in_review').length / wsTotal,
-    wsTasks.filter((t) => t.status === 'completed').length / wsTotal,
-    wsTasks.filter((t) => (notes[t.id] ?? '').trim().length > 0).length / wsTotal,
-    wsTasks.filter((t) => /arch|refactor|design|bilim|o'rgan/i.test(t.title)).length / wsTotal,
-    wsTasks.filter((t) => !!t.ai_source).length / wsTotal,
-  ];
-
-  // --- Blocker Radar odamlari: avval blokerlardagi assignee'lar, keyin qolganlar ---
-  const radarPeople = (() => {
-    const names: string[] = [];
-    const push = (n?: string | null) => {
-      if (n && n.trim() && !names.includes(n.trim()) && names.length < 4) names.push(n.trim());
-    };
-    wsTasks.filter((t) => t.status === 'blocker').forEach((t) => { push(t.assignee_name); push(t.assignee_name2); });
-    wsTasks.forEach((t) => { push(t.assignee_name); push(t.assignee_name2); });
-    push('Farhod');
-    while (names.length < 4) names.push('—');
-    return names;
-  })();
 
   return (
     <aside className="flex w-[246px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-white/[0.06] bg-[#0f1013]/80 px-3 py-4">
-      {/* Brand Header */}
-      <div className="flex items-center gap-2.5 px-2 pb-1">
-        <img src="/logo.svg" alt="CogniDev Logo" className="h-7 w-7 rounded-xl shadow-md border border-white/10" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-bold tracking-tight text-white">CogniDev</span>
-            <span className="rounded bg-sky-500/20 px-1 py-0.2 font-mono text-[9px] text-sky-300 border border-sky-400/30">v1.0</span>
-          </div>
-          <p className="truncate font-mono text-[10px] text-zinc-500">AI Markaz</p>
-        </div>
-      </div>
-
       {/* Smart Ko'rinishlar (Asosiy Bo'limlar) */}
       <nav className="space-y-0.5">
         <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Boshqaruv</p>
@@ -196,59 +141,7 @@ export default function Sidebar() {
           </span>
         </button>
 
-        <button
-          onClick={() => setSearch('prompt')}
-          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition"
-        >
-          <Bot size={15} className="text-cyan-400" />
-          <span>AI Prompt Ombori</span>
-          <span className="ml-auto rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">
-            {promptCount}
-          </span>
-        </button>
       </nav>
-
-      {/* Weekly Progress Radar Karta */}
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3 shadow-sm hover:border-white/[0.12] transition">
-        <div className="flex items-center justify-between pb-1">
-          <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-            <TrendingUp size={13} className="text-sky-400" /> Progress Radar
-          </span>
-          <button
-            onClick={() => triggerWeeklyCoach()}
-            className="text-[10px] font-semibold text-violet-400 hover:text-violet-300 transition"
-          >
-            Tahlil
-          </button>
-        </div>
-        
-        {/* SVG Radar */}
-        <div className="relative flex items-center justify-center py-1">
-          <svg viewBox="0 0 100 90" className="w-full max-w-[130px] overflow-visible">
-            {/* Pentagon grid */}
-            <polygon points="50,6 94,36 78,84 22,84 6,36" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-            <polygon points="50,22 75,39 65,68 35,68 25,39" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-            {/* Jonli ma'lumot poligoni */}
-            <polygon
-              points={radarPoints(radarValues)}
-              fill="rgba(56,189,248,0.18)"
-              stroke="#38bdf8"
-              strokeWidth="1.5"
-            />
-            {/* Labels */}
-            <text x="50" y="2" textAnchor="middle" fill="#71717a" fontSize="6.5">Reja</text>
-            <text x="96" y="38" textAnchor="start" fill="#71717a" fontSize="6.5">Bajarildi</text>
-            <text x="78" y="90" textAnchor="middle" fill="#71717a" fontSize="6.5">Yechim</text>
-            <text x="22" y="90" textAnchor="middle" fill="#71717a" fontSize="6.5">Bilim</text>
-            <text x="4" y="38" textAnchor="end" fill="#71717a" fontSize="6.5">AI</text>
-          </svg>
-        </div>
-
-        <div className="flex items-center justify-between text-[10.5px] text-zinc-400 font-mono pt-1.5 border-t border-white/[0.04]">
-          <span>Tezlik: {progressPercent}%</span>
-          <span className="text-emerald-400 font-semibold">Barqaror</span>
-        </div>
-      </div>
 
       {/* Workspaces (Omborlar) */}
       <nav className="space-y-1">
@@ -464,57 +357,7 @@ export default function Sidebar() {
         })}
 
         {/* AI Kunlik Standup tugmasi */}
-        <button
-          onClick={() => triggerStandup()}
-          className="mt-2 flex w-full items-center gap-2.5 rounded-xl bg-violet-500/10 px-2.5 py-2 text-left text-[12.5px] font-medium text-violet-200 hover:bg-violet-500/20 transition"
-        >
-          <Sparkles size={14} className="text-violet-300" />
-          AI Standup
-          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_8px_2px_rgba(167,139,250,0.7)]" />
-        </button>
       </nav>
-
-      {/* Team Blocker Radar (Live) */}
-      <div className="rounded-2xl border border-rose-500/25 bg-rose-500/[0.03] p-3 shadow-sm hover:border-rose-500/40 transition">
-        <div className="flex items-center justify-between pb-1.5">
-          <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-            <Users size={12} className="text-rose-400" /> To'siq Radari
-          </span>
-          <span className="rounded-full bg-rose-500/20 border border-rose-400/30 px-1.5 py-0.5 text-[9.5px] font-mono text-rose-300 animate-pulse">
-            Jonli
-          </span>
-        </div>
-
-        {/* Constellation SVG */}
-        <div className="relative flex items-center justify-center py-1">
-          <svg viewBox="0 0 100 80" className="w-full max-w-[125px] overflow-visible">
-            <line x1="50" y1="12" x2="85" y2="45" stroke="rgba(244,63,94,0.3)" strokeWidth="1" strokeDasharray="2,2" />
-            <line x1="85" y1="45" x2="50" y2="70" stroke="rgba(56,189,248,0.3)" strokeWidth="1" />
-            <line x1="50" y1="70" x2="15" y2="45" stroke="rgba(168,85,247,0.3)" strokeWidth="1" />
-            <line x1="15" y1="45" x2="50" y2="12" stroke="rgba(52,211,153,0.3)" strokeWidth="1" />
-            <line x1="50" y1="12" x2="50" y2="70" stroke="rgba(244,63,94,0.4)" strokeWidth="1.5" />
-
-            <circle cx="50" cy="12" r="5" fill="#f43f5e" />
-            <text x="50" y="5" textAnchor="middle" fill="#e4e4e7" fontSize="6.5">{radarPeople[0]}</text>
-
-            <circle cx="85" cy="45" r="4.5" fill="#38bdf8" />
-            <text x="92" y="47" textAnchor="start" fill="#a1a1aa" fontSize="6">{radarPeople[1]}</text>
-
-            <circle cx="50" cy="70" r="4.5" fill="#a855f7" />
-            <text x="50" y="78" textAnchor="middle" fill="#a1a1aa" fontSize="6">{radarPeople[2]}</text>
-
-            <circle cx="15" cy="45" r="4.5" fill="#34d399" />
-            <text x="8" y="47" textAnchor="end" fill="#a1a1aa" fontSize="6">{radarPeople[3]}</text>
-          </svg>
-        </div>
-
-        <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono pt-1.5 border-t border-white/[0.04]">
-          <span className="text-rose-400 font-medium">To'siqlar: {tasks.filter((t) => t.status === 'blocker').length} faol</span>
-          <button onClick={() => setFilter('high')} className="text-zinc-300 hover:text-white underline">
-            Ko'rish
-          </button>
-        </div>
-      </div>
 
       {/* Teglar — real taglar bo'yicha aniq filtr */}
       <div>

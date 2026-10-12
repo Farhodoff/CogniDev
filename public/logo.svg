@@ -1,28 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
   <defs>
-    <!-- Background Gradient -->
+    <!-- Background Gradient (Deep space obsidian) -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0b0d14"/>
-      <stop offset="50%" stop-color="#111320"/>
-      <stop offset="100%" stop-color="#17192b"/>
+      <stop offset="0%" stop-color="#0d101a"/>
+      <stop offset="50%" stop-color="#131728"/>
+      <stop offset="100%" stop-color="#181b32"/>
     </linearGradient>
 
-    <!-- Border Glow Gradient -->
+    <!-- Outer Rim Metallic/Glow Gradient -->
     <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6"/>
-      <stop offset="35%" stop-color="#818cf8" stop-opacity="0.3"/>
-      <stop offset="70%" stop-color="#c084fc" stop-opacity="0.5"/>
-      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/>
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.7"/>
+      <stop offset="30%" stop-color="#818cf8" stop-opacity="0.35"/>
+      <stop offset="70%" stop-color="#c084fc" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.3"/>
     </linearGradient>
 
-    <!-- Left Bracket Neon Gradient (Cyan -> Indigo) -->
+    <!-- Inner Chamfer Highlight -->
+    <linearGradient id="innerBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="20%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.3"/>
+    </linearGradient>
+
+    <!-- Left Bracket Neon Gradient (Cyan -> Electric Blue -> Indigo) -->
     <linearGradient id="leftBracket" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#00f2fe"/>
-      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="40%" stop-color="#38bdf8"/>
       <stop offset="100%" stop-color="#6366f1"/>
     </linearGradient>
 
-    <!-- Right Bracket Neon Gradient (Indigo -> Violet -> Rose) -->
+    <!-- Right Bracket Neon Gradient (Indigo -> Violet -> Neon Pink/Rose) -->
     <linearGradient id="rightBracket" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#818cf8"/>
       <stop offset="50%" stop-color="#c084fc"/>
@@ -39,22 +47,30 @@
     <!-- Ambient Core Glow -->
     <radialGradient id="ambientGlow" cx="50%" cy="50%" r="50%">
       <stop offset="0%" stop-color="#6366f1" stop-opacity="0.45"/>
-      <stop offset="45%" stop-color="#38bdf8" stop-opacity="0.2"/>
-      <stop offset="80%" stop-color="#a855f7" stop-opacity="0.05"/>
+      <stop offset="40%" stop-color="#38bdf8" stop-opacity="0.22"/>
+      <stop offset="75%" stop-color="#a855f7" stop-opacity="0.06"/>
       <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Center Pulse Bloom Glow -->
+    <radialGradient id="centerBloom" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="25%" stop-color="#38bdf8" stop-opacity="0.75"/>
+      <stop offset="60%" stop-color="#818cf8" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
     </radialGradient>
 
     <!-- Glass Specular Reflection -->
     <linearGradient id="glassSheen" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15"/>
       <stop offset="40%" stop-color="#ffffff" stop-opacity="0.03"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Drop Shadow for Brackets -->
-    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="8" result="blur1"/>
-      <feGaussianBlur stdDeviation="16" result="blur2"/>
+    <!-- Drop Shadow for Brackets & Core (Neon Glow) -->
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="blur1"/>
+      <feGaussianBlur stdDeviation="28" result="blur2"/>
       <feMerge>
         <feMergeNode in="blur2"/>
         <feMergeNode in="blur1"/>
@@ -62,96 +78,110 @@
       </feMerge>
     </filter>
 
-    <!-- Subtle Shadow for Squircle -->
-    <filter id="squircleShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.8"/>
+    <!-- Multi-stage Apple macOS Icon Drop Shadow (Keeps well within 100px margins) -->
+    <filter id="macShadow" x="-15%" y="-15%" width="130%" height="135%">
+      <!-- Ambient floor occlusion shadow -->
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#000000" flood-opacity="0.35"/>
+      <!-- Key contact shadow -->
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.22"/>
     </filter>
+
+    <!-- Clip Path for Inside the Squircle (ensures glass sheen and constellations never bleed) -->
+    <clipPath id="squircleClip">
+      <rect x="100" y="100" width="824" height="824" rx="185" ry="185"/>
+    </clipPath>
   </defs>
 
-  <!-- Ambient Backdrop Halo -->
-  <circle cx="256" cy="256" r="210" fill="url(#ambientGlow)"/>
-
-  <!-- macOS App Icon Squircle Base (Apple 512 squircle rx=115) -->
-  <g filter="url(#squircleShadow)">
-    <rect x="32" y="32" width="448" height="448" rx="108" fill="url(#bg)"/>
-    <!-- Outer Rim -->
-    <rect x="32" y="32" width="448" height="448" rx="108" fill="none" stroke="url(#borderGrad)" stroke-width="3"/>
+  <!-- macOS App Icon Squircle Base with Authentic Shadow -->
+  <g filter="url(#macShadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
   </g>
 
-  <!-- Neural Constellation Network (Circuits & Synapses) -->
-  <g opacity="0.45" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3 3">
-    <line x1="160" y1="170" x2="256" y2="200"/>
-    <line x1="352" y1="170" x2="256" y2="200"/>
-    <line x1="256" y1="200" x2="256" y2="312"/>
-    <line x1="160" y1="342" x2="256" y2="312"/>
-    <line x1="352" y1="342" x2="256" y2="312"/>
-    <line x1="130" y1="256" x2="210" y2="256"/>
-    <line x1="382" y1="256" x2="302" y2="256"/>
+  <!-- Clipped Squircle Interior Details -->
+  <g clip-path="url(#squircleClip)">
+    <!-- Ambient Backdrop Halo inside squircle -->
+    <circle cx="512" cy="512" r="380" fill="url(#ambientGlow)"/>
+
+    <!-- Neural Constellation Network (Circuits & Synapses) -->
+    <g opacity="0.4" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="6 6">
+      <line x1="320" y1="340" x2="512" y2="400"/>
+      <line x1="704" y1="340" x2="512" y2="400"/>
+      <line x1="512" y1="400" x2="512" y2="624"/>
+      <line x1="320" y1="684" x2="512" y2="624"/>
+      <line x1="704" y1="684" x2="512" y2="624"/>
+      <line x1="260" y1="512" x2="420" y2="512"/>
+      <line x1="764" y1="512" x2="604" y2="512"/>
+    </g>
+
+    <!-- Constellation Nodes -->
+    <g>
+      <circle cx="320" cy="340" r="7" fill="#38bdf8" opacity="0.8"/>
+      <circle cx="704" cy="340" r="7" fill="#c084fc" opacity="0.8"/>
+      <circle cx="320" cy="684" r="7" fill="#38bdf8" opacity="0.8"/>
+      <circle cx="704" cy="684" r="7" fill="#f43f5e" opacity="0.8"/>
+      <circle cx="260" cy="512" r="6" fill="#00f2fe" opacity="0.75"/>
+      <circle cx="764" cy="512" r="6" fill="#f43f5e" opacity="0.75"/>
+    </g>
+
+    <!-- Central Energy Bloom -->
+    <circle cx="512" cy="512" r="130" fill="url(#ambientGlow)"/>
+
+    <!-- Left Code Bracket "<" (Futuristic Angled Ingot with Neon Aura) -->
+    <g filter="url(#neonGlow)">
+      <path d="M 408 308
+               L 264 484
+               A 36 36 0 0 0 264 540
+               L 408 716
+               A 24 24 0 0 0 444 688
+               L 324 524
+               A 16 16 0 0 1 324 500
+               L 444 336
+               A 24 24 0 0 0 408 308 Z"
+            fill="url(#leftBracket)"/>
+    </g>
+
+    <!-- Right Code Bracket ">" (Futuristic Angled Ingot with Neon Aura) -->
+    <g filter="url(#neonGlow)">
+      <path d="M 616 308
+               L 760 484
+               A 36 36 0 0 1 760 540
+               L 616 716
+               A 24 24 0 0 1 580 688
+               L 700 524
+               A 16 16 0 0 0 700 500
+               L 580 336
+               A 24 24 0 0 1 616 308 Z"
+            fill="url(#rightBracket)"/>
+    </g>
+
+    <!-- Central Synaptic Core / Neural Diamond Nexus -->
+    <g filter="url(#neonGlow)">
+      <!-- Diamond Core -->
+      <path d="M 512 364
+               L 556 488
+               L 512 660
+               L 468 536 Z"
+            fill="url(#coreGrad)"/>
+
+      <!-- Center Luminous Pulse Node -->
+      <circle cx="512" cy="512" r="52" fill="url(#centerBloom)"/>
+      <circle cx="512" cy="512" r="26" fill="#ffffff" opacity="0.95"/>
+      <circle cx="512" cy="512" r="14" fill="#38bdf8" opacity="0.8"/>
+    </g>
+
+    <!-- Upper Glass Sheen (Apple App Icon Top Arc Reflection) -->
+    <path d="M 100 316
+             C 100 196 196 100 316 100
+             L 708 100
+             C 828 100 924 196 924 316
+             L 924 440
+             C 660 360 364 360 100 440 Z"
+          fill="url(#glassSheen)"/>
+
+    <!-- Inner Bevel/Chamfer Rim (3D depth) -->
+    <rect x="101" y="101" width="822" height="822" rx="184" ry="184" fill="none" stroke="url(#innerBevel)" stroke-width="2"/>
   </g>
 
-  <!-- Constellation Nodes -->
-  <g>
-    <circle cx="160" cy="170" r="4" fill="#38bdf8" opacity="0.8"/>
-    <circle cx="352" cy="170" r="4" fill="#c084fc" opacity="0.8"/>
-    <circle cx="160" cy="342" r="4" fill="#38bdf8" opacity="0.8"/>
-    <circle cx="352" cy="342" r="4" fill="#f43f5e" opacity="0.8"/>
-    <circle cx="130" cy="256" r="3.5" fill="#00f2fe" opacity="0.7"/>
-    <circle cx="382" cy="256" r="3.5" fill="#f43f5e" opacity="0.7"/>
-  </g>
-
-  <!-- Central Energy Glow -->
-  <circle cx="256" cy="256" r="70" fill="url(#ambientGlow)"/>
-
-  <!-- Left Code Bracket "<" (Styled as Futuristic Angled Ingot) -->
-  <g filter="url(#neonGlow)">
-    <path d="M 204 154
-             L 132 242
-             A 18 18 0 0 0 132 270
-             L 204 358
-             A 12 12 0 0 0 222 344
-             L 162 262
-             A 8 8 0 0 1 162 250
-             L 222 168
-             A 12 12 0 0 0 204 154 Z"
-          fill="url(#leftBracket)"/>
-  </g>
-
-  <!-- Right Code Bracket ">" (Matching Futuristic Angled Ingot) -->
-  <g filter="url(#neonGlow)">
-    <path d="M 308 154
-             L 380 242
-             A 18 18 0 0 1 380 270
-             L 308 358
-             A 12 12 0 0 1 290 344
-             L 350 262
-             A 8 8 0 0 0 350 250
-             L 290 168
-             A 12 12 0 0 1 308 154 Z"
-          fill="url(#rightBracket)"/>
-  </g>
-
-  <!-- Central Synaptic Core / Neural Diamond Slash -->
-  <g filter="url(#neonGlow)">
-    <!-- Central Diamond Core -->
-    <path d="M 256 182
-             L 278 244
-             L 256 330
-             L 234 268 Z"
-          fill="url(#coreGrad)"/>
-
-    <!-- Neural Pulse Node (Center Point) -->
-    <circle cx="256" cy="256" r="14" fill="#ffffff" opacity="0.95"/>
-    <circle cx="256" cy="256" r="22" fill="#38bdf8" opacity="0.35"/>
-    <circle cx="256" cy="256" r="34" fill="#a855f7" opacity="0.2"/>
-  </g>
-
-  <!-- Upper Glass Sheen (Apple App Icon Top Arc Reflection) -->
-  <path d="M 32 140
-           C 32 80 80 32 140 32
-           L 372 32
-           C 432 32 480 80 480 140
-           L 480 220
-           C 340 180 172 180 32 220 Z"
-        fill="url(#glassSheen)"
-        opacity="0.9"/>
+  <!-- Squircle Outer Precision Glow Rim -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="none" stroke="url(#borderGrad)" stroke-width="4"/>
 </svg>

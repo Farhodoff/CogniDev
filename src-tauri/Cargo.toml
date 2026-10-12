@@ -1,9 +1,14 @@
 [package]
-name = "synapselog"
+name = "cognidev"
 version = "0.1.0"
-description = "SynapseLog — AI-First Developer Operating System and Knowledge Hub"
-authors = ["SynapseLog Team"]
+description = "CogniDev — AI-Powered Developer Command Center & Second Brain"
+authors = ["CogniDev Team"]
 edition = "2021"
+default-run = "CogniDev"
+
+[[bin]]
+name = "CogniDev"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

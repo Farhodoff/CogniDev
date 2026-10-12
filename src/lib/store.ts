@@ -110,9 +110,9 @@ interface SynapseState {
   showStandupModal: boolean;
   showTaskModal: boolean;
   showChatModal: boolean;
+  showProvidersModal: boolean;
   weeklyCoach: WeeklyCoachInsight | null;
   showWeeklyCoachModal: boolean;
-  showSpotlight: boolean;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -122,7 +122,6 @@ interface SynapseState {
   createGroup: (name: string, color?: string, icon?: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   assignTaskToGroup: (taskId: string, groupId: string | null) => Promise<void>;
-  setSpotlight: (open: boolean) => void;
   selectTask: (id: string) => Promise<void>;
   setTab: (t: EditorTab) => void;
   setFilter: (f: QuickFilter) => void;
@@ -135,12 +134,12 @@ interface SynapseState {
   addChecklistItem: (taskId: string, text: string) => void;
   removeChecklistItem: (taskId: string, itemId: string) => void;
   updateNote: (taskId: string, md: string) => void;
-  flagBlocker: (id: string) => void;
   setStandup: (content: string | null, source: AiSource | null) => void;
   setHud: (msg: string | null) => void;
   setStandupModal: (open: boolean) => void;
   setTaskModal: (open: boolean) => void;
   setChatModal: (open: boolean) => void;
+  setProvidersModal: (open: boolean) => void;
   setWeeklyCoachModal: (open: boolean) => void;
   triggerWeeklyCoach: () => Promise<void>;
   quickCapture: (text: string) => Promise<void>;
@@ -166,7 +165,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   groups: DEFAULT_GROUPS,
   activeGroupId: null,
   tasks: DEFAULT_TASKS,
-  selectedTaskId: 'TSK-101',
+  selectedTaskId: null,
   editorTab: 'note',
   quickFilter: null,
   activeTag: null,
@@ -181,9 +180,9 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showStandupModal: false,
   showTaskModal: false,
   showChatModal: false,
+  showProvidersModal: false,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
-  showSpotlight: false,
 
   init: async () => {
     if (!isTauri) {
@@ -376,22 +375,12 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     noteTimers[taskId] = setTimeout(() => persistResolution(taskId), 800);
   },
 
-  flagBlocker: (id) => {
-    const stamp = new Date().toISOString();
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, status: 'blocker', priority: 'P0 Blocker', updated_at: stamp } : t)),
-      hudMessage: `${id} P0 to'siq deb belgilandi`,
-    }));
-    if (get().dbMode === 'sqlite') {
-      updateTaskMeta(id, 'blocker', 'P0 Blocker').catch(() => {});
-    }
-  },
-
   setStandup: (standup, standupSource) => set({ standup, standupSource }),
   setHud: (hudMessage) => set({ hudMessage }),
   setStandupModal: (showStandupModal) => set({ showStandupModal }),
   setTaskModal: (showTaskModal) => set({ showTaskModal }),
   setChatModal: (showChatModal) => set({ showChatModal }),
+  setProvidersModal: (showProvidersModal) => set({ showProvidersModal }),
   setWeeklyCoachModal: (showWeeklyCoachModal) => set({ showWeeklyCoachModal }),
 
   triggerWeeklyCoach: async () => {
@@ -673,8 +662,6 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       hudMessage: "Vazifa guruhi yangilandi",
     }));
   },
-
-  setSpotlight: (open) => set({ showSpotlight: open }),
 
   triggerStandup: async () => {
     const { tasks, dbMode } = get();

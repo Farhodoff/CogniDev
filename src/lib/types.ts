@@ -83,4 +83,6 @@ export interface WeeklyCoachInsight {
   summary: string;
   generatedAt: string;
   aiPowered?: boolean;
+  aiSource?: string;
+  aiModel?: string;
 }

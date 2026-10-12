@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpDown, SlidersHorizontal, Terminal, Inbox, Plus, Check, Send, Bot, Calendar, CheckCircle2 } from 'lucide-react';
+import { ArrowUpDown, SlidersHorizontal, Terminal, Inbox, Check, Send, Bot, Calendar, CheckCircle2 } from 'lucide-react';
 import { filteredTasks, useSynapse } from '../lib/store';
 import type { QuickFilter, Task } from '../lib/types';
 
@@ -22,7 +22,6 @@ export default function TaskStream() {
     setSortOrder,
     activeWorkspaceId,
     search,
-    setTaskModal,
     quickCapture,
     notes,
     prompts,
@@ -69,14 +68,6 @@ export default function TaskStream() {
         </div>
 
         <div className="relative flex items-center gap-1 text-zinc-500">
-          <button
-            onClick={() => setTaskModal(true)}
-            className="rounded-lg p-1.5 hover:bg-white/10 hover:text-white transition text-zinc-400"
-            title="Yangi vazifa qo'shish"
-          >
-            <Plus size={15} />
-          </button>
-
           {/* Saralash tugmasi */}
           <button
             onClick={() => setSortOpen((v) => !v)}
