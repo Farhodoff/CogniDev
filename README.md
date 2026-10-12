@@ -15,6 +15,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL%20Local-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Native-000000?style=flat-square&logo=apple&logoColor=white)](https://apple.com/)
+[![Website](https://img.shields.io/badge/Website-Live%20Showcase-38bdf8?style=flat-square&logo=safari&logoColor=white)](https://farhodoff.github.io/CogniDev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 <br />
