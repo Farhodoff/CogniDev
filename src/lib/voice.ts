@@ -1,4 +1,4 @@
-import { tryCloudProviders } from './providers';
+import { tryCloudProviders, type AiSource } from './providers';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
 // Same chain as ai.ts: cloud flagships → local 3b offline fallback.
@@ -18,11 +18,17 @@ const SYSTEM_PROMPT = `You are a technical writing assistant for engineers. Form
 
 Keep it concise, use imperative mood, and preserve technical terminology.`;
 
-export async function formatVoiceWithOllama(text: string): Promise<string> {
+export interface VoiceFormatResult {
+  text: string;
+  source: AiSource;
+  model?: string;
+}
+
+export async function formatVoiceWithOllama(text: string): Promise<VoiceFormatResult> {
   const prompt = `${SYSTEM_PROMPT}\n\nRaw transcript:\n${text}`;
   // Chain: enabled cloud provider → local Ollama → offline template.
   const cloud = await tryCloudProviders(prompt, SYSTEM_PROMPT).catch(() => null);
-  if (cloud) return cloud.text;
+  if (cloud) return { text: cloud.text, source: cloud.source, model: cloud.model };
   for (const model of MODEL_CANDIDATES) {
     try {
       const ctrl = new AbortController();
@@ -36,12 +42,12 @@ export async function formatVoiceWithOllama(text: string): Promise<string> {
       clearTimeout(timer);
       if (!res.ok) continue;
       const data = await res.json();
-      if (data?.response) return data.response.trim();
+      if (data?.response) return { text: (data.response as string).trim(), source: 'ollama', model };
     } catch {
       continue;
     }
   }
-  return fallbackFormat(text);
+  return { text: fallbackFormat(text), source: 'fallback' };
 }
 
 function fallbackFormat(text: string): string {

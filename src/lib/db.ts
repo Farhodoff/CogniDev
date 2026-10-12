@@ -2,12 +2,7 @@ import Database from '@tauri-apps/plugin-sql';
 import type { PromptEntry, Retrospective, Task, TaskResolution, Workspace, TeamGroup } from './types';
 import { isTauri } from './vault';
 import {
-  DEFAULT_CHECKLISTS,
-  DEFAULT_GROUPS,
-  DEFAULT_NOTES,
   DEFAULT_PERSONAL_WORKSPACE,
-  DEFAULT_PROMPTS,
-  DEFAULT_TASKS,
 } from './seed';
 
 const DB_URL = 'sqlite:synapse.db';
@@ -124,7 +119,8 @@ export function uid(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36)}`;
 }
 
-/** Ensure default personal workspace and initial engineering data exist. */
+/** Ensure the personal workspace row exists. No demo/mock data is ever seeded —
+ *  from here on only the user's own saved data is shown. */
 export async function ensureDefaultWorkspace(): Promise<void> {
   const db = await getDb();
   const count = await db.select<{ c: number }[]>('SELECT COUNT(*) as c FROM workspaces');
@@ -134,48 +130,37 @@ export async function ensureDefaultWorkspace(): Promise<void> {
       [DEFAULT_PERSONAL_WORKSPACE.id, DEFAULT_PERSONAL_WORKSPACE.name, DEFAULT_PERSONAL_WORKSPACE.type],
     );
   }
-
-  // Ensure default groups exist
-  const grpCount = await db.select<{ c: number }[]>('SELECT COUNT(*) as c FROM team_groups');
-  if ((grpCount[0]?.c ?? 0) === 0) {
-    for (const g of DEFAULT_GROUPS) {
-      await insertGroup(g).catch(() => {});
-    }
-  }
-
-  // If tasks count is 0 or only has broken tasks, seed sample engineering tasks
-  const taskCount = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM tasks WHERE title != '?'");
-  if ((taskCount[0]?.c ?? 0) === 0) {
-    await db.execute("DELETE FROM tasks WHERE title = '?' OR id = 'DEV-1'").catch(() => {});
-    for (const t of DEFAULT_TASKS) {
-      await insertTask(t).catch(() => {});
-      const note = DEFAULT_NOTES[t.id] ?? '';
-      const chk = JSON.stringify(DEFAULT_CHECKLISTS[t.id] ?? []);
-      await upsertResolution(t.id, note, chk).catch(() => {});
-    }
-    for (const p of DEFAULT_PROMPTS) {
-      await insertPrompt(p).catch(() => {});
-    }
-  }
 }
 
-/** Purge legacy mock/seed records if present from previous dev runs. */
+/** One-time cleanup of legacy mock/seed records from previous dev runs.
+ *  Only touches known seed IDs — user-created tasks are never affected. */
 export async function purgeMockDataIfPresent(): Promise<void> {
   const db = await getDb();
+  const legacyTasks = ['DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115', 'TSK-101', 'TSK-102', 'TSK-103'];
+  const legacyPrompts = ['pv-101', 'pv-102', 'pv-103'];
+  const inList = (ids: string[]) => ids.map((id) => `'${id}'`).join(',');
   const mockTasks = await db.select<{ id: string }[]>(
-    "SELECT id FROM tasks WHERE id IN ('DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115')",
+    `SELECT id FROM tasks WHERE id IN (${inList(legacyTasks)})`,
+  );
+  const mockPrompts = await db.select<{ id: string }[]>(
+    `SELECT id FROM prompt_vault WHERE id IN (${inList(legacyPrompts)})`,
   );
   if (mockTasks.length > 0) {
     await db.execute(
-      "DELETE FROM prompt_vault WHERE task_id IN ('DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115') OR id LIKE 'pv-%'",
-    );
+      `DELETE FROM prompt_vault WHERE task_id IN (${inList(legacyTasks)})`,
+    ).catch(() => {});
     await db.execute(
-      "DELETE FROM task_resolutions WHERE task_id IN ('DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115')",
-    );
+      `DELETE FROM task_resolutions WHERE task_id IN (${inList(legacyTasks)})`,
+    ).catch(() => {});
     await db.execute(
-      "DELETE FROM tasks WHERE id IN ('DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115')",
-    );
-    await db.execute("DELETE FROM workspaces WHERE id = 'ws-team'");
+      `DELETE FROM tasks WHERE id IN (${inList(legacyTasks)})`,
+    ).catch(() => {});
+    await db.execute("DELETE FROM workspaces WHERE id = 'ws-team'").catch(() => {});
+  }
+  if (mockPrompts.length > 0) {
+    await db.execute(
+      `DELETE FROM prompt_vault WHERE id IN (${inList(legacyPrompts)})`,
+    ).catch(() => {});
   }
 }
 

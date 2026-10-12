@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, X, CheckCircle2, AlertTriangle, Lightbulb, RefreshCw, Copy, Check, TrendingUp } from 'lucide-react';
 import { useSynapse } from '../lib/store';
+import { SOURCE_LABELS, type AiSource } from '../lib/providers';
 
 export default function WeeklyCoachModal() {
   const {
@@ -51,7 +52,9 @@ export default function WeeklyCoachModal() {
               <div className="flex items-center gap-2">
                 <h2 className="text-[16px] font-bold text-white">Haftalik Tahlil</h2>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${weeklyCoach.aiPowered ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300' : 'border-amber-400/30 bg-amber-500/15 text-amber-300'}`}>
-                  {weeklyCoach.aiPowered ? 'AI yozgan' : 'Lokal shablon'}
+                  {weeklyCoach.aiPowered
+                    ? `${weeklyCoach.aiSource && weeklyCoach.aiSource in SOURCE_LABELS ? SOURCE_LABELS[weeklyCoach.aiSource as AiSource] : 'AI'} yozgan${weeklyCoach.aiModel ? ` · ${weeklyCoach.aiModel}` : ''}`
+                    : 'Lokal shablon'}
                 </span>
               </div>
               <p className="text-[12px] text-zinc-400">

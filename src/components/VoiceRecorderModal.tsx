@@ -4,6 +4,7 @@ import { useSynapse } from '../lib/store';
 import { insertTask } from '../lib/db';
 import { nextTaskId } from '../lib/store';
 import { formatVoiceWithOllama } from '../lib/voice';
+import { SOURCE_LABELS } from '../lib/providers';
 import { blobToWav16k, pickAudioMime, rubaiStatus, transcribeRubai, type SttStatus } from '../lib/stt';
 import type { Task } from '../lib/types';
 
@@ -148,8 +149,13 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
     const fullText = (finalTranscript + transcript).trim();
     try {
       let structured = fullText;
+      let formattedBy = '';
       if (mode === 'task') {
-        structured = await formatVoiceWithOllama(fullText).catch(() => fullText);
+        const r = await formatVoiceWithOllama(fullText).catch(() => null);
+        if (r) {
+          structured = r.text;
+          formattedBy = r.source === 'fallback' ? '' : ` · ${SOURCE_LABELS[r.source]}${r.model ? ` ${r.model}` : ''}`;
+        }
       }
       if (mode === 'append' && selectedTaskId) {
         const note = (useSynapse.getState().notes[selectedTaskId] ?? '') + '\n\n---\n### Voice Memo\n' + structured;
@@ -178,7 +184,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
         const { upsertResolution } = await import('../lib/db');
         if (dbMode === 'sqlite') await upsertResolution(id, note, '[]');
         await useSynapse.getState().selectTask(id);
-        setHud(`${id} created from voice memo`);
+        setHud(`${id} created from voice memo${formattedBy}`);
       }
       onClose();
     } catch (e) {
