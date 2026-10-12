@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SynapseLog",
+  "productName": "CogniDev",
   "version": "0.1.0",
-  "identifier": "com.synapselog.app",
+  "identifier": "com.cognidev.app",
   "build": {
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "SynapseLog",
+        "title": "CogniDev",
         "width": 1440,
         "height": 900,
         "minWidth": 1100,
@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost data: https:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:11434 https://localhost:*"
+      "csp": null
     }
   },
   "bundle": {
@@ -36,8 +36,8 @@
     "targets": ["dmg", "app"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "category": "DeveloperTool",
-    "shortDescription": "AI-First Developer Operating System and Knowledge Hub",
-    "longDescription": "SynapseLog centralizes engineering logs, bugs, team tasks and AI chat context in a local-first macOS knowledge hub with Ollama-powered standups.",
+    "shortDescription": "The AI-Powered Developer Command Center & Second Brain for macOS",
+    "longDescription": "CogniDev centralizes engineering logs, bugs, team squads, and AI chat context in a local-first macOS engineering cockpit.",
     "macOS": {
       "minimumSystemVersion": "11.0",
       "signingIdentity": null,

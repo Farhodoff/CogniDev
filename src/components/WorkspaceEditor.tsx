@@ -219,7 +219,7 @@ export default function WorkspaceEditor() {
             <Trash2 size={12} /> O'chirish
           </button>
           <span className="hidden font-mono text-[11px] text-zinc-500 lg:block">
-            {task.id} · {task.updated_at.slice(0, 10)}
+            {task.id} · {task.updated_at ? task.updated_at.slice(0, 10) : ''}
           </span>
         </div>
       </div>
