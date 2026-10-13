@@ -84,6 +84,73 @@ export interface Retrospective {
   created_at: string;
 }
 
+export type MainView = 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro';
+
+export interface NoteDoc {
+  id: string;
+  workspace_id: string;
+  title: string;
+  content: string;
+  icon: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoadmapTopic {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+export interface RoadmapMilestone {
+  id: string;
+  title: string;
+  duration?: string;
+  priority?: string;
+  topics: RoadmapTopic[];
+}
+
+export interface RoadmapItem {
+  id: string;
+  title: string;
+  stack: string;
+  description: string;
+  milestones: RoadmapMilestone[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LearningLog {
+  id: string;
+  roadmap_id: string;
+  date: string;
+  learned: string;
+  solved_problem?: string;
+  next_goal?: string;
+  ai_feedback?: string;
+  created_at: string;
+}
+
+export interface ProjectIdeaTask {
+  id: string;
+  title: string;
+  priority: TaskPriority;
+  done: boolean;
+}
+
+export interface ProjectIdea {
+  id: string;
+  workspace_id: string;
+  title: string;
+  stack: string;
+  status: 'idea' | 'planning' | 'in_progress' | 'completed';
+  description: string;
+  tasks: ProjectIdeaTask[];
+  created_at: string;
+  updated_at: string;
+}
+
 export type EditorTab = 'note' | 'thread';
 export type QuickFilter = 'mine' | 'high' | 'claude' | 'gemini' | 'solved' | 'knowledge' | null;
 export type NavView = 'stream' | 'solved' | 'knowledge' | 'vault';
@@ -100,3 +167,4 @@ export interface WeeklyCoachInsight {
   aiSource?: string;
   aiModel?: string;
 }
+

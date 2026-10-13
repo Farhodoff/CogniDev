@@ -9,6 +9,11 @@ import type {
   WeeklyCoachInsight,
   TeamGroup,
   UserProfile,
+  MainView,
+  NoteDoc,
+  RoadmapItem,
+  LearningLog,
+  ProjectIdea,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -17,6 +22,9 @@ import {
   DEFAULT_PERSONAL_WORKSPACE,
   DEFAULT_PROMPTS,
   DEFAULT_TASKS,
+  DEFAULT_ROADMAPS,
+  DEFAULT_NOTION_NOTES,
+  DEFAULT_PROJECT_IDEAS,
 } from './seed';
 import {
   deleteTaskFromDb,
@@ -42,6 +50,16 @@ import {
   insertGroup,
   deleteGroupFromDb,
   updateTaskGroup,
+  fetchNotes,
+  upsertNote,
+  deleteNoteFromDb,
+  fetchRoadmaps,
+  upsertRoadmap,
+  fetchLearningLogs,
+  insertLearningLog,
+  fetchProjectIdeas,
+  upsertProjectIdea,
+  deleteProjectIdeaFromDb,
   type VaultDump,
 } from './db';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
@@ -94,6 +112,9 @@ function persistResolution(taskId: string) {
 interface SynapseState {
   ready: boolean;
   dbMode: 'sqlite' | 'memory';
+  mainView: MainView;
+  setMainView: (v: MainView) => void;
+
   workspaces: Workspace[];
   activeWorkspaceId: string;
   groups: TeamGroup[];
@@ -117,6 +138,32 @@ interface SynapseState {
   showProvidersModal: boolean;
   weeklyCoach: WeeklyCoachInsight | null;
   showWeeklyCoachModal: boolean;
+
+  // Notion Notes
+  notesDocs: NoteDoc[];
+  selectedNoteId: string | null;
+  selectNote: (id: string | null) => void;
+  createNote: (title?: string) => Promise<string>;
+  updateNoteDoc: (id: string, patch: Partial<NoteDoc>) => Promise<void>;
+  deleteNoteDoc: (id: string) => Promise<void>;
+
+  // Roadmaps & Learning
+  roadmaps: RoadmapItem[];
+  selectedRoadmapId: string | null;
+  selectRoadmap: (id: string | null) => void;
+  toggleTopicDone: (roadmapId: string, milestoneId: string, topicId: string) => Promise<void>;
+  learningLogs: LearningLog[];
+  addLearningLog: (roadmapId: string, learned: string, solvedProblem: string, nextGoal: string, aiFeedback?: string) => Promise<void>;
+  createRoadmap: (title: string, stack: string, description: string) => Promise<string>;
+
+  // Project Ideas
+  projectIdeas: ProjectIdea[];
+  selectedIdeaId: string | null;
+  selectIdea: (id: string | null) => void;
+  createIdea: (title: string, stack: string, description: string) => Promise<string>;
+  updateIdea: (id: string, patch: Partial<ProjectIdea>) => Promise<void>;
+  deleteIdea: (id: string) => Promise<void>;
+  exportIdeaTasksToStream: (ideaId: string) => Promise<number>;
 
   userProfile: UserProfile;
   showProfileModal: boolean;
@@ -171,6 +218,9 @@ interface SynapseState {
 export const useSynapse = create<SynapseState>((set, get) => ({
   ready: true, // App starts instantly with 0ms delay!
   dbMode: 'memory',
+  mainView: 'stream',
+  setMainView: (v) => set({ mainView: v }),
+
   workspaces: [DEFAULT_PERSONAL_WORKSPACE],
   activeWorkspaceId: DEFAULT_PERSONAL_WORKSPACE.id,
   groups: DEFAULT_GROUPS,
@@ -194,6 +244,190 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showProvidersModal: false,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
+
+  // Notion Notes initial
+  notesDocs: DEFAULT_NOTION_NOTES,
+  selectedNoteId: DEFAULT_NOTION_NOTES[0]?.id ?? null,
+  selectNote: (id) => set({ selectedNoteId: id }),
+
+  createNote: async (title = 'Yangi Qayd') => {
+    const id = uid('note');
+    const newDoc: NoteDoc = {
+      id,
+      workspace_id: get().activeWorkspaceId,
+      title,
+      content: `# ${title}\n\nQayd matnini shu yerdan boshlang...`,
+      icon: '📝',
+      tags: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const updated = [newDoc, ...get().notesDocs];
+    set({ notesDocs: updated, selectedNoteId: id });
+    if (get().dbMode === 'sqlite') {
+      await upsertNote(newDoc).catch(() => {});
+    }
+    return id;
+  },
+
+  updateNoteDoc: async (id, patch) => {
+    const docs = get().notesDocs.map((d) => (d.id === id ? { ...d, ...patch, updated_at: new Date().toISOString() } : d));
+    set({ notesDocs: docs });
+    const target = docs.find((d) => d.id === id);
+    if (target && get().dbMode === 'sqlite') {
+      await upsertNote(target).catch(() => {});
+    }
+  },
+
+  deleteNoteDoc: async (id) => {
+    const docs = get().notesDocs.filter((d) => d.id !== id);
+    const sel = get().selectedNoteId === id ? docs[0]?.id ?? null : get().selectedNoteId;
+    set({ notesDocs: docs, selectedNoteId: sel });
+    if (get().dbMode === 'sqlite') {
+      await deleteNoteFromDb(id).catch(() => {});
+    }
+    get().setHud("Qayd o'chirildi");
+  },
+
+  // Roadmaps initial
+  roadmaps: DEFAULT_ROADMAPS,
+  selectedRoadmapId: DEFAULT_ROADMAPS[0]?.id ?? null,
+  selectRoadmap: (id) => set({ selectedRoadmapId: id }),
+
+  toggleTopicDone: async (roadmapId, milestoneId, topicId) => {
+    const roadmaps = get().roadmaps.map((r) => {
+      if (r.id !== roadmapId) return r;
+      const milestones = r.milestones.map((m) => {
+        if (m.id !== milestoneId) return m;
+        const topics = m.topics.map((t) => (t.id === topicId ? { ...t, done: !t.done } : t));
+        return { ...m, topics };
+      });
+      return { ...r, milestones, updated_at: new Date().toISOString() };
+    });
+    set({ roadmaps });
+    const target = roadmaps.find((r) => r.id === roadmapId);
+    if (target && get().dbMode === 'sqlite') {
+      await upsertRoadmap(target).catch(() => {});
+    }
+  },
+
+  learningLogs: [],
+  addLearningLog: async (roadmapId, learned, solvedProblem, nextGoal, aiFeedback = '') => {
+    const log: LearningLog = {
+      id: uid('log'),
+      roadmap_id: roadmapId,
+      date: new Date().toISOString().split('T')[0],
+      learned,
+      solved_problem: solvedProblem,
+      next_goal: nextGoal,
+      ai_feedback: aiFeedback,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [log, ...get().learningLogs];
+    set({ learningLogs: updated });
+    if (get().dbMode === 'sqlite') {
+      await insertLearningLog(log).catch(() => {});
+    }
+    get().setHud("Kunlik o'rganish jurnali saqlandi ✓");
+  },
+
+  createRoadmap: async (title, stack, description) => {
+    const id = uid('rd');
+    const newRd: RoadmapItem = {
+      id,
+      title,
+      stack,
+      description,
+      milestones: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const updated = [...get().roadmaps, newRd];
+    set({ roadmaps: updated, selectedRoadmapId: id });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(newRd).catch(() => {});
+    }
+    return id;
+  },
+
+  // Project Ideas initial
+  projectIdeas: DEFAULT_PROJECT_IDEAS,
+  selectedIdeaId: DEFAULT_PROJECT_IDEAS[0]?.id ?? null,
+  selectIdea: (id) => set({ selectedIdeaId: id }),
+
+  createIdea: async (title, stack, description) => {
+    const id = uid('idea');
+    const newIdea: ProjectIdea = {
+      id,
+      workspace_id: get().activeWorkspaceId,
+      title,
+      stack,
+      status: 'idea',
+      description,
+      tasks: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const updated = [newIdea, ...get().projectIdeas];
+    set({ projectIdeas: updated, selectedIdeaId: id });
+    if (get().dbMode === 'sqlite') {
+      await upsertProjectIdea(newIdea).catch(() => {});
+    }
+    return id;
+  },
+
+  updateIdea: async (id, patch) => {
+    const ideas = get().projectIdeas.map((i) => (i.id === id ? { ...i, ...patch, updated_at: new Date().toISOString() } : i));
+    set({ projectIdeas: ideas });
+    const target = ideas.find((i) => i.id === id);
+    if (target && get().dbMode === 'sqlite') {
+      await upsertProjectIdea(target).catch(() => {});
+    }
+  },
+
+  deleteIdea: async (id) => {
+    const ideas = get().projectIdeas.filter((i) => i.id !== id);
+    const sel = get().selectedIdeaId === id ? ideas[0]?.id ?? null : get().selectedIdeaId;
+    set({ projectIdeas: ideas, selectedIdeaId: sel });
+    if (get().dbMode === 'sqlite') {
+      await deleteProjectIdeaFromDb(id).catch(() => {});
+    }
+    get().setHud("G'oya o'chirildi");
+  },
+
+  exportIdeaTasksToStream: async (ideaId) => {
+    const idea = get().projectIdeas.find((i) => i.id === ideaId);
+    if (!idea || !idea.tasks.length) return 0;
+    let added = 0;
+    const cleanStack = idea.stack.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 16);
+
+    for (const t of idea.tasks) {
+      const taskId = nextTaskId(get().tasks);
+      const newTask: Task = {
+        id: taskId,
+        workspace_id: get().activeWorkspaceId,
+        group_id: null,
+        title: `${idea.title}: ${t.title}`,
+        status: 'active',
+        priority: t.priority,
+        git_branch: null,
+        pr_url: null,
+        ai_source: 'AI Planner',
+        assignee_name: get().userProfile.full_name,
+        assignee_avatar: get().userProfile.avatar_color,
+        assignee_name2: null,
+        assignee_avatar2: null,
+        tags: [cleanStack, 'loyiha-goya'],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      get().addTask(newTask);
+      added++;
+    }
+    get().setHud(`${added} ta vazifa Vazifalar Oqimiga (Stream) qo'shildi! 🚀`);
+    return added;
+  },
+
   userProfile: DEFAULT_USER_PROFILE,
   showProfileModal: false,
   setProfileModal: (open) => set({ showProfileModal: open }),
@@ -246,15 +480,48 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   refresh: async () => {
-    const [ws, tasks, grps, profile] = await Promise.all([
+    const [ws, tasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas] = await Promise.all([
       fetchWorkspaces().catch(() => []),
       fetchTasks().catch(() => []),
       fetchGroups().catch(() => []),
       fetchUserProfile().catch(() => DEFAULT_USER_PROFILE),
+      fetchNotes(get().activeWorkspaceId).catch(() => []),
+      fetchRoadmaps().catch(() => []),
+      fetchLearningLogs().catch(() => []),
+      fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
     ]);
+
     const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
     const currentSelected = get().selectedTaskId;
     const sel = tasks.find((t) => t.id === currentSelected) ?? tasks[0] ?? null;
+
+    // Seed initial notes if empty in SQLite
+    let notesDocs = rawNotes;
+    if (notesDocs.length === 0 && DEFAULT_NOTION_NOTES.length > 0) {
+      notesDocs = DEFAULT_NOTION_NOTES;
+      for (const n of DEFAULT_NOTION_NOTES) {
+        upsertNote(n).catch(() => {});
+      }
+    }
+
+    // Seed initial roadmaps if empty in SQLite
+    let roadmaps = rawRoadmaps;
+    if (roadmaps.length === 0 && DEFAULT_ROADMAPS.length > 0) {
+      roadmaps = DEFAULT_ROADMAPS;
+      for (const r of DEFAULT_ROADMAPS) {
+        upsertRoadmap(r).catch(() => {});
+      }
+    }
+
+    // Seed initial project ideas if empty in SQLite
+    let projectIdeas = rawIdeas;
+    if (projectIdeas.length === 0 && DEFAULT_PROJECT_IDEAS.length > 0) {
+      projectIdeas = DEFAULT_PROJECT_IDEAS;
+      for (const i of DEFAULT_PROJECT_IDEAS) {
+        upsertProjectIdea(i).catch(() => {});
+      }
+    }
+
     set({
       workspaces: ws.length ? ws : [DEFAULT_PERSONAL_WORKSPACE],
       activeWorkspaceId: activeWs.id,
@@ -262,7 +529,15 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       tasks,
       selectedTaskId: sel?.id ?? null,
       userProfile: profile ?? DEFAULT_USER_PROFILE,
+      notesDocs,
+      selectedNoteId: get().selectedNoteId ?? notesDocs[0]?.id ?? null,
+      roadmaps,
+      selectedRoadmapId: get().selectedRoadmapId ?? roadmaps[0]?.id ?? null,
+      learningLogs: rawLogs,
+      projectIdeas,
+      selectedIdeaId: get().selectedIdeaId ?? projectIdeas[0]?.id ?? null,
     });
+
     if (sel) {
       await get().selectTask(sel.id);
     } else {
@@ -296,9 +571,20 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
       try {
-        const tasks = await fetchTasks(id);
+        const [tasks, notesDocs, projectIdeas] = await Promise.all([
+          fetchTasks(id).catch(() => []),
+          fetchNotes(id).catch(() => []),
+          fetchProjectIdeas(id).catch(() => []),
+        ]);
         const first = tasks[0];
-        set({ tasks, selectedTaskId: first?.id ?? null });
+        set({
+          tasks,
+          selectedTaskId: first?.id ?? null,
+          notesDocs: notesDocs.length ? notesDocs : get().notesDocs,
+          selectedNoteId: notesDocs[0]?.id ?? get().selectedNoteId,
+          projectIdeas: projectIdeas.length ? projectIdeas : get().projectIdeas,
+          selectedIdeaId: projectIdeas[0]?.id ?? get().selectedIdeaId,
+        });
         if (first) {
           await get().selectTask(first.id);
         } else {

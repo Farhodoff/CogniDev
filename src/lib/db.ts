@@ -1,5 +1,17 @@
 import Database from '@tauri-apps/plugin-sql';
-import type { PromptEntry, Retrospective, Task, TaskResolution, Workspace, TeamGroup, UserProfile } from './types';
+import type {
+  PromptEntry,
+  Retrospective,
+  Task,
+  TaskResolution,
+  Workspace,
+  TeamGroup,
+  UserProfile,
+  NoteDoc,
+  RoadmapItem,
+  LearningLog,
+  ProjectIdea,
+} from './types';
 import { isTauri } from './vault';
 import {
   DEFAULT_PERSONAL_WORKSPACE,
@@ -110,6 +122,49 @@ CREATE TABLE IF NOT EXISTS retrospectives (
     content TEXT NOT NULL,
     blockers_summary TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'ws-personal',
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    icon TEXT DEFAULT '📝',
+    tags TEXT DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS roadmaps (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    stack TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    stages_json TEXT NOT NULL DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS learning_logs (
+    id TEXT PRIMARY KEY,
+    roadmap_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    learned TEXT NOT NULL,
+    solved_problem TEXT DEFAULT '',
+    next_goal TEXT DEFAULT '',
+    ai_feedback TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(roadmap_id) REFERENCES roadmaps(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS project_ideas (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'ws-personal',
+    title TEXT NOT NULL,
+    stack TEXT NOT NULL,
+    status TEXT CHECK(status IN ('idea', 'planning', 'in_progress', 'completed')) DEFAULT 'idea',
+    description TEXT DEFAULT '',
+    tasks_json TEXT DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 `;
 
@@ -467,3 +522,220 @@ export async function upsertUserProfile(p: UserProfile): Promise<void> {
     ],
   );
 }
+
+// ── Notion-style Engineering Notes ──────────────────────────────────────────
+
+export async function fetchNotes(workspaceId: string): Promise<NoteDoc[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<Array<any>>(
+      'SELECT * FROM notes WHERE workspace_id = $1 ORDER BY updated_at DESC',
+      [workspaceId],
+    );
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      workspace_id: r.workspace_id,
+      title: r.title,
+      content: r.content,
+      icon: r.icon || '📝',
+      tags: parseTagJson(r.tags),
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertNote(note: NoteDoc): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO notes (id, workspace_id, title, content, icon, tags, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT(id) DO UPDATE SET
+       title=excluded.title,
+       content=excluded.content,
+       icon=excluded.icon,
+       tags=excluded.tags,
+       updated_at=excluded.updated_at`,
+    [
+      note.id,
+      note.workspace_id,
+      note.title,
+      note.content,
+      note.icon,
+      JSON.stringify(note.tags ?? []),
+      note.created_at || new Date().toISOString(),
+      new Date().toISOString(),
+    ],
+  );
+}
+
+export async function deleteNoteFromDb(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM notes WHERE id = $1', [id]);
+}
+
+// ── Tech Roadmaps & Milestones ──────────────────────────────────────────────
+
+export async function fetchRoadmaps(): Promise<RoadmapItem[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<Array<any>>('SELECT * FROM roadmaps ORDER BY created_at ASC');
+    return (rows ?? []).map((r) => {
+      let milestones = [];
+      try {
+        milestones = JSON.parse(r.stages_json);
+      } catch {
+        milestones = [];
+      }
+      return {
+        id: r.id,
+        title: r.title,
+        stack: r.stack,
+        description: r.description || '',
+        milestones,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertRoadmap(item: RoadmapItem): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO roadmaps (id, title, stack, description, stages_json, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT(id) DO UPDATE SET
+       title=excluded.title,
+       stack=excluded.stack,
+       description=excluded.description,
+       stages_json=excluded.stages_json,
+       updated_at=excluded.updated_at`,
+    [
+      item.id,
+      item.title,
+      item.stack,
+      item.description,
+      JSON.stringify(item.milestones ?? []),
+      item.created_at || new Date().toISOString(),
+      new Date().toISOString(),
+    ],
+  );
+}
+
+export async function deleteRoadmapFromDb(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM roadmaps WHERE id = $1', [id]);
+}
+
+// ── Daily Learning Logs ─────────────────────────────────────────────────────
+
+export async function fetchLearningLogs(roadmapId?: string): Promise<LearningLog[]> {
+  try {
+    const db = await getDb();
+    const query = roadmapId
+      ? 'SELECT * FROM learning_logs WHERE roadmap_id = $1 ORDER BY created_at DESC LIMIT 50'
+      : 'SELECT * FROM learning_logs ORDER BY created_at DESC LIMIT 50';
+    const params = roadmapId ? [roadmapId] : [];
+    const rows = await db.select<Array<any>>(query, params);
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      roadmap_id: r.roadmap_id,
+      date: r.date,
+      learned: r.learned,
+      solved_problem: r.solved_problem || '',
+      next_goal: r.next_goal || '',
+      ai_feedback: r.ai_feedback || '',
+      created_at: r.created_at,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function insertLearningLog(log: LearningLog): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO learning_logs (id, roadmap_id, date, learned, solved_problem, next_goal, ai_feedback, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [
+      log.id,
+      log.roadmap_id,
+      log.date,
+      log.learned,
+      log.solved_problem || '',
+      log.next_goal || '',
+      log.ai_feedback || '',
+      log.created_at || new Date().toISOString(),
+    ],
+  );
+}
+
+// ── Project Ideas Incubator ─────────────────────────────────────────────────
+
+export async function fetchProjectIdeas(workspaceId: string): Promise<ProjectIdea[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<Array<any>>(
+      'SELECT * FROM project_ideas WHERE workspace_id = $1 ORDER BY updated_at DESC',
+      [workspaceId],
+    );
+    return (rows ?? []).map((r) => {
+      let tasks = [];
+      try {
+        tasks = JSON.parse(r.tasks_json);
+      } catch {
+        tasks = [];
+      }
+      return {
+        id: r.id,
+        workspace_id: r.workspace_id,
+        title: r.title,
+        stack: r.stack,
+        status: r.status,
+        description: r.description || '',
+        tasks,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertProjectIdea(idea: ProjectIdea): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO project_ideas (id, workspace_id, title, stack, status, description, tasks_json, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     ON CONFLICT(id) DO UPDATE SET
+       title=excluded.title,
+       stack=excluded.stack,
+       status=excluded.status,
+       description=excluded.description,
+       tasks_json=excluded.tasks_json,
+       updated_at=excluded.updated_at`,
+    [
+      idea.id,
+      idea.workspace_id,
+      idea.title,
+      idea.stack,
+      idea.status,
+      idea.description,
+      JSON.stringify(idea.tasks ?? []),
+      idea.created_at || new Date().toISOString(),
+      new Date().toISOString(),
+    ],
+  );
+}
+
+export async function deleteProjectIdeaFromDb(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM project_ideas WHERE id = $1', [id]);
+}
+
