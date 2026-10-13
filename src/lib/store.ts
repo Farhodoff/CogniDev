@@ -676,7 +676,7 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
   },
 
   refresh: async () => {
-    const [ws, tasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas] = await Promise.all([
+    const [ws, rawTasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas] = await Promise.all([
       fetchWorkspaces().catch(() => []),
       fetchTasks().catch(() => []),
       fetchGroups().catch(() => []),
@@ -686,6 +686,18 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
       fetchLearningLogs().catch(() => []),
       fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
     ]);
+
+    // Seed initial tasks if empty in SQLite
+    let tasks = rawTasks;
+    if (tasks.length === 0 && DEFAULT_TASKS.length > 0) {
+      tasks = DEFAULT_TASKS;
+      for (const t of DEFAULT_TASKS) {
+        insertTask(t).catch(() => {});
+      }
+      for (const [taskId, noteMd] of Object.entries(DEFAULT_NOTES)) {
+        upsertResolution(taskId, noteMd, JSON.stringify(DEFAULT_CHECKLISTS[taskId] ?? [])).catch(() => {});
+      }
+    }
 
     const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
     const currentSelected = get().selectedTaskId;
@@ -1072,6 +1084,9 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
 
   addTask: (t) => {
     set((s) => ({ tasks: [t, ...s.tasks], selectedTaskId: t.id, prompts: [] }));
+    if (get().dbMode === 'sqlite') {
+      insertTask(t).catch((e) => console.warn('Failed to insert task to SQLite:', e));
+    }
   },
 
   deleteTask: async (id) => {
