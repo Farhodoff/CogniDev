@@ -23,6 +23,8 @@
     "fs:allow-appcache-write",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "updater:default",
+    "process:default"
   ]
 }

@@ -32,3 +32,8 @@ target
 *.db-journal
 *.sqlite
 synapse.db
+
+# Updater keys
+*.key
+*.key.pub
+.tauri/

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus, BookOpen } from 'lucide-react';
+import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus, BookOpen, ArrowDownCircle } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
 import { rubaiStatus } from '../lib/stt';
 import { enabledProviders } from '../lib/providers';
+import { checkAppUpdate } from '../lib/updater';
 import TaskModal from './TaskModal';
 import LogChatModal from './LogChatModal';
 import VoiceRecorderModal from './VoiceRecorderModal';
 import AiProvidersModal from './AiProvidersModal';
 import ProfileModal from './ProfileModal';
 import GuideModal from './GuideModal';
+import UpdateModal from './UpdateModal';
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -46,6 +48,20 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
   const [aiSyncOpen, setAiSyncOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ available: boolean; version?: string; body?: string; handle?: any } | null>(null);
+
+  useEffect(() => {
+    // Fondagi avtomatik tekshiruv
+    checkAppUpdate()
+      .then((res) => {
+        if (res.available) {
+          setUpdateInfo({ available: true, version: res.version, body: res.body, handle: res.updateHandle });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const active = workspaces.find((w) => w.id === activeWorkspaceId);
 
@@ -313,6 +329,18 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             )}
           </div>
 
+          {/* Yangilanish mavjud bo'lsa ko'rinadigan belgi */}
+          {updateInfo?.available && (
+            <button
+              onClick={() => setUpdateModalOpen(true)}
+              title={`Yangi versiya mavjud: ${updateInfo.version} · Yangilash uchun bosing`}
+              className="flex items-center gap-1.5 rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-1 text-[11px] font-bold text-sky-200 animate-pulse hover:bg-sky-500/25 transition"
+            >
+              <ArrowDownCircle size={13} className="text-sky-300" />
+              <span>Yangilash ({updateInfo.version})</span>
+            </button>
+          )}
+
           {/* Qo'llanma tugmasi */}
           <button
             title="Qo'llanma va Imkoniyatlar"
@@ -351,6 +379,10 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <Bot size={14} className="text-violet-300" /> AI provayderlar va API
                   {enabledCount > 0 && <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[10.5px] text-emerald-300">{enabledCount}</span>}
                 </button>
+                <button onClick={() => { setUpdateModalOpen(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
+                  <ArrowDownCircle size={14} className="text-sky-300" /> Yangilanishlarni tekshirish
+                  {updateInfo?.available && <span className="ml-auto h-2 w-2 rounded-full bg-sky-400 animate-ping" />}
+                </button>
                 <SttStatusRow />
               </div>
             )}
@@ -375,6 +407,15 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       {showProvidersModal && <AiProvidersModal open={showProvidersModal} onClose={() => setProvidersModal(false)} />}
       {showProfileModal && <ProfileModal open={showProfileModal} onClose={() => setProfileModal(false)} />}
       {showGuideModal && <GuideModal open={showGuideModal} onClose={() => setGuideModal(false)} />}
+      {updateModalOpen && (
+        <UpdateModal
+          open={updateModalOpen}
+          onClose={() => setUpdateModalOpen(false)}
+          initialUpdateHandle={updateInfo?.handle}
+          initialVersion={updateInfo?.version}
+          initialBody={updateInfo?.body}
+        />
+      )}
     </>
   );
 }
