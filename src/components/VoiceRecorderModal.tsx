@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Mic, Loader2, Save, X, Copy } from 'lucide-react';
 import { useSynapse } from '../lib/store';
-import { insertTask } from '../lib/db';
+import { insertTask, upsertResolution } from '../lib/db';
 import { nextTaskId } from '../lib/store';
 import { formatVoiceWithOllama } from '../lib/voice';
 import { SOURCE_LABELS } from '../lib/providers';
@@ -161,7 +161,6 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
         const note = (useSynapse.getState().notes[selectedTaskId] ?? '') + "\n\n---\n### Ovozli qayd\n" + structured;
         updateNote(selectedTaskId, note);
         if (dbMode === 'sqlite') {
-          const { upsertResolution } = await import('../lib/db');
           await upsertResolution(selectedTaskId, note, JSON.stringify(useSynapse.getState().checklists[selectedTaskId] ?? []));
         }
         setHud("Ovozli qayd vazifa matniga qo'shildi");
@@ -183,7 +182,6 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
         if (dbMode === 'sqlite') await insertTask(t);
         addTask(t);
         const note = `# ${title}\n\n## Ovozli qayd matni\n${structured}`;
-        const { upsertResolution } = await import('../lib/db');
         if (dbMode === 'sqlite') await upsertResolution(id, note, '[]');
         await useSynapse.getState().selectTask(id);
         setHud(`${id} vazifasi ovozli qayd asosida yaratildi${formattedBy}`);
