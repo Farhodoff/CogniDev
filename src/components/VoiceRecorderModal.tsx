@@ -69,7 +69,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
       if (engine === 'web') startSpeechRecognition();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Microphone access denied');
+      setError(e instanceof Error ? e.message : 'Mikrofondan foydalanishga ruxsat berilmadi');
     }
   }
 
@@ -144,7 +144,7 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
   const displayText = finalTranscript + (transcript ? ` <span className="text-zinc-500 italic">${transcript}</span>` : '');
 
   async function onSave() {
-    if (!finalTranscript.trim() && !transcript.trim()) { setError('Nothing transcribed yet'); return; }
+    if (!finalTranscript.trim() && !transcript.trim()) { setError('Hech qanday ovoz yoki matn yozib olinmadi'); return; }
     setProcessing(true);
     const fullText = (finalTranscript + transcript).trim();
     try {
@@ -158,37 +158,39 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
         }
       }
       if (mode === 'append' && selectedTaskId) {
-        const note = (useSynapse.getState().notes[selectedTaskId] ?? '') + '\n\n---\n### Voice Memo\n' + structured;
+        const note = (useSynapse.getState().notes[selectedTaskId] ?? '') + "\n\n---\n### Ovozli qayd\n" + structured;
         updateNote(selectedTaskId, note);
         if (dbMode === 'sqlite') {
           const { upsertResolution } = await import('../lib/db');
           await upsertResolution(selectedTaskId, note, JSON.stringify(useSynapse.getState().checklists[selectedTaskId] ?? []));
         }
-        setHud('Voice memo appended to note');
+        setHud("Ovozli qayd vazifa matniga qo'shildi");
       } else {
-        const title = structured.split('\n')[0].slice(0, 80) || 'Voice memo';
+        const title = structured.split('\n')[0].slice(0, 80) || 'Ovozli qayd';
         const now = new Date().toISOString();
         const id = nextTaskId(useSynapse.getState().tasks);
+        const profile = useSynapse.getState().userProfile;
         const t: Task = {
           id, workspace_id: useSynapse.getState().activeWorkspaceId,
           title, status: 'active', priority: 'Normal',
-          git_branch: null, pr_url: null, ai_source: 'Voice Memo',
-          assignee_name: 'Farhod', assignee_avatar: 'F',
+          git_branch: null, pr_url: null, ai_source: 'Ovozli qayd',
+          assignee_name: profile.full_name || 'Muhandis',
+          assignee_avatar: profile.avatar_initials || 'CD',
           assignee_name2: null, assignee_avatar2: null,
-          tags: ['voice-memo'],
+          tags: ['ovozli-qayd'],
           created_at: now, updated_at: now,
         };
         if (dbMode === 'sqlite') await insertTask(t);
         addTask(t);
-        const note = `# ${title}\n\n## Voice Memo\n${structured}`;
+        const note = `# ${title}\n\n## Ovozli qayd matni\n${structured}`;
         const { upsertResolution } = await import('../lib/db');
         if (dbMode === 'sqlite') await upsertResolution(id, note, '[]');
         await useSynapse.getState().selectTask(id);
-        setHud(`${id} created from voice memo${formattedBy}`);
+        setHud(`${id} vazifasi ovozli qayd asosida yaratildi${formattedBy}`);
       }
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      setError(e instanceof Error ? e.message : 'Saqlashda xatolik yuz berdi');
     } finally {
       setProcessing(false);
     }
@@ -228,10 +230,10 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
 
           <div className="relative rounded-xl border border-white/[0.07] bg-black/40 p-4 min-h-[140px]">
             <div className="mb-2 flex items-center gap-2 font-mono text-[12px] text-zinc-400">
-              {recording && <span className="flex items-center gap-1 text-red-400 animate-pulse">● <span>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</span> Recording…</span>}
+              {recording && <span className="flex items-center gap-1 text-red-400 animate-pulse">● <span>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</span> Yozilmoqda…</span>}
               {transcribing && <span className="flex items-center gap-1.5 text-emerald-300"><Loader2 size={12} className="animate-spin" /> RubaiSTT transkripsiya qilmoqda…</span>}
               {!recording && !transcribing && finalTranscript && <span className="text-emerald-400">✓ Tayyor</span>}
-              {!recording && !transcribing && !finalTranscript && <span className="text-zinc-600">Boshlash uchun bosing</span>}
+              {!recording && !transcribing && !finalTranscript && <span className="text-zinc-600">Boshlash uchun tugmani bosing</span>}
             </div>
             <div className="font-mono text-[13px] leading-relaxed text-zinc-200 min-h-[80px] whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: displayText }} />
           </div>
@@ -251,23 +253,23 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
               {recording ? (
                 <>
                   <span className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
-                  Stop
+                  To'xtatish
                 </>
               ) : (
                 <>
                   <Mic size={14} />
-                  {finalTranscript ? 'Qayta' : 'Yozish'}
+                  {finalTranscript ? 'Qayta yozish' : 'Ovoz yozish'}
                 </>
               )}
             </button>
             <div className="flex gap-2">
               {finalTranscript && (
-                <button onClick={() => navigator.clipboard.writeText(finalTranscript).then(() => setHud('Copied'))} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-zinc-200 hover:bg-white/10">
-                  <Copy size={13} className="inline-block mr-1" /> Copy
+                <button onClick={() => navigator.clipboard.writeText(finalTranscript).then(() => setHud('Nusxalandi'))} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-zinc-200 hover:bg-white/10">
+                  <Copy size={13} className="inline-block mr-1" /> Nusxa olish
                 </button>
               )}
               <button onClick={onSave} disabled={processing || !(finalTranscript || transcript)} className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50">
-                {processing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} className="inline-block mr-1" />} {mode === 'task' ? 'Yaratish' : "Qo'shish"}
+                {processing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} className="inline-block mr-1" />} {mode === 'task' ? 'Vazifa yaratish' : "Qaydga qo'shish"}
               </button>
             </div>
           </div>

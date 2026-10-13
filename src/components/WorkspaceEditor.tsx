@@ -324,7 +324,7 @@ export default function WorkspaceEditor() {
               <div className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
                 <p className="flex-1 font-mono text-[12px] text-emerald-200">Qo'shishga tayyor: <span className="text-zinc-300">{dictation.finalText}{dictation.interim && ` ${dictation.interim}`}</span></p>
                 <button onClick={dictation.commit} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-400">Qaydga qo'shish</button>
-                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Bekor</button>
+                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Bekor qilish</button>
               </div>
             )}
 
@@ -390,7 +390,7 @@ export default function WorkspaceEditor() {
                     onClick={() => { setAddingItem(false); setNewItemText(''); }}
                     className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
                   >
-                    Bekor
+                    Bekor qilish
                   </button>
                 </form>
               )}
@@ -486,12 +486,12 @@ function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: 
   if (!first) {
     return (
       <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.03] p-4 text-center">
-        <p className="text-[13px] text-zinc-400">Ushbu vazifada yechim topishda ishlatilgan AI prompt bormi?</p>
+        <p className="text-[13px] text-zinc-400">Ushbu vazifada yechim topishda ishlatilgan AI suhbati bormi?</p>
         <button
           onClick={onOpenChat}
           className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/80 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-violet-600 transition"
         >
-          <Plus size={13} /> Saqlash
+          <Plus size={13} /> AI suhbatini biriktirish
         </button>
       </section>
     );
@@ -506,7 +506,7 @@ function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: 
   return (
     <section className="overflow-hidden rounded-2xl border border-violet-400/20 bg-gradient-to-b from-violet-500/[0.08] to-transparent">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left">
-          <span className="text-[13px] font-bold text-violet-100">AI Prompt Ombori</span>
+        <span className="text-[13px] font-bold text-violet-100">AI Prompt Ombori</span>
         <span className="ml-auto rounded-md bg-violet-500/15 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">Xesh: {first.prompt_hash ?? '#—'}</span>
         <ChevronDown size={15} className={`text-violet-300 transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
@@ -515,8 +515,8 @@ function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: 
           <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">{first.model_name ?? 'AI'} prompti:</p>
           <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-black/50 p-3.5 font-mono text-[12px] leading-relaxed text-zinc-300">{first.raw_prompt}</pre>
           <div className="mt-2.5 flex items-center gap-2">
-            <button onClick={copy} className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 px-3 py-1.5 text-[12px] font-semibold text-violet-100 hover:bg-violet-500/30">
-              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Olindi' : 'Nusxa olish'}
+            <button onClick={copy} className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 px-3 py-1.5 text-[12px] font-semibold text-violet-100 hover:bg-violet-500/30 transition">
+              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Nusxalandi' : 'Nusxa olish'}
             </button>
             <span className="font-mono text-[11px] text-zinc-600">vazifa: {taskId}</span>
           </div>
@@ -590,9 +590,27 @@ function CollapsibleWeeklyCoach({
   tasks: any[];
   onTriggerCoach: () => void;
 }) {
+  const { weeklyCoach } = useSynapse();
   const [expanded, setExpanded] = useState(false);
   const completed = tasks.filter((t) => t.status === 'completed').length;
-  const active = Math.max(tasks.filter((t) => t.status === 'active').length, 1);
+  const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
+  const active = tasks.filter((t) => t.status === 'active').length;
+
+  const dynamicBottleneck =
+    weeklyCoach?.bottlenecks?.[0] ||
+    (blockers.length > 0
+      ? `To'siq: ${blockers[0].title}`
+      : active > 3
+      ? `Diqqat: ${active} ta vazifa parallel jarayonda`
+      : "To'siqlar yo'q, oqim barqaror");
+
+  const dynamicRecommendation =
+    weeklyCoach?.recommendations?.[0] ||
+    (blockers.length > 0
+      ? `Tavsiya: Avval ${blockers[0].id} to'sig'ini bartaraf eting`
+      : completed > 0
+      ? "Tavsiya: Hal qilingan yechimlarni bilim bazasiga saqlang"
+      : "Tavsiya: Yangi sprint vazifalarini rejalashtiring");
 
   if (!expanded) {
     return (
@@ -605,7 +623,7 @@ function CollapsibleWeeklyCoach({
           <Sparkles size={13} className="text-violet-300 group-hover:rotate-12 transition-transform" />
           <span>Haftalik Tahlil</span>
           <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-mono text-violet-300">
-            {completed}/{tasks.length || 1}
+            {completed}/{tasks.length || 0}
           </span>
         </button>
       </div>
@@ -632,22 +650,22 @@ function CollapsibleWeeklyCoach({
       <div className="space-y-1.5 text-[11.5px] text-zinc-300">
         <p className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-          <span>{completed} ta vazifa bajarildi, {active} ta qoldirildi</span>
+          <span>{completed} ta bajarildi, {active} ta faol vazifa</span>
         </p>
         <p className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-          <span className="truncate">Bottleneck: SQLite tranzaksiyalari</span>
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${blockers.length > 0 ? 'bg-rose-400' : 'bg-amber-400'}`} />
+          <span className="truncate" title={dynamicBottleneck}>{dynamicBottleneck}</span>
         </p>
         <p className="flex items-center gap-2 text-zinc-400">
           <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
-          <span className="truncate">Tavsiya: Yechilgan kodlarni saqlash</span>
+          <span className="truncate" title={dynamicRecommendation}>{dynamicRecommendation}</span>
         </p>
       </div>
       <button
         onClick={() => onTriggerCoach()}
         className="mt-3 w-full rounded-xl bg-violet-500/15 hover:bg-violet-500/25 border border-violet-400/20 py-1.5 text-center text-[12px] font-semibold text-violet-200 hover:text-white transition shadow-sm"
       >
-        Feedback & Tahlil
+        Batafsil Tahlil & Hisobot
       </button>
     </div>
   );

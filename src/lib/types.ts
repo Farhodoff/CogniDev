@@ -10,6 +10,20 @@ export interface Workspace {
   created_at: string;
 }
 
+export interface UserProfile {
+  id: string;
+  full_name: string;
+  username: string;
+  title: string;
+  email: string;
+  github: string;
+  avatar_color: string;
+  avatar_initials: string;
+  bio: string;
+  role: string;
+  updated_at: string;
+}
+
 export interface TeamGroup {
   id: string;
   workspace_id: string;

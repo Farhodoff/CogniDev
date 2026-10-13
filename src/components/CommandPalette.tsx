@@ -6,7 +6,7 @@ import type { PromptEntry } from '../lib/types';
 
 type Hit =
   | { kind: 'vazifa'; id: string; title: string; sub: string }
-  | { kind: 'eslatma'; id: string; title: string; sub: string }
+  | { kind: 'qayd'; id: string; title: string; sub: string }
   | { kind: 'prompt'; id: string; title: string; sub: string };
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -36,7 +36,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     for (const [taskId, md] of Object.entries(notes)) {
       if (md.toLowerCase().includes(needle) && out.length < 10) {
         const line = md.split('\n').find((l) => l.toLowerCase().includes(needle))?.slice(0, 80) ?? '';
-        out.push({ kind: 'eslatma', id: taskId, title: `Eslatma · ${taskId}`, sub: line });
+        out.push({ kind: 'qayd', id: taskId, title: `Qayd · ${taskId}`, sub: line });
       }
     }
     for (const p of allPrompts) {
@@ -75,7 +75,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Vazifalar, arxitektura eslatmalari, AI promptlarni qidirish…"
+            placeholder="Vazifalar, texnik qaydlar, AI promptlarni qidirish…"
             className="w-full bg-transparent text-[14px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
           />
           <kbd className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">esc</kbd>
@@ -89,18 +89,18 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${i === activeCursor ? 'bg-sky-500/15' : 'hover:bg-white/5'}`}
             >
               <span className="text-zinc-500">
-                {h.kind === 'vazifa' ? <Hash size={14} /> : h.kind === 'eslatma' ? <FileText size={14} /> : <MessagesSquare size={14} />}
+                {h.kind === 'vazifa' ? <Hash size={14} /> : h.kind === 'qayd' ? <FileText size={14} /> : <MessagesSquare size={14} />}
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-medium text-zinc-100">{h.title}</span>
                 <span className="block truncate font-mono text-[11px] text-zinc-500">{h.sub}</span>
               </span>
-              <span className="ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-600">{h.kind}</span>
+              <span className="ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-600">{h.kind === 'vazifa' ? 'Vazifa' : h.kind === 'qayd' ? 'Qayd' : 'Prompt'}</span>
             </button>
           ))}
           {hits.length === 0 && (
             <p className="px-4 py-6 text-center text-[13px] text-zinc-500">
-              {q ? `“${q}” bo‘yicha hech narsa topilmadi.` : "Hozircha hech qanday vazifa yoki yozuv mavjud emas."}
+              {q ? `“${q}” bo‘yicha hech narsa topilmadi.` : "Hozircha hech qanday ma'lumot topilmadi."}
             </p>
           )}
         </div>

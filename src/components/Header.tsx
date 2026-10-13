@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus } from 'lucide-react';
+import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus, BookOpen } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
@@ -9,6 +9,8 @@ import TaskModal from './TaskModal';
 import LogChatModal from './LogChatModal';
 import VoiceRecorderModal from './VoiceRecorderModal';
 import AiProvidersModal from './AiProvidersModal';
+import ProfileModal from './ProfileModal';
+import GuideModal from './GuideModal';
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -28,12 +30,18 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setTaskModal,
     showChatModal,
     setChatModal,
+    userProfile,
+    showProfileModal,
+    setProfileModal,
+    showGuideModal,
+    setGuideModal,
+    showProvidersModal,
+    setProvidersModal,
   } = useSynapse();
 
   const [wsOpen, setWsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const { showProvidersModal, setProvidersModal } = useSynapse();
   const enabledCount = enabledProviders().length;
   const [aiSyncOpen, setAiSyncOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -305,6 +313,16 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             )}
           </div>
 
+          {/* Qo'llanma tugmasi */}
+          <button
+            title="Qo'llanma va Imkoniyatlar"
+            aria-label="Qo'llanma"
+            onClick={() => setGuideModal(true)}
+            className="rounded-xl p-2 text-zinc-400 hover:bg-white/5 hover:text-sky-300 transition"
+          >
+            <BookOpen size={16} />
+          </button>
+
           {/* Sozlamalar */}
           <div className="relative">
             <button
@@ -320,17 +338,17 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 <div className="border-b border-white/[0.06] px-3 py-2">
                   <span className="font-mono text-[10.5px] uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    {dbMode === 'sqlite' ? 'synapse.db · SQLite Lokal' : 'Xotira rejimi'}
+                    {dbMode === 'sqlite' ? 'synapse.db · SQLite Lokal' : 'Vaqtinchalik xotira (RAM)'}
                   </span>
                 </div>
                 <button onClick={doExport} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
-                  <Download size={14} className="text-sky-300" /> Eksport (.json)
+                  <Download size={14} className="text-sky-300" /> Zaxira eksporti (.json)
                 </button>
                 <button onClick={doImport} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
-                  <Upload size={14} className="text-emerald-300" /> Import (.json)
+                  <Upload size={14} className="text-emerald-300" /> Zaxiradan tiklash (.json)
                 </button>
                 <button onClick={() => { setProvidersModal(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
-                  <Bot size={14} className="text-violet-300" /> AI provayderlar
+                  <Bot size={14} className="text-violet-300" /> AI provayderlar va API
                   {enabledCount > 0 && <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[10.5px] text-emerald-300">{enabledCount}</span>}
                 </button>
                 <SttStatusRow />
@@ -338,10 +356,15 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             )}
           </div>
 
-          {/* User Avatar */}
-          <div className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 text-[11px] font-bold text-white shadow-sm ring-2 ring-[#0c0d11]">
-            F
-          </div>
+          {/* User Avatar & Profil ochish */}
+          <button
+            onClick={() => setProfileModal(true)}
+            title={`Profil: ${userProfile.full_name} (@${userProfile.username})`}
+            className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm ring-2 ring-[#0c0d11] transition-transform hover:scale-110"
+            style={{ backgroundColor: userProfile.avatar_color }}
+          >
+            {userProfile.avatar_initials}
+          </button>
         </div>
       </header>
 
@@ -350,6 +373,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
       {voiceOpen && <VoiceRecorderModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />}
       {showProvidersModal && <AiProvidersModal open={showProvidersModal} onClose={() => setProvidersModal(false)} />}
+      {showProfileModal && <ProfileModal open={showProfileModal} onClose={() => setProfileModal(false)} />}
+      {showGuideModal && <GuideModal open={showGuideModal} onClose={() => setGuideModal(false)} />}
     </>
   );
 }

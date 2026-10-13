@@ -8,6 +8,7 @@ import type {
   Workspace,
   WeeklyCoachInsight,
   TeamGroup,
+  UserProfile,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -24,6 +25,9 @@ import {
   fetchResolution,
   fetchTasks,
   fetchWorkspaces,
+  fetchUserProfile,
+  upsertUserProfile,
+  DEFAULT_USER_PROFILE,
   insertPrompt,
   insertTask,
   insertWorkspace,
@@ -114,6 +118,13 @@ interface SynapseState {
   weeklyCoach: WeeklyCoachInsight | null;
   showWeeklyCoachModal: boolean;
 
+  userProfile: UserProfile;
+  showProfileModal: boolean;
+  setProfileModal: (open: boolean) => void;
+  showGuideModal: boolean;
+  setGuideModal: (open: boolean) => void;
+  updateProfile: (patch: Partial<UserProfile>) => Promise<void>;
+
   init: () => Promise<void>;
   refresh: () => Promise<void>;
   restoreAll: (d: VaultDump) => void;
@@ -183,6 +194,29 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showProvidersModal: false,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
+  userProfile: DEFAULT_USER_PROFILE,
+  showProfileModal: false,
+  setProfileModal: (open) => set({ showProfileModal: open }),
+  showGuideModal: false,
+  setGuideModal: (open) => set({ showGuideModal: open }),
+
+  updateProfile: async (patch) => {
+    const current = get().userProfile;
+    const initials = patch.full_name
+      ? patch.full_name.trim().split(/\s+/).map((p) => p[0]?.toUpperCase()).slice(0, 2).join('') || 'U'
+      : current.avatar_initials;
+    const updated: UserProfile = {
+      ...current,
+      ...patch,
+      avatar_initials: initials,
+      updated_at: new Date().toISOString(),
+    };
+    set({ userProfile: updated });
+    if (get().dbMode === 'sqlite') {
+      await upsertUserProfile(updated).catch(() => {});
+    }
+    get().setHud("Profil muvaffaqiyatli saqlandi");
+  },
 
   init: async () => {
     if (!isTauri) {
@@ -212,10 +246,11 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   refresh: async () => {
-    const [ws, tasks, grps] = await Promise.all([
+    const [ws, tasks, grps, profile] = await Promise.all([
       fetchWorkspaces().catch(() => []),
       fetchTasks().catch(() => []),
       fetchGroups().catch(() => []),
+      fetchUserProfile().catch(() => DEFAULT_USER_PROFILE),
     ]);
     const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
     const currentSelected = get().selectedTaskId;
@@ -226,6 +261,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       groups: grps,
       tasks,
       selectedTaskId: sel?.id ?? null,
+      userProfile: profile ?? DEFAULT_USER_PROFILE,
     });
     if (sel) {
       await get().selectTask(sel.id);
@@ -401,7 +437,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   quickCapture: async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const { tasks, activeWorkspaceId, dbMode } = get();
+    const { tasks, activeWorkspaceId, dbMode, userProfile } = get();
     const id = nextTaskId(tasks);
     const now = new Date().toISOString();
     const newTask: Task = {
@@ -413,8 +449,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       git_branch: null,
       pr_url: null,
       ai_source: 'AI Synced',
-      assignee_name: 'Farhod',
-      assignee_avatar: 'F',
+      assignee_name: userProfile.full_name || 'Muhandis',
+      assignee_avatar: userProfile.avatar_initials || 'M',
       assignee_name2: null,
       assignee_avatar2: null,
       tags: [],
@@ -452,7 +488,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   ingestAiConversation: async (ingestData, mode, targetTaskId) => {
-    const { tasks, activeWorkspaceId, dbMode, notes } = get();
+    const { tasks, activeWorkspaceId, dbMode, notes, userProfile } = get();
     const now = new Date().toISOString();
     const shortPromptHash = '#' + Math.random().toString(16).slice(2, 7);
 
@@ -467,8 +503,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         git_branch: null,
         pr_url: null,
         ai_source: ingestData.detectedModel,
-        assignee_name: 'Farhod',
-        assignee_avatar: 'F',
+        assignee_name: userProfile.full_name || 'Muhandis',
+        assignee_avatar: userProfile.avatar_initials || 'M',
         assignee_name2: null,
         assignee_avatar2: null,
         tags: ingestData.tags.map((t) => normalizeTag(t)).filter((t): t is string => !!t),

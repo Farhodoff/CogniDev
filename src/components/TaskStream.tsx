@@ -4,9 +4,9 @@ import { filteredTasks, useSynapse } from '../lib/store';
 import type { QuickFilter, Task } from '../lib/types';
 
 const FILTERS: Array<{ id: Exclude<QuickFilter, null>; label: string }> = [
-  { id: 'high', label: "P0 To'siq" },
-  { id: 'solved', label: 'Yechilgan' },
-  { id: 'knowledge', label: 'Bilimlar' },
+  { id: 'high', label: "P0 To'siqlar" },
+  { id: 'solved', label: 'Hal qilingan' },
+  { id: 'knowledge', label: 'Bilimlar bazasi' },
   { id: 'claude', label: 'Claude' },
   { id: 'gemini', label: 'Gemini' },
 ];
@@ -60,7 +60,7 @@ export default function TaskStream() {
       <div className="flex items-center justify-between px-4 pb-2 pt-3.5 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <h2 className="text-[13px] font-bold text-zinc-100 flex items-center gap-2">
-            Kunlik Oqim
+            Vazifalar Oqimi
           </h2>
           <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300 font-mono text-[10.5px] font-semibold">
             {activeCount} Faol
@@ -81,10 +81,10 @@ export default function TaskStream() {
               <p className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500 border-b border-white/[0.06]">
                 Saralash tartibi
               </p>
-              <SortItem label="Yangi" active={sortOrder === 'newest'} onClick={() => { setSortOrder('newest'); setSortOpen(false); }} />
-              <SortItem label="Eski" active={sortOrder === 'oldest'} onClick={() => { setSortOrder('oldest'); setSortOpen(false); }} />
-              <SortItem label="Muhimlik" active={sortOrder === 'priority'} onClick={() => { setSortOrder('priority'); setSortOpen(false); }} />
-              <SortItem label="Nom (A-Z)" active={sortOrder === 'title'} onClick={() => { setSortOrder('title'); setSortOpen(false); }} />
+              <SortItem label="Eng yangi" active={sortOrder === 'newest'} onClick={() => { setSortOrder('newest'); setSortOpen(false); }} />
+              <SortItem label="Avvalgi" active={sortOrder === 'oldest'} onClick={() => { setSortOrder('oldest'); setSortOpen(false); }} />
+              <SortItem label="Muhimlik darajasi" active={sortOrder === 'priority'} onClick={() => { setSortOrder('priority'); setSortOpen(false); }} />
+              <SortItem label="Nomi (A-Z)" active={sortOrder === 'title'} onClick={() => { setSortOrder('title'); setSortOpen(false); }} />
             </div>
           )}
 

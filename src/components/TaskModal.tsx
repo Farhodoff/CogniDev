@@ -14,7 +14,7 @@ const PRIORITIES: Array<{ id: TaskPriority; label: string }> = [
 const AI_SOURCES = ['Claude 3.5 Sonnet', 'Gemini 1.5 Pro', 'ChatGPT', 'Ollama Local', "Qo'lda kiritilgan"];
 
 export default function TaskModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tasks, activeWorkspaceId, addTask, selectTask, dbMode, setHud } = useSynapse();
+  const { tasks, activeWorkspaceId, addTask, selectTask, dbMode, setHud, userProfile } = useSynapse();
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('Normal');
   const [aiSource, setAiSource] = useState(AI_SOURCES[0]);
@@ -37,8 +37,8 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
       git_branch: null,
       pr_url: null,
       ai_source: aiSource,
-      assignee_name: 'Farhod',
-      assignee_avatar: 'F',
+      assignee_name: userProfile.full_name || 'Muhandis',
+      assignee_avatar: userProfile.avatar_initials || 'CD',
       assignee_name2: null,
       assignee_avatar2: null,
       tags: parseTagsInput(tagsInput),
@@ -117,15 +117,15 @@ export default function TaskModal({ open, onClose }: { open: boolean; onClose: (
           </label>
         </div>
         <div className="flex justify-end gap-2 border-t border-white/[0.07] px-5 py-3">
-          <button onClick={onClose} className="rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[12.5px] font-medium text-zinc-200 hover:bg-white/10">
-            Bekor
+          <button onClick={onClose} className="rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[12.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition">
+            Bekor qilish
           </button>
           <button
             onClick={submit}
             disabled={!title.trim() || saving}
-            className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110 disabled:opacity-50 transition"
+            className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110 disabled:opacity-50 transition shadow-sm"
           >
-            {saving ? 'Yaratilmoqda…' : 'Yaratish'}
+            {saving ? 'Yaratilmoqda…' : 'Vazifani saqlash'}
           </button>
         </div>
       </div>

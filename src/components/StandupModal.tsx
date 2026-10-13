@@ -41,13 +41,13 @@ export default function StandupModal() {
             className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[12.5px] font-medium text-zinc-200 hover:bg-white/10 transition"
           >
             {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-            {copied ? 'Olindi' : 'Nusxa olish'}
+            {copied ? 'Nusxalandi' : 'Nusxa olish'}
           </button>
           <button
             onClick={() => setStandupModal(false)}
-            className="rounded-lg bg-violet-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110 transition"
+            className="rounded-lg bg-violet-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110 shadow-sm transition"
           >
-            Tayyor
+            Yopish
           </button>
         </div>
       </div>

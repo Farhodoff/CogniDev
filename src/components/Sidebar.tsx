@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Folder, Plus, Trophy, BookOpen, Layers, Users, X } from 'lucide-react';
+import { Folder, Plus, Trophy, BookOpen, Layers, Users, X, HelpCircle } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker } from '../lib/ai';
 import { fetchTagCounts } from '../lib/db';
@@ -24,6 +24,9 @@ export default function Sidebar() {
     setActiveGroup,
     createGroup,
     deleteGroup,
+    userProfile,
+    setProfileModal,
+    setGuideModal,
   } = useSynapse();
 
   const [dbTagCounts, setDbTagCounts] = useState<{
@@ -387,7 +390,7 @@ export default function Sidebar() {
             onClick={() => setFilter('high')}
             className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1 font-mono text-[11.5px] hover:bg-white/5 ${blockerCount > 0 ? 'bg-amber-500/[0.07] text-amber-200' : 'text-zinc-400 hover:text-zinc-200'}`}
           >
-            <span>#blokirlar</span>
+            <span>#to'siqlar</span>
             <span className={`rounded-md border px-1.5 py-0.5 text-[10.5px] ${blockerCount > 0 ? 'border-amber-400/40 bg-amber-500/15 text-amber-300' : 'border-transparent bg-white/5 text-zinc-500'}`}>
               {blockerCount > 0 ? `${blockerCount} faol` : '0'}
             </span>
@@ -397,22 +400,33 @@ export default function Sidebar() {
 
       {/* Foydalanuvchi profili yoki Jamoa a'zolari */}
       <div>
-        <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-          {isPersonal ? 'Foydalanuvchi Profili' : 'Jamoa Aʼzolari'}
+        <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+          {isPersonal ? 'Mening Profilim' : 'Jamoa Aʼzolari'}
         </p>
         {isPersonal ? (
-          <div className="flex items-center gap-2.5 px-2.5">
-            <div className="relative">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 text-[11px] font-bold text-white ring-2 ring-[#0f1013]">
-                F
+          <button
+            onClick={() => setProfileModal(true)}
+            className="flex w-full items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-white/[0.05] transition text-left group"
+            title="Profilni ko'rish va tahrirlash"
+          >
+            <div className="relative shrink-0">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[12px] font-bold text-white shadow-sm ring-2 ring-white/10 transition-transform group-hover:scale-105"
+                style={{ backgroundColor: userProfile.avatar_color }}
+              >
+                {userProfile.avatar_initials}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0f1013] bg-emerald-400" />
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-[12.5px] font-medium text-zinc-200">Farhod (Siz)</p>
-              <p className="text-[10px] font-mono text-zinc-500">Shaxsiy Ombor · Oflayn</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12.5px] font-medium text-zinc-200 group-hover:text-white transition">
+                {userProfile.full_name} <span className="text-zinc-500 text-[10.5px] font-normal">(Siz)</span>
+              </p>
+              <p className="truncate text-[10.5px] font-mono text-zinc-500">
+                {userProfile.title || 'Muhandis'} · Tahrirlash ✎
+              </p>
             </div>
-          </div>
+          </button>
         ) : (
           <div className="px-2.5">
             {workspaceAssignees.length > 0 ? (
@@ -432,15 +446,24 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Tizim holati */}
+      {/* Qo'llanma & Yordam tugmasi */}
       <div className="mt-auto space-y-2">
+        <button
+          onClick={() => setGuideModal(true)}
+          className="flex w-full items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/[0.05] px-3 py-2 text-[12px] font-medium text-sky-300 hover:bg-sky-500/10 hover:text-sky-200 transition"
+        >
+          <HelpCircle size={14} className="text-sky-400 shrink-0" />
+          <span>Qo'llanma & Imkoniyatlar</span>
+        </button>
+
+        {/* Tizim holati */}
         <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" />
-          <span className="truncate font-mono text-[11.5px] text-zinc-300">
-            {dbMode === 'sqlite' ? `synapse.db · ${tasks.length} ta yozuv` : 'xotira rejimi'}
+          <span className="truncate font-mono text-[11px] text-zinc-300">
+            {dbMode === 'sqlite' ? `synapse.db · ${tasks.length} ta yozuv` : 'RAM xotira rejimi'}
           </span>
         </div>
-        <p className="px-1 font-mono text-[10px] text-zinc-600">mahalliy SQLite · Ollama</p>
+        <p className="px-1 font-mono text-[9.5px] text-zinc-600">Mahalliy SQLite · Ollama · RubaiSTT</p>
       </div>
     </aside>
   );

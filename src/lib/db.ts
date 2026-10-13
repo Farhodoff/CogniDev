@@ -1,11 +1,25 @@
 import Database from '@tauri-apps/plugin-sql';
-import type { PromptEntry, Retrospective, Task, TaskResolution, Workspace, TeamGroup } from './types';
+import type { PromptEntry, Retrospective, Task, TaskResolution, Workspace, TeamGroup, UserProfile } from './types';
 import { isTauri } from './vault';
 import {
   DEFAULT_PERSONAL_WORKSPACE,
 } from './seed';
 
 const DB_URL = 'sqlite:synapse.db';
+
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  id: 'current',
+  full_name: 'Farhod',
+  username: 'farhodoff',
+  title: 'Senior Software Engineer',
+  email: 'farhod@cognidev.local',
+  github: 'Farhodoff',
+  avatar_color: '#0284c7',
+  avatar_initials: 'F',
+  bio: 'Building local-first engineering command center and AI workflows.',
+  role: 'Muhandis (Admin)',
+  updated_at: new Date().toISOString(),
+};
 
 let dbPromise: Promise<Database> | null = null;
 
@@ -40,6 +54,19 @@ CREATE TABLE IF NOT EXISTS team_groups (
     icon TEXT DEFAULT 'folder',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS user_profile (
+    id TEXT PRIMARY KEY DEFAULT 'current',
+    full_name TEXT NOT NULL DEFAULT 'Farhod',
+    username TEXT NOT NULL DEFAULT 'farhodoff',
+    title TEXT NOT NULL DEFAULT 'Senior Software Engineer',
+    email TEXT DEFAULT 'farhod@cognidev.local',
+    github TEXT DEFAULT 'Farhodoff',
+    avatar_color TEXT DEFAULT '#0284c7',
+    avatar_initials TEXT DEFAULT 'F',
+    bio TEXT DEFAULT 'Building local-first engineering command center and AI workflows.',
+    role TEXT DEFAULT 'Muhandis (Admin)',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
@@ -395,4 +422,48 @@ export async function saveRetrospective(date: string, type: 'standup' | 'weekly_
     content,
     blockers,
   ]);
+}
+
+export async function fetchUserProfile(): Promise<UserProfile> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<UserProfile[]>('SELECT * FROM user_profile WHERE id = $1', ['current']);
+    if (rows && rows[0]) return rows[0];
+    await upsertUserProfile(DEFAULT_USER_PROFILE);
+    return DEFAULT_USER_PROFILE;
+  } catch {
+    return DEFAULT_USER_PROFILE;
+  }
+}
+
+export async function upsertUserProfile(p: UserProfile): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO user_profile (id, full_name, username, title, email, github, avatar_color, avatar_initials, bio, role, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     ON CONFLICT(id) DO UPDATE SET
+       full_name=excluded.full_name,
+       username=excluded.username,
+       title=excluded.title,
+       email=excluded.email,
+       github=excluded.github,
+       avatar_color=excluded.avatar_color,
+       avatar_initials=excluded.avatar_initials,
+       bio=excluded.bio,
+       role=excluded.role,
+       updated_at=excluded.updated_at`,
+    [
+      'current',
+      p.full_name,
+      p.username,
+      p.title,
+      p.email,
+      p.github,
+      p.avatar_color,
+      p.avatar_initials,
+      p.bio,
+      p.role,
+      new Date().toISOString(),
+    ],
+  );
 }

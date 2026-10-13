@@ -112,9 +112,9 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
                   <button
                     onClick={() => onTest(p.id)}
                     disabled={testing !== null}
-                    className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-zinc-200 hover:bg-white/10 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-zinc-200 hover:bg-white/10 disabled:opacity-50 transition"
                   >
-                    {testing === p.id ? <Loader2 size={12} className="animate-spin" /> : null} Test
+                    {testing === p.id ? <Loader2 size={12} className="animate-spin" /> : null} Tekshirish
                   </button>
                   {r && (
                     <span className={`flex items-center gap-1 font-mono text-[11px] ${r.ok ? 'text-emerald-300' : 'text-red-300'}`}>
@@ -148,9 +148,9 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
               <button
                 onClick={onTestJev}
                 disabled={testing !== null}
-                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-zinc-200 hover:bg-white/10 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-zinc-200 hover:bg-white/10 disabled:opacity-50 transition"
               >
-                {testing === 'jev' ? <Loader2 size={12} className="animate-spin" /> : null} Test
+                {testing === 'jev' ? <Loader2 size={12} className="animate-spin" /> : null} Tekshirish
               </button>
             </div>
             {results.jev && (
@@ -162,8 +162,8 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
         </div>
 
         <div className="flex justify-end border-t border-white/[0.07] px-5 py-3">
-          <button onClick={onClose} className="rounded-lg bg-violet-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110">
-            Tayyor
+          <button onClick={onClose} className="rounded-lg bg-violet-600 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:brightness-110 shadow-sm transition">
+            Saqlash va Yopish
           </button>
         </div>
       </div>
