@@ -10,6 +10,8 @@ import {
   FileText,
   Lightbulb,
   Compass,
+  LayoutDashboard,
+  Sparkles,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker } from '../lib/ai';
@@ -43,6 +45,7 @@ export default function Sidebar() {
     notesDocs,
     roadmaps,
     projectIdeas,
+    toggleAiDrawer,
   } = useSynapse();
 
   const [dbTagCounts, setDbTagCounts] = useState<{
@@ -113,6 +116,22 @@ export default function Sidebar() {
       <nav className="space-y-1">
         <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Boshqaruv</p>
         
+        {/* 0. Boshqaruv Markazi (Dashboard) */}
+        <button
+          onClick={() => { setMainView('dashboard'); setFilter(null); setSearch(''); }}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
+            mainView === 'dashboard'
+              ? 'bg-sky-500/15 text-sky-300 font-semibold border border-sky-500/25 shadow-sm'
+              : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+          }`}
+        >
+          <LayoutDashboard size={15} className="text-sky-400" />
+          <span>Boshqaruv Markazi</span>
+          <span className="ml-auto rounded-md bg-sky-500/10 px-1.5 py-0.5 font-mono text-[11px] text-sky-300">
+            ⌘1
+          </span>
+        </button>
+
         {/* 1. Vazifalar Oqimi */}
         <button
           onClick={() => { setMainView('stream'); setFilter(null); setSearch(''); }}
@@ -184,6 +203,20 @@ export default function Sidebar() {
             {completedCount}
           </span>
         </button>
+
+        {/* AI Assistant Drawer Toggle */}
+        <div className="pt-1.5">
+          <button
+            onClick={toggleAiDrawer}
+            className="flex w-full items-center gap-2.5 rounded-xl border border-purple-500/25 bg-purple-500/10 px-2.5 py-2 text-left text-[12.5px] font-semibold text-purple-300 hover:bg-purple-500/20 active:scale-95 transition"
+          >
+            <Sparkles size={15} className="text-purple-400 animate-pulse" />
+            <span>AI Assistant</span>
+            <span className="ml-auto rounded-md bg-purple-500/20 px-1.5 py-0.5 font-mono text-[10px] text-purple-300">
+              ⌘J
+            </span>
+          </button>
+        </div>
       </nav>
 
       {/* Workspaces (Omborlar) */}

@@ -7,6 +7,7 @@ import type {
   RoadmapItem,
   NoteDoc,
   ProjectIdea,
+  ScheduleBlock,
 } from './types';
 
 /** Default initial workspace for a clean production setup. */
@@ -19,13 +20,187 @@ export const DEFAULT_PERSONAL_WORKSPACE: Workspace = {
 
 export const DEFAULT_GROUPS: TeamGroup[] = [];
 
-export const DEFAULT_TASKS: Task[] = [];
+export const DEFAULT_TASKS: Task[] = [
+  {
+    id: 'DEV-1',
+    workspace_id: 'ws-personal',
+    title: 'Zoovita API ni serverda ishga tushirish va test qilish',
+    status: 'completed',
+    priority: 'High Priority',
+    git_branch: 'feature/api-deploy',
+    pr_url: null,
+    ai_source: 'gemini',
+    assignee_name: 'Farhod',
+    assignee_avatar: null,
+    assignee_name2: null,
+    assignee_avatar2: null,
+    tags: ['zoovita', 'backend', 'api'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'DEV-2',
+    workspace_id: 'ws-personal',
+    title: 'Admin panelni build qilish va deploy',
+    status: 'completed',
+    priority: 'High Priority',
+    git_branch: 'feature/admin-build',
+    pr_url: null,
+    ai_source: 'claude',
+    assignee_name: 'Farhod',
+    assignee_avatar: null,
+    assignee_name2: null,
+    assignee_avatar2: null,
+    tags: ['zoovita', 'admin', 'deploy'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'DEV-3',
+    workspace_id: 'ws-personal',
+    title: 'iOS Google OAuth test (Development Build muammosi)',
+    status: 'blocker',
+    priority: 'P0 Blocker',
+    git_branch: 'fix/ios-oauth',
+    pr_url: null,
+    ai_source: 'chatgpt',
+    assignee_name: 'Farhod',
+    assignee_avatar: null,
+    assignee_name2: null,
+    assignee_avatar2: null,
+    tags: ['mobile', 'auth', 'oauth'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'DEV-4',
+    workspace_id: 'ws-personal',
+    title: 'PostgreSQL Indekslar (B-Tree vs GIN) amaliy tahlili',
+    status: 'active',
+    priority: 'High Priority',
+    git_branch: 'study/postgres-indexes',
+    pr_url: null,
+    ai_source: 'gemini',
+    assignee_name: 'Farhod',
+    assignee_avatar: null,
+    assignee_name2: null,
+    assignee_avatar2: null,
+    tags: ['study', 'database', 'postgres'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'DEV-5',
+    workspace_id: 'ws-personal',
+    title: 'Go (Golang) Goroutines va Concurrency patternlari',
+    status: 'active',
+    priority: 'High Priority',
+    git_branch: null,
+    pr_url: null,
+    ai_source: null,
+    assignee_name: 'Farhod',
+    assignee_avatar: null,
+    assignee_name2: null,
+    assignee_avatar2: null,
+    tags: ['study', 'golang', 'concurrency'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'DEV-6',
+    workspace_id: 'ws-personal',
+    title: 'Portfolioda yangi loyihalar sahifasini yangilash',
+    status: 'backlog',
+    priority: 'Normal',
+    git_branch: null,
+    pr_url: null,
+    ai_source: null,
+    assignee_name: 'Farhod',
+    assignee_avatar: null,
+    assignee_name2: null,
+    assignee_avatar2: null,
+    tags: ['portfolio', 'frontend'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
 
-export const DEFAULT_NOTES: Record<string, string> = {};
+export const DEFAULT_NOTES: Record<string, string> = {
+  'DEV-1': '### Natija\nZoovita API Docker orqali serverda ishga tushirildi. Healthcheck 200 OK qaytardi.',
+  'DEV-3': '### Muammo\nDevelopment buildda redirect_uri xatosi bermoqda. Google Cloud Console da scheme URI qo‘shilishi kerak.',
+};
 
-export const DEFAULT_CHECKLISTS: Record<string, ChecklistItem[]> = {};
+export const DEFAULT_CHECKLISTS: Record<string, ChecklistItem[]> = {
+  'DEV-1': [
+    { id: 'c1', text: 'Docker container up', done: true },
+    { id: 'c2', text: 'Nginx reverse proxy', done: true },
+    { id: 'c3', text: 'SSL sertifikat tekshiruvi', done: true },
+  ],
+  'DEV-3': [
+    { id: 'c1', text: 'Google Console URI sozlash', done: false },
+    { id: 'c2', text: 'iOS plist da URL Scheme tekshirish', done: false },
+  ],
+};
 
 export const DEFAULT_PROMPTS: PromptEntry[] = [];
+
+/** Daily schedule timeline blocks */
+export const DEFAULT_SCHEDULE_BLOCKS: ScheduleBlock[] = [
+  {
+    id: 'sch-1',
+    time_range: '09:00 - 11:00',
+    title: 'Zoovita backend (Server setup, API test)',
+    category: 'work',
+    tag: 'Zoovita',
+    color: '#10b981', // emerald
+    done: true,
+  },
+  {
+    id: 'sch-2',
+    time_range: '11:00 - 13:00',
+    title: 'Admin panel build & deploy',
+    category: 'work',
+    tag: 'Admin',
+    color: '#0ea5e9', // sky
+    done: true,
+  },
+  {
+    id: 'sch-3',
+    time_range: '13:00 - 15:00',
+    title: 'iOS Google OAuth (Testing on device)',
+    category: 'work',
+    tag: 'Mobile App',
+    color: '#f43f5e', // rose
+    done: false,
+  },
+  {
+    id: 'sch-4',
+    time_range: '16:00 - 17:30',
+    title: 'Sport & Gym (Mashg‘ulot)',
+    category: 'health',
+    tag: 'Sport',
+    color: '#22c55e', // green
+    done: false,
+  },
+  {
+    id: 'sch-5',
+    time_range: '19:00 - 20:30',
+    title: 'Go / Rust Concurrency & Goroutines o‘rganish',
+    category: 'study',
+    tag: 'Study',
+    color: '#a855f7', // purple
+    done: false,
+  },
+  {
+    id: 'sch-6',
+    time_range: '21:00 - 22:00',
+    title: 'Portfolio update & Kunlik reja tekshiruvi',
+    category: 'personal',
+    tag: 'Portfolio',
+    color: '#3b82f6', // blue
+    done: false,
+  },
+];
 
 /** Pre-loaded Backend Software Engineering Roadmap matching Farhod's roadmap */
 export const DEFAULT_ROADMAPS: RoadmapItem[] = [
@@ -195,6 +370,37 @@ asyncio.run(main())
 
 /** Default Project Ideas */
 export const DEFAULT_PROJECT_IDEAS: ProjectIdea[] = [
+  {
+    id: 'idea-zoovita',
+    workspace_id: 'ws-personal',
+    title: 'Zoovita — Mobile App, Backend & Admin Panel',
+    stack: 'React Native + FastAPI + PostgreSQL',
+    status: 'in_progress',
+    description: 'Veterinariya va uy hayvonlari uchun to‘liq ekotizim: mobil ilova, admin boshqaruv paneli va yuqori tezlikdagi backend API.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    tasks: [
+      { id: 't1', title: 'Server sozlash va FastAPI backend ni dockerize qilish', priority: 'High Priority', done: true },
+      { id: 't2', title: 'Admin panel build qilish va production serverga deploy', priority: 'High Priority', done: true },
+      { id: 't3', title: 'iOS Google OAuth redirect URI konfiguratsiyasi', priority: 'P0 Blocker', done: false },
+      { id: 't4', title: 'Push bildirishnomalar va FCM integratsiyasi', priority: 'Normal', done: false },
+    ],
+  },
+  {
+    id: 'idea-nihongo-talk',
+    workspace_id: 'ws-personal',
+    title: 'Nihongo Talk — AI Speaking Coach & JLPT Platform',
+    stack: 'Next.js + OpenAI / Gemini + WebSocket',
+    status: 'in_progress',
+    description: 'Yapon tili JLPT N2 imtihoniga tayyorlovchi real-vaqtdagi AI nutq suhbatdoshi va grammatika tahlil platformasi.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    tasks: [
+      { id: 't1', title: 'WebRTC va WebSocket orqali audio oqimini uzatish', priority: 'High Priority', done: true },
+      { id: 't2', title: 'AI nutq tahlilchisi va real-vaqtda grammatika xatolarini tuzatish', priority: 'High Priority', done: true },
+      { id: 't3', title: 'Audio scheduler kechikishini (latency) 200ms gacha tushirish', priority: 'P0 Blocker', done: false },
+    ],
+  },
   {
     id: 'idea-rate-limiter',
     workspace_id: 'ws-personal',

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import DashboardWorkspace from './components/DashboardWorkspace';
 import TaskStream from './components/TaskStream';
 import WorkspaceEditor from './components/WorkspaceEditor';
 import NotionNotesWorkspace from './components/NotionNotesWorkspace';
 import RoadmapWorkspace from './components/RoadmapWorkspace';
 import IdeasWorkspace from './components/IdeasWorkspace';
 import RetroWorkspace from './components/RetroWorkspace';
+import AiAssistantDrawer from './components/AiAssistantDrawer';
 import FloatingHud from './components/FloatingHud';
 import StandupModal from './components/StandupModal';
 import WeeklyCoachModal from './components/WeeklyCoachModal';
@@ -22,6 +24,7 @@ export default function App() {
     tasks,
     mainView,
     setMainView,
+    toggleAiDrawer,
   } = useSynapse();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -32,6 +35,15 @@ export default function App() {
         e.preventDefault();
         setPaletteOpen((v) => !v);
       }
+      // ⌘J → Toggle AI Assistant Drawer
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+        if (!typing) {
+          e.preventDefault();
+          toggleAiDrawer();
+        }
+      }
       // macOS standard: ⌘N → new task (not while typing)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
         const el = e.target as HTMLElement | null;
@@ -41,22 +53,23 @@ export default function App() {
           setTaskModal(true);
         }
       }
-      // macOS Workspace shortcuts: ⌘1..⌘5
+      // macOS Workspace shortcuts: ⌘1..⌘6
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         const el = e.target as HTMLElement | null;
         const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
         if (!typing) {
-          if (e.key === '1') { e.preventDefault(); setMainView('stream'); }
-          else if (e.key === '2') { e.preventDefault(); setMainView('notes'); }
-          else if (e.key === '3') { e.preventDefault(); setMainView('roadmap'); }
-          else if (e.key === '4') { e.preventDefault(); setMainView('ideas'); }
-          else if (e.key === '5') { e.preventDefault(); setMainView('retro'); }
+          if (e.key === '1') { e.preventDefault(); setMainView('dashboard'); }
+          else if (e.key === '2') { e.preventDefault(); setMainView('stream'); }
+          else if (e.key === '3') { e.preventDefault(); setMainView('notes'); }
+          else if (e.key === '4') { e.preventDefault(); setMainView('roadmap'); }
+          else if (e.key === '5') { e.preventDefault(); setMainView('ideas'); }
+          else if (e.key === '6') { e.preventDefault(); setMainView('retro'); }
         }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [init, setTaskModal, setMainView]);
+  }, [init, setTaskModal, setMainView, toggleAiDrawer]);
 
   // Escape clears the header search when the palette is closed.
   useEffect(() => {
@@ -71,7 +84,9 @@ export default function App() {
   // macOS: native window title follows the selected view or task.
   useEffect(() => {
     let title = 'CogniDev';
-    if (mainView === 'stream') {
+    if (mainView === 'dashboard') {
+      title = 'CogniDev — Asosiy Boshqaruv Markazi';
+    } else if (mainView === 'stream') {
       const t = tasks.find((x) => x.id === selectedTaskId);
       title = t ? `CogniDev — ${t.id} · ${t.title.slice(0, 40)}` : 'CogniDev — Vazifalar Oqimi';
     } else if (mainView === 'notes') {
@@ -95,6 +110,7 @@ export default function App() {
       <Header onPalette={() => setPaletteOpen(true)} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
+        {mainView === 'dashboard' && <DashboardWorkspace />}
         {mainView === 'stream' && (
           <>
             <TaskStream />
@@ -105,6 +121,7 @@ export default function App() {
         {mainView === 'roadmap' && <RoadmapWorkspace />}
         {mainView === 'ideas' && <IdeasWorkspace />}
         {mainView === 'retro' && <RetroWorkspace />}
+        <AiAssistantDrawer />
       </div>
       <FloatingHud />
       <StandupModal />

@@ -84,7 +84,25 @@ export interface Retrospective {
   created_at: string;
 }
 
-export type MainView = 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro';
+export type MainView = 'dashboard' | 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro';
+
+export interface ScheduleBlock {
+  id: string;
+  time_range: string;
+  title: string;
+  category: 'work' | 'study' | 'personal' | 'health';
+  tag: string;
+  color: string;
+  done: boolean;
+}
+
+export interface AiDrawerMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  model?: string;
+}
 
 export interface NoteDoc {
   id: string;

@@ -264,15 +264,19 @@ export default function GuideModal({ open, onClose }: { open: boolean; onClose: 
                 <h3 className="text-[16px] font-bold text-white">Klaviatura Yorliqlari (Shortcuts)</h3>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-                    <span className="text-zinc-200">Ish maydonlari o'rtasida tezkor almashish (Vazifalar, Qaydlar, Roadmap, G'oyalar, Tahlil)</span>
-                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-amber-300">⌘ + 1 .. 5</kbd>
+                    <span className="text-zinc-200">Ish maydonlari o‘rtasida tezkor almashish (Dashboard, Vazifalar, Qaydlar, Roadmap, G‘oyalar, Tahlil)</span>
+                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-amber-300">⌘ + 1 .. 6</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-                    <span className="text-zinc-200">Boshqaruv paneli va tezkor qidiruv (Command Palette)</span>
+                    <span className="text-zinc-200">AI Assistant Chat paneli (yig‘ish / ochish)</span>
+                    <kbd className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 font-mono text-[11px] text-purple-300">⌘ + J</kbd>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+                    <span className="text-zinc-200">Spotlight tezkor qidiruv (Command Palette)</span>
                     <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-sky-300">⌘ + K</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-                    <span className="text-zinc-200">Yangi muhandislik vazifasi ochish</span>
+                    <span className="text-zinc-200">Yangi muhandislik vazifasi qo‘shish</span>
                     <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-sky-300">⌘ + N</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">

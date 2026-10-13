@@ -14,6 +14,8 @@ import type {
   RoadmapItem,
   LearningLog,
   ProjectIdea,
+  ScheduleBlock,
+  AiDrawerMessage,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -25,6 +27,7 @@ import {
   DEFAULT_ROADMAPS,
   DEFAULT_NOTION_NOTES,
   DEFAULT_PROJECT_IDEAS,
+  DEFAULT_SCHEDULE_BLOCKS,
 } from './seed';
 import {
   deleteTaskFromDb,
@@ -62,7 +65,7 @@ import {
   deleteProjectIdeaFromDb,
   type VaultDump,
 } from './db';
-import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, type ParsedAiIngestion } from './ai';
+import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
 import type { AiSource } from './providers';
 
@@ -165,6 +168,22 @@ interface SynapseState {
   deleteIdea: (id: string) => Promise<void>;
   exportIdeaTasksToStream: (ideaId: string) => Promise<number>;
 
+  // Dashboard & Schedule & AI Assistant Drawer
+  isAiDrawerOpen: boolean;
+  setAiDrawerOpen: (open: boolean) => void;
+  toggleAiDrawer: () => void;
+  scheduleBlocks: ScheduleBlock[];
+  toggleScheduleBlockDone: (id: string) => void;
+  addScheduleBlock: (block: Omit<ScheduleBlock, 'id'>) => void;
+  deleteScheduleBlock: (id: string) => void;
+  aiDrawerMessages: AiDrawerMessage[];
+  isAiDrawerThinking: boolean;
+  sendAiDrawerMessage: (prompt: string) => Promise<void>;
+  clearAiDrawerMessages: () => void;
+  todayAiSummary: string;
+  isGeneratingTodayAiSummary: boolean;
+  generateTodayAiSummary: () => Promise<void>;
+
   userProfile: UserProfile;
   showProfileModal: boolean;
   setProfileModal: (open: boolean) => void;
@@ -218,7 +237,7 @@ interface SynapseState {
 export const useSynapse = create<SynapseState>((set, get) => ({
   ready: true, // App starts instantly with 0ms delay!
   dbMode: 'memory',
-  mainView: 'stream',
+  mainView: 'dashboard',
   setMainView: (v) => set({ mainView: v }),
 
   workspaces: [DEFAULT_PERSONAL_WORKSPACE],
@@ -426,6 +445,183 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }
     get().setHud(`${added} ta vazifa Vazifalar Oqimiga (Stream) qo'shildi! 🚀`);
     return added;
+  },
+
+  // Dashboard & Schedule & AI Assistant Drawer
+  isAiDrawerOpen: false,
+  setAiDrawerOpen: (open) => set({ isAiDrawerOpen: open }),
+  toggleAiDrawer: () => set((state) => ({ isAiDrawerOpen: !state.isAiDrawerOpen })),
+
+  scheduleBlocks: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_schedule_blocks');
+      return s ? JSON.parse(s) : DEFAULT_SCHEDULE_BLOCKS;
+    } catch {
+      return DEFAULT_SCHEDULE_BLOCKS;
+    }
+  })(),
+
+  toggleScheduleBlockDone: (id) =>
+    set((state) => {
+      const next = state.scheduleBlocks.map((b) => (b.id === id ? { ...b, done: !b.done } : b));
+      try {
+        localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
+      } catch {}
+      return { scheduleBlocks: next };
+    }),
+
+  addScheduleBlock: (block) =>
+    set((state) => {
+      const next = [...state.scheduleBlocks, { ...block, id: 'sch-' + Date.now() }];
+      try {
+        localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
+      } catch {}
+      return { scheduleBlocks: next };
+    }),
+
+  deleteScheduleBlock: (id) =>
+    set((state) => {
+      const next = state.scheduleBlocks.filter((b) => b.id !== id);
+      try {
+        localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
+      } catch {}
+      return { scheduleBlocks: next };
+    }),
+
+  aiDrawerMessages: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_drawer_messages');
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: "Salom, Farhod! 👏 Men sizning shaxsiy AI yordamchingizman.\n\nSizning vazifalaringiz, loyihalaringiz va o'rganish yo'l xaritangizni tahlil qilib, maksimal samaradorlikka erishishingizga yordam beraman. Quyidagi tezkor tugmalardan birini tanlashingiz yoki o'z savolingizni yozishingiz mumkin!",
+        timestamp: 'Hozir',
+      },
+    ];
+  })(),
+  isAiDrawerThinking: false,
+
+  sendAiDrawerMessage: async (promptText) => {
+    const trimmed = promptText.trim();
+    if (!trimmed) return;
+    const { tasks, roadmaps, projectIdeas, aiDrawerMessages } = get();
+
+    const userMsg: AiDrawerMessage = {
+      id: 'msg-' + Date.now(),
+      role: 'user',
+      content: trimmed,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const updated = [...aiDrawerMessages, userMsg];
+    set({ aiDrawerMessages: updated, isAiDrawerThinking: true });
+
+    try {
+      const completedTasks = tasks.filter((t) => t.status === 'completed');
+      const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
+      const activeTasks = tasks.filter((t) => t.status === 'active');
+
+      const systemPrompt = `Siz CogniDev ilovasidagi Farhodning shaxsiy macOS AI yordamchisisiz.
+Farhod — o'rganayotgan va loyihalar yaratayotgan iqtidorli Backend / Software Engineer (Python, PostgreSQL, Go, Rust, React, Docker).
+Joriy holat:
+- Jami vazifalar: ${tasks.length} (Bajarilgan: ${completedTasks.length}, Faol: ${activeTasks.length}, To'siqlar: ${blockers.length})
+- Eng so'nggi vazifalar: ${tasks.slice(0, 5).map((t) => t.title).join('; ')}
+- Faol loyihalar: ${projectIdeas.map((p) => p.title).join('; ')}
+- Yo'l xaritasi: ${roadmaps.map((r) => r.title).join('; ')}
+
+Foydalanuvchiga o'zbek tilida juda aniq, do'stona, muhandislik darajasida professional va ixcham javob bering. Kod kerak bo'lsa chiroyli markdown kod bloki bilan ko'rsating.`;
+
+      const res = await callAi(trimmed, systemPrompt);
+      const botMsg: AiDrawerMessage = {
+        id: 'bot-' + Date.now(),
+        role: 'assistant',
+        content: res.text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        model: res.model || res.source,
+      };
+
+      const finalMessages = [...updated, botMsg];
+      set({ aiDrawerMessages: finalMessages, isAiDrawerThinking: false });
+      try {
+        localStorage.setItem('cognidev_drawer_messages', JSON.stringify(finalMessages.slice(-20)));
+      } catch {}
+    } catch (err: any) {
+      const errorMsg: AiDrawerMessage = {
+        id: 'err-' + Date.now(),
+        role: 'assistant',
+        content: `Kechirasiz, so'rovni bajarishda xatolik yuz berdi: ${err?.message || 'Tarmoq xatosi'}. Sozlamalardan API kalitingizni tekshiring.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        model: 'xatolik',
+      };
+      const finalMessages = [...updated, errorMsg];
+      set({ aiDrawerMessages: finalMessages, isAiDrawerThinking: false });
+    }
+  },
+
+  clearAiDrawerMessages: () => {
+    try {
+      localStorage.removeItem('cognidev_drawer_messages');
+    } catch {}
+    set({
+      aiDrawerMessages: [
+        {
+          id: 'welcome',
+          role: 'assistant',
+          content: "Salom, Farhod! 👏 Tarix tozalandi. Bugun qanday muhandislik masalasida yordam bera olaman?",
+          timestamp: 'Hozir',
+        },
+      ],
+    });
+  },
+
+  todayAiSummary: (() => {
+    try {
+      return (
+        localStorage.getItem('cognidev_today_ai_summary') ||
+        "Bugun siz Zoovita loyihasi bo'yicha backend serverini muvaffaqiyatli ishga tushirdingiz va PostgreSQL indekslari bo'yicha yangi bilimlarni amalda qo'lladingiz. Hozir 3 ta muhim vazifa qolgan. Davom eting! 💪"
+      );
+    } catch {
+      return "Bugungi backend rejalaringizni davom ettiring!";
+    }
+  })(),
+  isGeneratingTodayAiSummary: false,
+
+  generateTodayAiSummary: async () => {
+    const { tasks, roadmaps, projectIdeas, notesDocs } = get();
+    set({ isGeneratingTodayAiSummary: true });
+    try {
+      const completedTasks = tasks.filter((t) => t.status === 'completed');
+      const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
+      const activeTasks = tasks.filter((t) => t.status === 'active');
+
+      const contextPrompt = `Dasturchi holati tahlili:
+- Jami vazifalar: ${tasks.length} ta (Bajarilgan: ${completedTasks.length}, Faol: ${activeTasks.length}, To'siqlar: ${blockers.length})
+- Eng so'nggi bajarilgan ishlar: ${completedTasks.slice(0, 3).map((t) => t.title).join(', ') || "Hali tasklar boshlanmagan"}
+- To'siq/Muammolar: ${blockers.map((b) => b.title).join(', ') || "To'siqlar yo'q"}
+- Faol loyihalar: ${projectIdeas.map((p) => `${p.title} (${p.status})`).join(', ')}
+- Yo‘l xaritalari: ${roadmaps.map((r) => r.title).join('; ')}
+- Qaydlar: ${notesDocs.length} ta Notion qayd mavjud.
+
+Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, professional va ruhlantiruvchi muhandislik xulosasini 2-3 jumlada o'zbek tilida yozib bering. Nimaga erishilgani va keyingi diqqat markazini qisqa ayting.`;
+
+      const res = await callAi(contextPrompt, "Siz Farhodning shaxsiy macOS dev-cockpit AI yordamchisisiz. Qisqa, aniq va texnik ruhda javob bering.");
+      const cleanText = res.text.trim();
+      set({ todayAiSummary: cleanText, isGeneratingTodayAiSummary: false });
+      try {
+        localStorage.setItem('cognidev_today_ai_summary', cleanText);
+      } catch {}
+    } catch {
+      set({
+        todayAiSummary: "Bugun siz rejalashtirilgan backend vazifalaringizni faol davom ettirmoqdasiz. To'siqlarni bartaraf etishga diqqat qarating va o'rganish oqimini davom ettiring!",
+        isGeneratingTodayAiSummary: false,
+      });
+    }
   },
 
   userProfile: DEFAULT_USER_PROFILE,
