@@ -170,7 +170,7 @@ function UpdateDialog({
               </div>
               <h3 className="text-[14px] font-semibold text-white">Sizda eng so'nggi versiya o'rnatilgan</h3>
               <p className="text-[12px] text-zinc-400 max-w-xs mx-auto">
-                CogniDev v0.1.0 hozirgi vaqtda eng so'nggi holatda. Yangilanishlar chiqarilishi bilan bu yerda paydo bo'ladi.
+                CogniDev v0.1.1 hozirgi vaqtda eng so'nggi holatda. Yangilanishlar chiqarilishi bilan bu yerda paydo bo'ladi.
               </p>
             </div>
           )}

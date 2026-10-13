@@ -282,7 +282,7 @@ export default function GuideModal({ open, onClose }: { open: boolean; onClose: 
 
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-white/[0.08] px-6 py-3.5 bg-white/[0.01]">
-            <span className="font-mono text-[11px] text-zinc-500">CogniDev v0.1.0 · macOS Native Engineering Cockpit</span>
+            <span className="font-mono text-[11px] text-zinc-500">CogniDev v0.1.1 · macOS Native Engineering Cockpit</span>
             <button
               onClick={onClose}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-1.5 text-[12.5px] font-semibold text-white shadow-md hover:brightness-110 transition"
