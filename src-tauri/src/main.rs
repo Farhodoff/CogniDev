@@ -14,16 +14,26 @@ pub struct SttStatus {
     pub model_path: String,
 }
 
+fn home_dir() -> String {
+    std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string())
+}
+
 fn whisper_bin() -> String {
     std::env::var("WHISPER_BIN").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/farhod".to_string());
-        format!("{}/.local/bin/whisper-cli", home)
+        let home = home_dir();
+        if cfg!(target_os = "windows") {
+            format!("{}/.local/bin/whisper-cli.exe", home)
+        } else {
+            format!("{}/.local/bin/whisper-cli", home)
+        }
     })
 }
 
 fn rubai_model_path() -> String {
     std::env::var("RUBAI_MODEL").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/farhod".to_string());
+        let home = home_dir();
         format!("{}/rubai-stt/models/ggml-rubaistt.bin", home)
     })
 }
