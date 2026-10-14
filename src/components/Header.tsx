@@ -20,6 +20,7 @@ import {
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
+import { isMac, formatShortcut } from '../lib/platform';
 import { rubaiStatus } from '../lib/stt';
 import { enabledProviders } from '../lib/providers';
 import { checkAppUpdate } from '../lib/updater';
@@ -166,11 +167,11 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       <header
         data-tauri-drag-region
         className="sticky top-0 z-40 flex h-13 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#0c0d12]/95 px-4 backdrop-blur-xl"
-        style={isTauri ? { paddingLeft: 84 } : undefined}
+        style={isTauri && isMac ? { paddingLeft: 84 } : undefined}
       >
-        {/* Left Side: Traffic lights, Layout icon & MySpace title */}
+        {/* Left Side: Traffic lights (macOS only), Layout icon & MySpace title */}
         <div className="flex items-center gap-3 shrink-0">
-          {!isTauri && (
+          {!isTauri && isMac && (
             <div className="flex shrink-0 items-center gap-1.5 pr-2" aria-hidden>
               <span className="h-3 w-3 rounded-full bg-[#ff5f57] border border-[#e0443e]" />
               <span className="h-3 w-3 rounded-full bg-[#febc2e] border border-[#d8a127]" />
@@ -205,11 +206,11 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
               if (onPalette) onPalette();
             }}
             className="flex w-full items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-left text-zinc-400 hover:border-white/20 hover:bg-white/[0.06] transition shadow-inner group"
-            title="Search anything... (⌘K)"
+            title={`Search anything... (${formatShortcut('K')})`}
           >
             <Search size={13} className="text-zinc-500 group-hover:text-zinc-300 transition shrink-0" />
             <span className="w-full truncate text-[12px] text-zinc-400 font-normal">
-              {search || 'Search anything... (⌘ K)'}
+              {search || `Search anything... (${formatShortcut('K', true)})`}
             </span>
           </button>
         </div>
@@ -238,7 +239,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 >
                   <ClipboardList size={14} className="text-blue-400" />
                   <span>New Task</span>
-                  <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">⌘N</kbd>
+                  <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">{formatShortcut('N')}</kbd>
                 </button>
                 <button
                   onClick={async () => {

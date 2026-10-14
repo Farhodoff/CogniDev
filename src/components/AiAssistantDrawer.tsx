@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { firstEnabledProvider } from '../lib/providers';
+import { formatShortcut } from '../lib/platform';
 
 const QUICK_PROMPTS = [
   { icon: Clock, label: 'Bugungi kunimni tahlil qilib ber', prompt: 'Bugungi kunim va bajargan vazifalarimni tahlil qilib, xulosa va tavsiyalar ber.' },
@@ -106,7 +107,7 @@ export default function AiAssistantDrawer() {
           </button>
           <button
             onClick={() => setAiDrawerOpen(false)}
-            title="Yopish (⌘J)"
+            title={`Yopish (${formatShortcut('J')})`}
             className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition"
           >
             <X size={15} />

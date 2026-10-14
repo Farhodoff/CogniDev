@@ -76,16 +76,24 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
 
     let out_prefix = wav_path.to_string_lossy().replace(".wav", "-out");
     let lang = lang.unwrap_or_else(|| "uz".to_string());
-    let output = std::process::Command::new(&st.bin_path)
-        .args([
-            "-m", &st.model_path,
-            "-l", &lang,
-            "-f", &wav_path.to_string_lossy(),
-            "-t", "8",
-            "--output-txt",
-            "--output-file", &out_prefix,
-            "-np", "-nt",
-        ])
+    let mut cmd = std::process::Command::new(&st.bin_path);
+    cmd.args([
+        "-m", &st.model_path,
+        "-l", &lang,
+        "-f", &wav_path.to_string_lossy(),
+        "-t", "8",
+        "--output-txt",
+        "--output-file", &out_prefix,
+        "-np", "-nt",
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd
         .output()
         .map_err(|e| format!("whisper ishga tushmadi: {e}"))?;
 

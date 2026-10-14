@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
+import { formatShortcut } from '../lib/platform';
 import type { ScheduleBlock } from '../lib/types';
 
 export default function DashboardWorkspace() {
@@ -407,7 +408,7 @@ ${realContext}`;
               {filteredTasks.length === 0 ? (
                 <div className="py-8 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
                   <p className="text-[13px] text-zinc-400">Hozircha hech qanday vazifa yo‘q.</p>
-                  <p className="text-[11px] text-zinc-600 mt-1">Yangi vazifa kiritish uchun yuqoridagi tugmani bosing yoki ⌘N bosing.</p>
+                  <p className="text-[11px] text-zinc-600 mt-1">Yangi vazifa kiritish uchun yuqoridagi tugmani bosing yoki {formatShortcut('N')} bosing.</p>
                   <button
                     onClick={() => setTaskModal(true)}
                     className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/10 px-3 py-1.5 text-[11.5px] font-medium text-white transition"

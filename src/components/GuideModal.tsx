@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BookOpen, X, CheckCircle2, Bot, Mic, Cpu, Search, Sparkles, ShieldCheck, Database } from 'lucide-react';
+import { modKey, modPrefix } from '../lib/platform';
 
 const SECTIONS = [
   {
@@ -201,7 +202,7 @@ export default function GuideModal({ open, onClose }: { open: boolean; onClose: 
                     <Sparkles size={16} /> 1-Click AI Import
                   </div>
                   <p className="text-[12.5px] text-zinc-300 leading-relaxed">
-                    Tepadagi <strong>"Yangi" → "AI Import"</strong> tugmasini bosing yoki <code>⌘+K</code> menyusidan tanlang. Brauzerdagi AI suhbatini nusxalab (Ctrl+C), ushbu oynaga qo'ying.
+                    Tepadagi <strong>"Yangi" → "AI Import"</strong> tugmasini bosing yoki <code>{modPrefix}K</code> menyusidan tanlang. Brauzerdagi AI suhbatini nusxalab (Ctrl+C), ushbu oynaga qo'ying.
                   </p>
                   <p className="text-[12px] text-zinc-400">
                     Tizim suhbatdan <strong>kod yechimini</strong>, <strong>asosiy xulosalarni</strong> va <strong>promptni</strong> avtomatik ajratib, tegishli vazifaga biriktirib beradi!
@@ -265,19 +266,19 @@ export default function GuideModal({ open, onClose }: { open: boolean; onClose: 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
                     <span className="text-zinc-200">Ish maydonlari o‘rtasida tezkor almashish (Dashboard, Vazifalar, Qaydlar, Roadmap, G‘oyalar, Tahlil)</span>
-                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-amber-300">⌘ + 1 .. 6</kbd>
+                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-amber-300">{modKey} + 1 .. 6</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
                     <span className="text-zinc-200">AI Assistant Chat paneli (yig‘ish / ochish)</span>
-                    <kbd className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 font-mono text-[11px] text-purple-300">⌘ + J</kbd>
+                    <kbd className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 font-mono text-[11px] text-purple-300">{modKey} + J</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
                     <span className="text-zinc-200">Spotlight tezkor qidiruv (Command Palette)</span>
-                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-sky-300">⌘ + K</kbd>
+                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-sky-300">{modKey} + K</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
                     <span className="text-zinc-200">Yangi muhandislik vazifasi qo‘shish</span>
-                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-sky-300">⌘ + N</kbd>
+                    <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-sky-300">{modKey} + N</kbd>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
                     <span className="text-zinc-200">Oynalarni yopish / Qidiruvni tozalash</span>
@@ -290,7 +291,7 @@ export default function GuideModal({ open, onClose }: { open: boolean; onClose: 
 
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-white/[0.08] px-6 py-3.5 bg-white/[0.01]">
-            <span className="font-mono text-[11px] text-zinc-500">CogniDev v0.1.1 · macOS Native Engineering Cockpit</span>
+            <span className="font-mono text-[11px] text-zinc-500">CogniDev v0.1.3 · macOS & Windows Engineering Cockpit</span>
             <button
               onClick={onClose}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-1.5 text-[12.5px] font-semibold text-white shadow-md hover:brightness-110 transition"
