@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🏛️ Architecture & Shortcuts
+    url: https://github.com/Farhodoff/CogniDev#readme
+    about: Review CogniDev keyboard shortcuts, Tauri architecture, and local storage design.

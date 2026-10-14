@@ -1,0 +1,20 @@
+name: "🛠️ Task / Rust & Frontend Engineering"
+description: "Desktop performance, Tauri IPC, local database schema, or UI cleanup"
+title: "[Task]: "
+labels: ["task"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Technical Task Objective
+      description: What engineering work needs to be completed?
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance Criteria
+      value: |
+        - [ ] Frontend / Rust IPC implementation complete
+        - [ ] Native build runs cleanly (`npm run tauri dev`)
+        - [ ] SQLite schema & migrations backward compatible

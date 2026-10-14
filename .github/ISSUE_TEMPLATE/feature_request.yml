@@ -1,0 +1,24 @@
+name: "🚀 Feature Request"
+description: "Suggest an improvement or new developer productivity tool for CogniDev"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Developer Pain Point / Problem
+      description: What friction or missing workflow does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / Feature
+      description: Describe your vision for the UI, shortcut, or feature.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, references, or macOS conventions.

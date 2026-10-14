@@ -1,0 +1,55 @@
+name: "🐛 Bug Report"
+description: "File an issue for a defect or crash in CogniDev macOS"
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping make CogniDev faster, leaner, and more reliable!
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What went wrong?
+      placeholder: Describe the unexpected behavior, UI glitch, or crash...
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Affected Subsystem
+      options:
+        - Spotlight HUD (⌘K Quick Capture)
+        - Daily Stream & Task Board
+        - Voice Dictation Engine (Whisper STT)
+        - Notion-style Workspace / Document Editor
+        - Local SQLite Storage (synapse.db)
+        - Tauri v2 / Rust Native Core
+        - Blocker Radar Constellation (SVG)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Open Spotlight HUD with ⌘K
+        2. Press [...]
+        3. See unexpected behavior [...]
+    validations:
+      required: true
+  - type: input
+    id: os_info
+    attributes:
+      label: macOS Architecture & Version
+      description: E.g., macOS 14.5 Sonoma (Apple Silicon M2 / Intel)
+      placeholder: macOS Sonoma 14.5 (Apple Silicon)
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Terminal Logs / DevTools Console
+      render: shell
