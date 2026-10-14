@@ -23,9 +23,45 @@ import {
   Plane,
   Archive,
   Folder,
+  Edit2,
+  Code,
+  Sparkles,
+  BookOpen,
+  Coffee,
+  X,
+  Check,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { SpaceItem } from '../lib/types';
+
+const SPACE_ICONS = [
+  { id: 'User', label: 'User' },
+  { id: 'GraduationCap', label: 'Study' },
+  { id: 'Briefcase', label: 'Work' },
+  { id: 'Languages', label: 'Lang' },
+  { id: 'Brain', label: 'AI' },
+  { id: 'Activity', label: 'Sport' },
+  { id: 'TrendingUp', label: 'Money' },
+  { id: 'Plane', label: 'Travel' },
+  { id: 'Archive', label: 'Archive' },
+  { id: 'Code', label: 'Code' },
+  { id: 'Sparkles', label: 'Idea' },
+  { id: 'BookOpen', label: 'Book' },
+  { id: 'Coffee', label: 'Life' },
+  { id: 'Folder', label: 'Folder' },
+];
+
+const SPACE_COLORS = [
+  '#ef4444',
+  '#3b82f6',
+  '#f59e0b',
+  '#f43f5e',
+  '#8b5cf6',
+  '#10b981',
+  '#eab308',
+  '#06b6d4',
+  '#71717a',
+];
 
 export default function Sidebar() {
   const {
@@ -36,6 +72,9 @@ export default function Sidebar() {
     spaces,
     activeSpaceId,
     selectSpace,
+    addSpace,
+    updateSpace,
+    deleteSpace,
     toggleAiDrawer,
     notesDocs,
     roadmaps,
@@ -45,13 +84,21 @@ export default function Sidebar() {
     setSearch,
   } = useSynapse();
 
+  // Create Space Form State
   const [creatingSpace, setCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState('');
+  const [newSpaceIcon, setNewSpaceIcon] = useState('Folder');
   const [newSpaceColor, setNewSpaceColor] = useState('#3b82f6');
 
-  // Space icon helper
-  const getSpaceIcon = (iconName: string, color: string) => {
-    const props = { size: 14, style: { color } };
+  // Edit Space Form State
+  const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
+  const [editSpaceName, setEditSpaceName] = useState('');
+  const [editSpaceIcon, setEditSpaceIcon] = useState('Folder');
+  const [editSpaceColor, setEditSpaceColor] = useState('#3b82f6');
+
+  // Space icon renderer
+  const getSpaceIcon = (iconName: string, color: string, size = 14) => {
+    const props = { size, style: { color } };
     switch (iconName) {
       case 'User': return <User {...props} />;
       case 'GraduationCap': return <GraduationCap {...props} />;
@@ -62,8 +109,38 @@ export default function Sidebar() {
       case 'TrendingUp': return <TrendingUp {...props} />;
       case 'Plane': return <Plane {...props} />;
       case 'Archive': return <Archive {...props} />;
+      case 'Code': return <Code {...props} />;
+      case 'Sparkles': return <Sparkles {...props} />;
+      case 'BookOpen': return <BookOpen {...props} />;
+      case 'Coffee': return <Coffee {...props} />;
       default: return <Folder {...props} />;
     }
+  };
+
+  const handleStartEdit = (space: SpaceItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSpaceId(space.id);
+    setEditSpaceName(space.name);
+    setEditSpaceIcon(space.icon);
+    setEditSpaceColor(space.color);
+  };
+
+  const handleSaveEdit = (id: string, e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editSpaceName.trim()) return;
+    updateSpace(id, {
+      name: editSpaceName.trim(),
+      icon: editSpaceIcon,
+      color: editSpaceColor,
+    });
+    setEditingSpaceId(null);
+    setHud(`"${editSpaceName.trim()}" yangilandi ✓`);
+  };
+
+  const handleDeleteSpace = (space: SpaceItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteSpace(space.id);
+    setHud(`"${space.name}" o‘chirildi`);
   };
 
   const navItems = [
@@ -236,35 +313,34 @@ export default function Sidebar() {
               SPACES
             </span>
             <button
-              onClick={() => setCreatingSpace((v) => !v)}
-              className="rounded p-0.5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition"
+              onClick={() => {
+                setCreatingSpace((v) => !v);
+                setEditingSpaceId(null);
+              }}
+              className="rounded p-0.5 text-zinc-400 hover:bg-white/10 hover:text-white transition"
               title="Yangi space qo'shish"
             >
               <Plus size={13} />
             </button>
           </div>
 
+          {/* Form: Add Space */}
           {creatingSpace && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 if (newSpaceName.trim()) {
-                  const newSpace: SpaceItem = {
-                    id: 'sp-' + Date.now(),
+                  addSpace({
                     name: newSpaceName.trim(),
-                    icon: 'Folder',
+                    icon: newSpaceIcon,
                     color: newSpaceColor,
-                  };
-                  const updated = [...spaces, newSpace];
-                  try {
-                    localStorage.setItem('cognidev_spaces', JSON.stringify(updated));
-                  } catch {}
-                  useSynapse.setState({ spaces: updated });
+                  });
                   setNewSpaceName('');
                   setCreatingSpace(false);
+                  setHud(`"${newSpaceName.trim()}" qo‘shildi ✓`);
                 }
               }}
-              className="mb-2 rounded-xl border border-white/10 bg-white/[0.04] p-2 space-y-2"
+              className="mb-2 rounded-xl border border-white/10 bg-[#16171d] p-2.5 space-y-2.5 shadow-lg animate-in fade-in zoom-in-95 duration-100"
             >
               <input
                 autoFocus
@@ -273,17 +349,43 @@ export default function Sidebar() {
                 placeholder="Space nomi (masalan: Startup)…"
                 className="w-full rounded-lg border border-white/10 bg-black/50 px-2 py-1 text-[11.5px] text-zinc-200 placeholder:text-zinc-600 focus:border-blue-400 focus:outline-none"
               />
-              <div className="flex items-center gap-1.5">
-                {['#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#06b6d4'].map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setNewSpaceColor(c)}
-                    className={`h-3.5 w-3.5 rounded-full transition ${newSpaceColor === c ? 'scale-125 ring-2 ring-white/50' : 'opacity-60'}`}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
+
+              {/* Icon Picker */}
+              <div>
+                <p className="text-[9.5px] text-zinc-500 font-semibold uppercase mb-1">Belgi (Icon)</p>
+                <div className="grid grid-cols-7 gap-1">
+                  {SPACE_ICONS.map((ic) => (
+                    <button
+                      key={ic.id}
+                      type="button"
+                      onClick={() => setNewSpaceIcon(ic.id)}
+                      className={`flex h-5 w-5 items-center justify-center rounded transition ${
+                        newSpaceIcon === ic.id ? 'bg-blue-600/40 ring-1 ring-blue-400' : 'hover:bg-white/10 opacity-70'
+                      }`}
+                      title={ic.label}
+                    >
+                      {getSpaceIcon(ic.id, newSpaceColor, 12)}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Color Picker */}
+              <div>
+                <p className="text-[9.5px] text-zinc-500 font-semibold uppercase mb-1">Rang</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {SPACE_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewSpaceColor(c)}
+                      className={`h-3.5 w-3.5 rounded-full transition ${newSpaceColor === c ? 'scale-125 ring-2 ring-white/60' : 'opacity-60'}`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-1 pt-1">
                 <button
                   type="button"
@@ -303,17 +405,87 @@ export default function Sidebar() {
             </form>
           )}
 
+          {/* Spaces List */}
           <div className="space-y-0.5">
             {spaces.map((space) => {
               const isSelected = activeSpaceId === space.id;
+              const isEditing = editingSpaceId === space.id;
+
+              if (isEditing) {
+                return (
+                  <form
+                    key={space.id}
+                    onSubmit={(e) => handleSaveEdit(space.id, e)}
+                    className="rounded-xl border border-blue-500/30 bg-[#16171d] p-2 space-y-2 shadow-lg"
+                  >
+                    <input
+                      autoFocus
+                      value={editSpaceName}
+                      onChange={(e) => setEditSpaceName(e.target.value)}
+                      placeholder="Space nomi…"
+                      className="w-full rounded-lg border border-white/10 bg-black/50 px-2 py-1 text-[11.5px] text-zinc-200 focus:border-blue-400 focus:outline-none"
+                    />
+
+                    {/* Icon Picker */}
+                    <div className="grid grid-cols-7 gap-1">
+                      {SPACE_ICONS.map((ic) => (
+                        <button
+                          key={ic.id}
+                          type="button"
+                          onClick={() => setEditSpaceIcon(ic.id)}
+                          className={`flex h-5 w-5 items-center justify-center rounded transition ${
+                            editSpaceIcon === ic.id ? 'bg-blue-600/40 ring-1 ring-blue-400' : 'hover:bg-white/10 opacity-70'
+                          }`}
+                          title={ic.label}
+                        >
+                          {getSpaceIcon(ic.id, editSpaceColor, 12)}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Color Picker */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {SPACE_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setEditSpaceColor(c)}
+                          className={`h-3.5 w-3.5 rounded-full transition ${editSpaceColor === c ? 'scale-125 ring-2 ring-white/60' : 'opacity-60'}`}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingSpaceId(null)}
+                        className="rounded p-1 text-zinc-400 hover:text-zinc-200"
+                        title="Bekor qilish"
+                      >
+                        <X size={12} />
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!editSpaceName.trim()}
+                        className="rounded bg-blue-600 p-1 text-white hover:bg-blue-500 disabled:opacity-40"
+                        title="Saqlash"
+                      >
+                        <Check size={12} />
+                      </button>
+                    </div>
+                  </form>
+                );
+              }
+
               return (
-                <button
+                <div
                   key={space.id}
                   onClick={() => {
                     selectSpace(isSelected ? null : space.id);
                     setHud(isSelected ? "Barcha bo'limlar" : `${space.name} bo'limi tanlandi`);
                   }}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[12px] font-medium transition ${
+                  className={`group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[12px] font-medium transition cursor-pointer ${
                     isSelected
                       ? 'bg-white/[0.08] text-white font-semibold border border-white/[0.08]'
                       : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
@@ -322,11 +494,33 @@ export default function Sidebar() {
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                     {getSpaceIcon(space.icon, space.color)}
                   </span>
-                  <span className="truncate">{space.name}</span>
+                  <span className="truncate flex-1">{space.name}</span>
+
+                  {/* Actions on hover: Edit & Delete */}
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => handleStartEdit(space, e)}
+                      title="Tahrirlash"
+                      className="p-1 text-zinc-500 hover:text-blue-400 rounded transition"
+                    >
+                      <Edit2 size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSpace(space, e)}
+                      title="O'chirish"
+                      className="p-1 text-zinc-500 hover:text-rose-400 rounded transition"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+
+                  {/* Glowing Blue Dot when selected (from screenshot) */}
                   {isSelected && (
-                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(59,130,246,0.8)]" />
+                    <span className="ml-1 h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.9)] shrink-0" />
                   )}
-                </button>
+                </div>
               );
             })}
           </div>

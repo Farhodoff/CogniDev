@@ -204,6 +204,9 @@ interface SynapseState {
   spaces: SpaceItem[];
   activeSpaceId: string | null;
   selectSpace: (id: string | null) => void;
+  addSpace: (space: Omit<SpaceItem, 'id'>) => void;
+  updateSpace: (id: string, patch: Partial<Omit<SpaceItem, 'id'>>) => void;
+  deleteSpace: (id: string) => void;
 
   // Goals
   goals: GoalItem[];
@@ -637,6 +640,32 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   })(),
   activeSpaceId: null,
   selectSpace: (id) => set({ activeSpaceId: id }),
+  addSpace: (space) =>
+    set((state) => {
+      const newSpace: SpaceItem = { ...space, id: 'sp-' + Date.now() };
+      const next = [...state.spaces, newSpace];
+      try {
+        localStorage.setItem('cognidev_spaces', JSON.stringify(next));
+      } catch {}
+      return { spaces: next };
+    }),
+  updateSpace: (id, patch) =>
+    set((state) => {
+      const next = state.spaces.map((s) => (s.id === id ? { ...s, ...patch } : s));
+      try {
+        localStorage.setItem('cognidev_spaces', JSON.stringify(next));
+      } catch {}
+      return { spaces: next };
+    }),
+  deleteSpace: (id) =>
+    set((state) => {
+      const next = state.spaces.filter((s) => s.id !== id);
+      try {
+        localStorage.setItem('cognidev_spaces', JSON.stringify(next));
+      } catch {}
+      const nextActive = state.activeSpaceId === id ? null : state.activeSpaceId;
+      return { spaces: next, activeSpaceId: nextActive };
+    }),
 
   // Goals state
   goals: (() => {
