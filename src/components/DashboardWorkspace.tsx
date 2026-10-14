@@ -143,33 +143,80 @@ export default function DashboardWorkspace() {
       )
     : [];
 
-  // Handle AI with real context
+  // Handle AI with real context & clean concise response
   const handleAiQuery = async (promptText: string) => {
     if (!promptText.trim() || isAiSending) return;
     setAiInputText(promptText);
     setIsAiSending(true);
 
-    const contextData = `
-Farhod's current live data:
-- Active tasks (${tasks.length} total): ${tasks.slice(0, 8).map((t) => `[${t.status}] ${t.title} (${t.tags.join(', ')})`).join('; ') || 'No tasks yet'}
-- Notes (${notesDocs.length} total): ${notesDocs.slice(0, 5).map((n) => n.title).join(', ') || 'No notes yet'}
-- Goals (${goals.length} total): ${goals.map((g) => `${g.title} (${g.progress}%)`).join(', ') || 'No goals yet'}
-- Projects (${activeProjects.length} total): ${activeProjects.map((p) => `${p.title} (${p.progress}%)`).join(', ') || 'No active projects'}
-- Schedule Blocks (${scheduleBlocks.length}): ${scheduleBlocks.map((b) => `${b.time_range} - ${b.title}`).join(', ') || 'No schedule blocks for today'}
-    `.trim();
+    const lower = promptText.toLowerCase();
+
+    // 1. Agar foydalanuvchi bugungi tasklarini so'ragan bo'lsa:
+    if (lower.includes('task') || lower.includes('vazifa')) {
+      if (tasks.length === 0) {
+        setAiAssistantReply("Bugun uchun rejalashtirilgan vazifalar yo'q. Yangi vazifa qo'shish uchun yuqoridagi **+ Add Task** tugmasini bosing.");
+        setIsAiSending(false);
+        return;
+      }
+      const active = tasks.filter((t) => t.status !== 'completed');
+      const done = tasks.filter((t) => t.status === 'completed');
+      const lines = [
+        `Bugungi vazifalaringiz (${tasks.length} ta):`,
+        '',
+        ...active.map((t, idx) => `${idx + 1}. ⏳ **${t.title}** ${t.tags?.length ? `(${t.tags.join(', ')})` : ''}`),
+        ...(done.length > 0 ? ['', '✅ Bajarilganlar:', ...done.map((t) => `• ~~${t.title}~~`)] : []),
+        '',
+        'Qaysi biridan boshlaymiz?',
+      ];
+      setAiAssistantReply(lines.join('\n'));
+      setIsAiSending(false);
+      return;
+    }
+
+    // 2. Agar hisobot yoki natija so'ragan bo'lsa:
+    if (lower.includes('hisobot') || lower.includes('natija') || lower.includes('o\'tgan hafta') || lower.includes('qisqa hisobot')) {
+      const done = tasks.filter((t) => t.status === 'completed').length;
+      const total = tasks.length;
+      setAiAssistantReply(
+        `📊 **Haftalik qisqa hisobotingiz:**\n\n• Jami vazifalar: ${total} ta\n• Bajarilgan: ${done} ta (${total > 0 ? Math.round((done / total) * 100) : 0}%)\n• Faol loyihalar: ${activeProjects.length} ta\n• Maqsadlar: ${goals.length} ta\n\nKuningiz unumli o'tishini tilayman!`
+      );
+      setIsAiSending(false);
+      return;
+    }
+
+    // 3. Agar maqsad yoki reja so'ragan bo'lsa:
+    if (lower.includes('maqsad') || lower.includes('reja') || lower.includes('tavsiya')) {
+      if (goals.length > 0) {
+        const goalList = goals.map((g) => `• **${g.title}** — ${g.progress}% bajarilgan`).join('\n');
+        setAiAssistantReply(`🎯 **Joriy maqsadlaringiz:**\n\n${goalList}\n\nBugun aynan qaysi maqsad bo'yicha vazifalarni rejalashtiramiz?`);
+        setIsAiSending(false);
+        return;
+      }
+    }
+
+    // 4. Boshqa barcha savollar uchun LLM ga aniq va qisqa javob berish bo'yicha ko'rsatma:
+    const realContext = `
+Foydalanuvchi: Farhod (Software / Backend Engineer)
+Bugungi sana: ${todayDateStr}
+Haqiqiy faol vazifalar (${tasks.length} ta): ${tasks.slice(0, 8).map((t) => t.title).join('; ') || "Hozircha yo'q"}
+Haqiqiy faol loyihalar: ${activeProjects.map((p) => p.title).join('; ') || "Hozircha yo'q"}
+Haqiqiy maqsadlar: ${goals.map((g) => `${g.title} (${g.progress}%)`).join('; ') || "Hozircha yo'q"}
+`.trim();
+
+    const systemPrompt = `Siz Farhodning MySpace ilovasidagi shaxsiy, do'stona va professional AI yordamchisisiz.
+QAT'IY QOIDALAR:
+1. Javobingiz QISQA, ANIQ VA SAMIMIY bo'lsin (maksimal 2-4 ta gap yoki ixcham punktlar).
+2. HECH QACHON keraksiz katta jadvallar, soxta SQL/kodlar, o'tmishdagi (masalan 2023) sanalarni yoki g'alati/soxta so'zlarni to'qimang.
+3. So'ralmagan mavzular (masalan sport jadvali, murakkab texnik maqolalar) bo'yicha uzun matn yozmang. Faqat so'ralgan savolga aniq javob bering.
+4. Faqat toza, tabiiy va zamonaviy o'zbek tilida so'zlashuvchan ohangda yozing.
+Foydalanuvchi konteksti:
+${realContext}`;
 
     try {
-      const response = await callAi(
-        promptText,
-        `You are Farhod's personal AI Assistant in MySpace desktop. Answer concisely in Uzbek based on his real live data:\n${contextData}`
-      );
+      const response = await callAi(promptText, systemPrompt);
       setAiAssistantReply(response.text);
     } catch {
-      setAiAssistantReply(
-        tasks.length > 0
-          ? `Hozirda profilingizda ${tasks.length} ta faol vazifa mavjud: ${tasks.slice(0, 3).map((t) => t.title).join(', ')}.`
-          : `Hozircha vazifalar ro'yxati bo'sh. "+ Quick Add" orqali birinchi vazifangizni qo'shishingiz mumkin.`
-      );
+      setAiAssistantReply("Kechirasiz, javob olishda muammo yuz berdi. Sozlamalardan AI provayderini tekshiring.");
     } finally {
       setIsAiSending(false);
     }
