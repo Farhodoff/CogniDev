@@ -17,6 +17,9 @@ import {
   Check,
   TrendingUp,
   ListTodo,
+  Download,
+  FileCode,
+  FileText,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
@@ -44,6 +47,56 @@ const CATEGORY_PRESETS = [
   'DevOps & Cloud',
 ];
 
+function downloadBlob(filename: string, content: string, contentType: string) {
+  const blob = new Blob([content], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportProjectsToMarkdown(projects: ActiveProject[]): string {
+  let md = `# 🚀 Software Engineering Projects Portfolio\n\n`;
+  md += `*Exported from CogniDev on ${new Date().toLocaleDateString()}*\n\n`;
+  md += `## Projects Overview\n\n`;
+  md += `| Project | Category | Status | Progress | GitHub | Tech Stack |\n`;
+  md += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+  for (const p of projects) {
+    const status = p.progress >= 100 ? '✅ Completed' : p.status === 'on_hold' ? '⏸️ On Hold' : '⚡ In Progress';
+    const repo = p.github_url ? `[Link](${p.github_url})` : '-';
+    const tags = p.tags && p.tags.length ? p.tags.join(', ') : '-';
+    md += `| **${p.title}** | ${p.category || '-'} | ${status} | ${p.progress}% | ${repo} | \`${tags}\` |\n`;
+  }
+  md += `\n---\n\n## Technical Details\n\n`;
+  for (const p of projects) {
+    md += `### ${p.title}\n`;
+    if (p.subtitle) md += `> ${p.subtitle}\n\n`;
+    md += `- **Category:** ${p.category || 'General'}\n`;
+    md += `- **Progress:** ${p.progress}%\n`;
+    if (p.github_url) md += `- **Repository:** ${p.github_url}\n`;
+    if (p.tags?.length) md += `- **Tech Stack:** ${p.tags.join(', ')}\n`;
+    md += `\n`;
+  }
+  return md;
+}
+
+function exportProjectsToJson(projects: ActiveProject[]): string {
+  return JSON.stringify(
+    {
+      version: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      totalProjects: projects.length,
+      projects,
+    },
+    null,
+    2
+  );
+}
+
 export default function ProjectsWorkspace() {
   const {
     activeProjects,
@@ -59,6 +112,8 @@ export default function ProjectsWorkspace() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed' | 'on_hold'>('all');
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<CloudProviderId>('gemini');
 
   // Modals
@@ -161,6 +216,19 @@ export default function ProjectsWorkspace() {
     }
   };
 
+  // Unique tags from all projects
+  const allUniqueTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of activeProjects) {
+      if (p.tags) {
+        for (const t of p.tags) {
+          if (t.trim()) set.add(t.trim());
+        }
+      }
+    }
+    return Array.from(set).sort();
+  }, [activeProjects]);
+
   // Filtered projects
   const filteredProjects = useMemo(() => {
     return activeProjects.filter((p) => {
@@ -168,6 +236,11 @@ export default function ProjectsWorkspace() {
       if (statusFilter === 'in_progress' && p.progress >= 100) return false;
       if (statusFilter === 'completed' && p.progress < 100) return false;
       if (statusFilter === 'on_hold' && p.status !== 'on_hold') return false;
+
+      // Tag filter
+      if (selectedTagFilter && !p.tags?.some((t) => t.toLowerCase() === selectedTagFilter.toLowerCase())) {
+        return false;
+      }
 
       // Search query
       if (!searchQuery.trim()) return true;
@@ -178,7 +251,7 @@ export default function ProjectsWorkspace() {
       const inTags = p.tags?.some((t) => t.toLowerCase().includes(q));
       return inTitle || inSubtitle || inCategory || inTags;
     });
-  }, [activeProjects, statusFilter, searchQuery]);
+  }, [activeProjects, statusFilter, selectedTagFilter, searchQuery]);
 
   // Overall Statistics
   const stats = useMemo(() => {
@@ -332,6 +405,47 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
             </select>
           </div>
 
+          {/* Export Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu((v) => !v)}
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
+              title="Portfelni eksport qilish"
+            >
+              <Download size={14} />
+              <span>Eksport</span>
+            </button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 top-10 z-50 w-44 rounded-xl border border-white/10 bg-[#16171d] p-1.5 shadow-2xl space-y-1">
+                <button
+                  onClick={() => {
+                    const md = exportProjectsToMarkdown(activeProjects);
+                    downloadBlob('projects_portfolio.md', md, 'text/markdown');
+                    setHud("Loyihalar Markdown fayli yuklab olindi ✓");
+                    setShowExportMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] text-zinc-300 hover:bg-white/5 hover:text-white transition"
+                >
+                  <FileText size={13} className="text-emerald-400" />
+                  <span>Markdown (.md)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const json = exportProjectsToJson(activeProjects);
+                    downloadBlob('projects_portfolio.json', json, 'application/json');
+                    setHud("Loyihalar JSON fayli yuklab olindi ✓");
+                    setShowExportMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] text-zinc-300 hover:bg-white/5 hover:text-white transition"
+                >
+                  <FileCode size={13} className="text-blue-400" />
+                  <span>JSON (.json)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleOpenCreate}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-lg shadow-blue-500/20 hover:from-blue-500 hover:to-sky-500 transition"
@@ -442,6 +556,38 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
           />
         </div>
       </div>
+
+      {/* ── TECH TAG PILLS BAR ── */}
+      {allUniqueTags.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/[0.04] bg-black/20 px-6 py-2 scrollbar-none">
+          <span className="text-[10.5px] font-semibold uppercase text-zinc-500 shrink-0 mr-1 flex items-center gap-1">
+            <Tag size={10} /> Stek:
+          </span>
+          <button
+            onClick={() => setSelectedTagFilter(null)}
+            className={`shrink-0 rounded-md px-2 py-0.5 text-[10.5px] font-mono transition ${
+              selectedTagFilter === null
+                ? 'bg-blue-600/30 text-blue-200 border border-blue-500/30 font-bold'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Barchasi
+          </button>
+          {allUniqueTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setSelectedTagFilter(selectedTagFilter === tag ? null : tag)}
+              className={`shrink-0 rounded-md px-2 py-0.5 font-mono text-[10.5px] transition ${
+                selectedTagFilter === tag
+                  ? 'bg-blue-600/40 text-blue-200 border border-blue-400 font-bold'
+                  : 'bg-white/[0.02] text-zinc-400 border border-white/[0.05] hover:bg-white/[0.06] hover:text-zinc-200'
+              }`}
+            >
+              #{tag}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── PROJECTS GRID ── */}
       <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
