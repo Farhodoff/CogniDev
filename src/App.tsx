@@ -8,6 +8,8 @@ import NotionNotesWorkspace from './components/NotionNotesWorkspace';
 import RoadmapWorkspace from './components/RoadmapWorkspace';
 import IdeasWorkspace from './components/IdeasWorkspace';
 import RetroWorkspace from './components/RetroWorkspace';
+import InboxWorkspace from './components/InboxWorkspace';
+import CalendarWorkspace from './components/CalendarWorkspace';
 import AiAssistantDrawer from './components/AiAssistantDrawer';
 import FloatingHud from './components/FloatingHud';
 import StandupModal from './components/StandupModal';
@@ -86,6 +88,10 @@ export default function App() {
     let title = 'CogniDev';
     if (mainView === 'dashboard') {
       title = 'CogniDev — Asosiy Boshqaruv Markazi';
+    } else if (mainView === 'inbox') {
+      title = 'CogniDev — Kiruvchi Xabarlar & Vazifalar (Inbox)';
+    } else if (mainView === 'calendar') {
+      title = 'CogniDev — Kalendar & Vaqt Rejasi (Calendar)';
     } else if (mainView === 'stream') {
       const t = tasks.find((x) => x.id === selectedTaskId);
       title = t ? `CogniDev — ${t.id} · ${t.title.slice(0, 40)}` : 'CogniDev — Vazifalar Oqimi';
@@ -111,6 +117,8 @@ export default function App() {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         {mainView === 'dashboard' && <DashboardWorkspace />}
+        {mainView === 'inbox' && <InboxWorkspace />}
+        {mainView === 'calendar' && <CalendarWorkspace />}
         {mainView === 'stream' && (
           <>
             <TaskStream />

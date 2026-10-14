@@ -10,7 +10,7 @@ type Hit =
   | { kind: 'prompt'; id: string; title: string; sub: string };
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tasks, notes, prompts, selectTask, setTab, setSearch, dbMode } = useSynapse();
+  const { tasks, notes, prompts, selectTask, setTab, setSearch, setMainView, dbMode } = useSynapse();
   const [q, setQ] = useState('');
   const [allPrompts, setAllPrompts] = useState<PromptEntry[]>(() => (dbMode === 'sqlite' ? [] : prompts));
   const [cursor, setCursor] = useState(0);
@@ -52,6 +52,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   if (!open) return null;
 
   async function go(h: Hit) {
+    setMainView('stream');
     await selectTask(h.id);
     setTab(h.kind === 'prompt' ? 'thread' : 'note');
     setSearch('');

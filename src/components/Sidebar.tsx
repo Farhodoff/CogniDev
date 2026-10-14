@@ -79,6 +79,7 @@ export default function Sidebar() {
     notesDocs,
     roadmaps,
     projectIdeas,
+    tasks,
     setHud,
     setFilter,
     setSearch,
@@ -159,10 +160,12 @@ export default function Sidebar() {
       id: 'inbox',
       label: 'Inbox',
       icon: Inbox,
-      badge: '3',
+      badge: tasks.filter((t) => t.status !== 'completed').length > 0
+        ? String(tasks.filter((t) => t.status !== 'completed').length)
+        : undefined,
       badgeColor: 'bg-blue-600/30 text-blue-300 border border-blue-500/30',
       onClick: () => {
-        setMainView('stream');
+        setMainView('inbox');
         setFilter(null);
         setHud("Kiruvchi xabarlar va yangi vazifalar (Inbox)");
       },
@@ -181,10 +184,8 @@ export default function Sidebar() {
       label: 'Calendar',
       icon: Calendar,
       onClick: () => {
-        setMainView('dashboard');
-        setHud("Kunlik Taqvim ochildi");
-        const el = document.getElementById('myspace-calendar-card');
-        el?.scrollIntoView({ behavior: 'smooth' });
+        setMainView('calendar');
+        setHud("Kunlik va haftalik taqvim rejasi ochildi");
       },
     },
     {
@@ -269,6 +270,8 @@ export default function Sidebar() {
           const Icon = item.icon;
           const isActive =
             (item.view && mainView === item.view && !activeSpaceId) ||
+            (item.id === 'inbox' && mainView === 'inbox') ||
+            (item.id === 'calendar' && mainView === 'calendar') ||
             (item.id === 'notes' && mainView === 'notes') ||
             (item.id === 'tasks' && mainView === 'stream') ||
             (item.id === 'learning' && mainView === 'roadmap') ||
