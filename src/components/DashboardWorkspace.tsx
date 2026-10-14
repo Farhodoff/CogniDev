@@ -27,6 +27,7 @@ import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
 import { formatShortcut } from '../lib/platform';
 import type { ScheduleBlock } from '../lib/types';
+import FormattedAiText from './FormattedAiText';
 
 export default function DashboardWorkspace() {
   const {
@@ -795,7 +796,11 @@ ${realContext}`;
               </div>
 
               <div className="rounded-xl bg-purple-600/10 border border-purple-500/20 p-2.5 text-[12px] text-purple-200">
-                {aiAssistantReply || 'Bugun qanday yordam bera olaman?'}
+                {aiAssistantReply ? (
+                  <FormattedAiText content={aiAssistantReply} />
+                ) : (
+                  'Bugun qanday yordam bera olaman?'
+                )}
               </div>
 
               {/* Suggested Prompt Chips */}

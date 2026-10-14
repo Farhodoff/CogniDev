@@ -20,6 +20,7 @@ import { useSynapse } from '../lib/store';
 import { analyzeLearningLog } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 import { exportRoadmapToMarkdown } from '../lib/roadmapParser';
+import FormattedAiText from './FormattedAiText';
 
 /** Helper to trigger browser download for markdown file */
 function downloadMarkdownFile(filename: string, content: string) {
@@ -830,13 +831,11 @@ export default function RoadmapWorkspace() {
                     )}
 
                     {log.ai_feedback && (
-                      <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.06] p-3.5 space-y-1">
+                      <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.06] p-3.5 space-y-2">
                         <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-[12px]">
                           <Sparkles size={13} /> AI Murabbiy Tahlili:
                         </div>
-                        <p className="text-[12.5px] text-zinc-300 whitespace-pre-line leading-relaxed">
-                          {log.ai_feedback}
-                        </p>
+                        <FormattedAiText content={log.ai_feedback} />
                       </div>
                     )}
                   </div>
@@ -869,20 +868,21 @@ export default function RoadmapWorkspace() {
                   Murabbiy sizning kunlik o‘rganish sur‘atingiz, hal qilayotgan muammolaringiz va backend yo‘l xaritasidagi progressni hisobga olgan holda amaliy yo‘l-yo‘riq beradi.
                 </p>
 
-                {recentAiFeedback ? (
-                  <div className="rounded-xl border border-white/10 bg-black/50 p-5 space-y-3">
-                    <h4 className="text-[13px] font-bold text-purple-300 flex items-center gap-1.5">
-                      <Sparkles size={14} /> Oxirgi Hisobotingiz Tahlili:
-                    </h4>
-                    <div className="text-[13px] leading-relaxed text-zinc-200 whitespace-pre-line">
-                      {recentAiFeedback}
+                {(() => {
+                  const displayFeedback = recentAiFeedback || learningLogs.find((l) => l.ai_feedback)?.ai_feedback || null;
+                  return displayFeedback ? (
+                    <div className="rounded-xl border border-white/10 bg-black/50 p-5 space-y-3">
+                      <h4 className="text-[13px] font-bold text-purple-300 flex items-center gap-1.5">
+                        <Sparkles size={14} /> Oxirgi Hisobotingiz Tahlili:
+                      </h4>
+                      <FormattedAiText content={displayFeedback} />
                     </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-zinc-500 text-[13px]">
-                    Hali yangi tahlil olinmadi. "Kunlik Check" bo‘limidan hisobot yuboring yoki savol bering.
-                  </div>
-                )}
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-zinc-500 text-[13px]">
+                      Hali yangi tahlil olinmadi. "Kunlik Check" bo‘limidan hisobot yuboring yoki savol bering.
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}

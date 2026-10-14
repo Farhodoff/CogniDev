@@ -12,6 +12,7 @@ import {
 import { useSynapse } from '../lib/store';
 import { callAi, isBlocker } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
+import FormattedAiText from './FormattedAiText';
 
 export default function RetroWorkspace() {
   const {
@@ -75,7 +76,11 @@ Iltimos, o'zbek tilida 3 ta aniq bo'limda xulosa bering:
 3. 🚀 Junior dasturchiga keyingi haftaga 3 ta aniq tavsiya va fokus nuqtasi.`;
 
     try {
-      const res = await callAi(prompt, "Siz dasturiy ta'minot bo'yicha yetakchi murabbiysiz.", selectedProvider);
+      const res = await callAi(
+        prompt,
+        "Siz dasturiy ta'minot bo'yicha yetakchi murabbiysiz. Tahlilni o'zbek tilida, professional, ortiqcha tinish belgilari, sun'iy ASCII jadvallar va panjaralarsiz (##), toza va o'qishga qulay punktlar shaklida bering.",
+        selectedProvider,
+      );
       setRetroAnalysis(res.text);
       setHud("Haftalik AI tahlili tayyorlandi ✓");
     } catch {
@@ -183,8 +188,8 @@ Iltimos, o'zbek tilida 3 ta aniq bo'limda xulosa bering:
                 </span>
               </div>
 
-              <div className="text-[13px] leading-relaxed text-zinc-200 whitespace-pre-line bg-black/40 rounded-xl p-5 border border-white/10">
-                {retroAnalysis}
+              <div className="bg-black/40 rounded-xl p-5 border border-white/10">
+                <FormattedAiText content={retroAnalysis} />
               </div>
             </div>
           ) : (

@@ -18,6 +18,7 @@ import {
 import { useSynapse } from '../lib/store';
 import { firstEnabledProvider } from '../lib/providers';
 import { formatShortcut } from '../lib/platform';
+import FormattedAiText from './FormattedAiText';
 
 const QUICK_PROMPTS = [
   { icon: Clock, label: 'Bugungi kunimni tahlil qilib ber', prompt: 'Bugungi kunim va bajargan vazifalarimni tahlil qilib, xulosa va tavsiyalar ber.' },
@@ -170,7 +171,13 @@ export default function AiAssistantDrawer() {
                     : 'border border-white/10 bg-white/[0.04] text-zinc-200 rounded-bl-none shadow-sm'
                 }`}
               >
-                <div className="whitespace-pre-wrap select-text">{msg.content}</div>
+                {isUser ? (
+                  <div className="whitespace-pre-wrap select-text">{msg.content}</div>
+                ) : (
+                  <div className="select-text">
+                    <FormattedAiText content={msg.content} />
+                  </div>
+                )}
 
                 {!isUser && (
                   <button

@@ -419,11 +419,18 @@ export async function analyzeLearningLog(
   nextGoal: string,
   preferredProvider?: CloudProviderId,
 ): Promise<string> {
-  const system = `Siz dasturchilar uchun mehribon, tajribali Senior Mentor va Murabbiy AI'siz. Junior dasturchining kunlik o'rganish hisobotini tahlil qilasiz. O'zbek tilida, do'stona, lekin professional tilda tahlil bering:
+  const system = `Siz dasturchilar uchun mehribon, tajribali Senior Mentor va Murabbiy AI'siz. Junior dasturchining kunlik o'rganish hisobotini tahlil qilasiz.
+O'zbek tilida, do'stona, toza va professional tilda tahlil bering:
 1. Qisqa tahlil: O'rganilgan mavzuning dasturlashdagi o'rni va ahamiyati (2-3 jumla).
 2. O'zlashtirishni sinash uchun 2 ta aniq, chuqur texnik savol yoki mini-kod misoli.
-3. Ko'p uchraydigan tuzoqlar (Common pitfalls) — junior dasturchilar ushbu mavzuda ko'p qiladigan xato.
-4. Ertangi maqsad bo'yicha amaliy maslahat.`;
+3. Ko'p uchraydigan tuzoqlar (Common pitfalls): Junior dasturchilar ushbu mavzuda eng ko'p qiladigan 2-3 ta xato va to'g'ri yechim.
+4. Ertangi maqsad bo'yicha amaliy maslahat.
+
+MUHIM FORMATLASH QOIDALARI:
+- Ortiqcha tinish belgilari, sun'iy ASCII jadvallar (|---|---|), panjara belgilari (##, ###) va keraksiz qator orasidagi yulduzchalar (**) ishlatmang.
+- Jadvallar EMAS, balki o'qishga juda qulay, ixcham punktlar (- bandlar) va kerak bo'lsa toza kod bloklari orqali yozing.
+- Sarlavhalarni oddiy raqamlar (1., 2., 3.) yoki toza matn bilan boshlang.
+- O'qishga juda qulay, tartibli va toza dasturchi uslubida javob bering.`;
 
   const prompt = `Bugun o'rgangani:
 ${learned}

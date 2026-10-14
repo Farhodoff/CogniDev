@@ -817,7 +817,8 @@ Haqiqiy ma'lumotlar:
 MUHIM QOIDALAR:
 1. Javobingiz QISQA, LAKONIK, SAMIMIY VA ANIQ bo'lsin (uzog'i 2-4 ta gap yoki oddiy punktlar).
 2. Hech qachon keraksiz bahaybat jadvallar, soxta SQL/kodlar, o'tmishdagi (masalan 2023) sanalarni yoki g'alati sun'iy so'zlarni to'qimang.
-3. Foydalanuvchi so'ragan savolga toza, adabiy va tabiiy o'zbek tilida to'g'ridan-to'g'ri javob bering.`;
+3. Foydalanuvchi so'ragan savolga toza, adabiy va tabiiy o'zbek tilida to'g'ridan-to'g'ri javob bering.
+4. Ortiqcha tinish belgilari, sun'iy ASCII jadvallar (|---|---|), panjara belgilari (##, ###) va keraksiz yulduzchalar (**) ishlatmang. Toza va chiroyli o'qiladigan formatda javob qaytaring.`;
 
       const res = await callAi(trimmed, systemPrompt);
       const botMsg: AiDrawerMessage = {
