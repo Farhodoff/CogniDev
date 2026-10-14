@@ -24,19 +24,27 @@
   <link rel="icon" type="image/png" href="images/cognidev-logo.png" />
   <link rel="apple-touch-icon" href="images/cognidev-logo.png" />
 
-  <!-- Google Fonts: Plus Jakarta Sans (UI) & JetBrains Mono (Code/Metrics) -->
+  <!-- Google Fonts: Inter (UI) & JetBrains Mono (Code/Metrics) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <style>
     /* ── DESIGN SYSTEM & CSS VARIABLES ── */
     :root {
-      --bg-darkest: #07090e;
-      --bg-base: #0b0e17;
-      --bg-card: rgba(16, 21, 33, 0.72);
-      --bg-card-hover: rgba(22, 29, 46, 0.88);
+      --bg-darkest: #080B12;
+      --bg-base: #080B12;
+      --bg-card: rgba(17, 22, 36, 0.72);
+      --bg-card-hover: rgba(24, 30, 50, 0.88);
       --bg-surface: rgba(25, 33, 53, 0.6);
+
+      --purple: #8B5CF6;
+      --purple-glow: rgba(139, 92, 246, 0.4);
+      --purple-soft: rgba(139, 92, 246, 0.12);
+      --lime: #B9FF66;
+      --lime-glow: rgba(185, 255, 102, 0.35);
+      --lime-soft: rgba(185, 255, 102, 0.1);
+      --lime-text: #0c1207;
       
       --cyan: #38bdf8;
       --cyan-glow: rgba(56, 189, 248, 0.35);
@@ -64,7 +72,7 @@
       --text-muted: #94a3b8;
       --text-dim: #64748b;
       
-      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
       --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, monospace;
       
       --radius-sm: 8px;
@@ -435,7 +443,10 @@
       padding: 6px 12px;
       border-radius: 6px;
       font-size: 11.5px;
-      white-space: nowrap;
+      white-space: normal;
+      width: max-content;
+      max-width: 190px;
+      text-align: center;
       pointer-events: none;
       opacity: 0;
       transition: all 0.2s;
@@ -443,6 +454,14 @@
     .hotspot:hover::after {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+    .hotspot.edge-right::after {
+      left: auto;
+      right: -12px;
+      transform: translateY(5px);
+    }
+    .hotspot.edge-right:hover::after {
+      transform: translateY(0);
     }
 
     /* ── TECH TRUST BADGES ── */
@@ -1088,6 +1107,298 @@
       .bento-card { padding: 24px; }
       .download-hero-card { padding: 36px 20px; }
     }
+
+    /* ══════════════════════════════════════════════════════════
+       REDESIGN OVERRIDES — premium dark SaaS
+       bg #080B12 · neon purple #8B5CF6 · lime CTA #B9FF66
+       ══════════════════════════════════════════════════════════ */
+    .bg-mesh {
+      background:
+        radial-gradient(circle at 15% 10%, rgba(139, 92, 246, 0.16) 0%, transparent 46%),
+        radial-gradient(circle at 85% 22%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 50% 85%, rgba(139, 92, 246, 0.1) 0%, transparent 55%),
+        #080B12;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #ffffff 0%, var(--purple) 60%, #c084fc 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+
+    /* Lime primary CTA */
+    .btn-primary {
+      background: var(--lime);
+      color: var(--lime-text);
+      box-shadow: 0 10px 30px -8px var(--lime-glow);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px -8px var(--lime-glow);
+      filter: brightness(1.06);
+    }
+    .btn-secondary:hover {
+      border-color: var(--purple);
+    }
+
+    /* Purple badge + accents */
+    .badge-pill {
+      background: var(--purple-soft);
+      border-color: rgba(139, 92, 246, 0.35);
+      color: #c4b5fd;
+      box-shadow: 0 0 20px -3px var(--purple-glow);
+    }
+    .badge-pill .pulse-dot {
+      background: var(--purple);
+      box-shadow: 0 0 10px var(--purple);
+    }
+    .brand-logo img {
+      box-shadow: 0 4px 16px var(--purple-glow);
+    }
+    .nav-links a:hover {
+      color: #c4b5fd;
+    }
+    .section-head .section-tag {
+      color: var(--purple);
+    }
+    .hotspot {
+      background: var(--purple);
+      box-shadow: 0 0 20px var(--purple);
+    }
+
+    /* Compact sticky nav + hamburger */
+    header.site-header {
+      padding: 12px 0;
+      background: rgba(8, 11, 18, 0.82);
+    }
+    .nav-cta-group .btn {
+      padding: 9px 18px;
+      font-size: 13.5px;
+    }
+    .nav-toggle {
+      display: none;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      color: var(--text-white);
+      cursor: pointer;
+      padding: 8px 10px;
+      line-height: 0;
+    }
+    .nav-toggle:hover {
+      border-color: var(--purple);
+    }
+    .mobile-menu {
+      display: none;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 8px 24px 16px;
+    }
+    .mobile-menu.open {
+      display: block;
+    }
+    .mobile-menu a {
+      display: block;
+      padding: 10px 4px;
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .mobile-menu a:last-child {
+      border-bottom: none;
+    }
+
+    /* Hero: text left, preview right */
+    section.hero-section.hero-split {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 56px;
+      align-items: center;
+      text-align: left;
+      max-width: 1280px;
+      position: relative;
+    }
+    section.hero-section.hero-split::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      right: -140px;
+      width: 480px;
+      height: 480px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.22) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-split .hero-content {
+      margin: 0;
+      max-width: none;
+    }
+    .hero-split h1.hero-title {
+      font-size: clamp(36px, 4.6vw, 58px);
+    }
+    .hero-split p.hero-subtitle {
+      margin-left: 0;
+      margin-right: 0;
+      max-width: 480px;
+    }
+    .hero-split .hero-cta-bar {
+      justify-content: flex-start;
+    }
+    .hero-split .hero-window-frame {
+      margin-top: 0;
+      box-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.85), 0 0 70px -12px var(--purple-glow);
+    }
+    .hero-split .terminal-quick-install {
+      max-width: 100%;
+    }
+    section.hero-section.hero-split > * {
+      min-width: 0;
+    }
+    .mac-window-topbar {
+      gap: 12px;
+    }
+    .window-title-badge {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .window-status-pill {
+      flex-shrink: 0;
+    }
+
+    /* Slim tech strip */
+    .trust-strip.tech-slim {
+      margin: 48px auto 8px;
+    }
+    .tech-slim .trust-label {
+      margin-bottom: 16px;
+    }
+    .tech-slim .trust-logos {
+      gap: 12px;
+    }
+    .tech-slim .trust-item {
+      font-size: 12.5px;
+      padding: 7px 14px;
+    }
+    .tech-slim .trust-item:hover {
+      border-color: var(--purple);
+    }
+
+    /* Compact 4-card features */
+    .bento-grid.features-compact {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+    .features-compact .bento-card.col-8,
+    .features-compact .bento-card.col-4,
+    .features-compact .bento-card.col-6 {
+      grid-column: span 1;
+    }
+    .features-compact .bento-card {
+      padding: 24px 22px;
+    }
+    .features-compact .bento-icon-badge {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      margin-bottom: 14px;
+      background: var(--purple-soft);
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+    .features-compact .bento-card h3 {
+      font-size: 17px;
+      margin-bottom: 8px;
+    }
+    .features-compact .bento-card p {
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    .features-compact .feature-sub {
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: #c4b5fd !important;
+      margin-bottom: 8px !important;
+    }
+    .features-compact .bento-card:hover {
+      border-color: rgba(139, 92, 246, 0.45);
+      box-shadow: 0 24px 50px -15px rgba(0, 0, 0, 0.8), 0 0 30px -8px var(--purple-glow);
+    }
+    .features-compact .card-graphic-container img {
+      max-height: 120px;
+      object-fit: cover;
+      object-position: top;
+    }
+
+    /* Purple glow headings for cockpit/table */
+    .comparison-table th.highlight-col {
+      color: var(--lime);
+    }
+
+    /* Entrance animations (JS adds .reveal) */
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── REDESIGN RESPONSIVE ── */
+    @media (max-width: 1020px) {
+      section.hero-section.hero-split {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        text-align: center;
+      }
+      .hero-split .hero-content {
+        margin: 0 auto;
+      }
+      .hero-split p.hero-subtitle {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .hero-split .hero-cta-bar {
+        justify-content: center;
+      }
+      .bento-grid.features-compact {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .features-compact .bento-card.col-8,
+      .features-compact .bento-card.col-4,
+      .features-compact .bento-card.col-6 {
+        grid-column: span 1;
+      }
+    }
+    @media (max-width: 860px) {
+      .nav-links { display: none; }
+      .nav-toggle { display: block; }
+      .nav-cta-group .btn-secondary { display: none; }
+    }
+    @media (max-width: 640px) {
+      .bento-grid.features-compact {
+        grid-template-columns: 1fr;
+      }
+      .hero-split .terminal-quick-install code {
+        max-width: 220px;
+      }
+      .nav-cta-group .btn {
+        padding: 8px 14px;
+        font-size: 12.5px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .badge-pill .pulse-dot, .hotspot { animation: none; }
+      * { transition-duration: 0.01ms !important; }
+    }
   </style>
 </head>
 <body>
@@ -1099,17 +1410,17 @@
     <!-- ── NAVIGATION BAR ── -->
     <header class="site-header">
       <div class="nav-container">
-        <a href="#" class="brand-logo" id="nav-brand-logo">
+        <a href="#overview" class="brand-logo" id="nav-brand-logo">
           <img src="images/cognidev-logo.png" alt="CogniDev Logo" />
           <span>CogniDev</span>
         </a>
 
         <ul class="nav-links">
-          <li><a href="#overview">Overview</a></li>
+          <li><a href="#overview">Home</a></li>
           <li><a href="#features">Features</a></li>
-          <li><a href="#simulator">Live Cockpit</a></li>
-          <li><a href="#benchmarks">Benchmarks</a></li>
-          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#simulator">Demo</a></li>
+          <li><a href="#benchmarks">Stats</a></li>
+          <li><a href="#architecture">Tech</a></li>
           <li><a href="#faq">FAQ</a></li>
         </ul>
 
@@ -1118,29 +1429,44 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
             </svg>
-            <span>GitHub ⭐</span>
+            <span>GitHub</span>
           </a>
           <a href="#download" class="btn btn-primary" id="nav-download-btn">
             <span>Download</span>
           </a>
+          <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="4" y1="7" x2="20" y2="7"></line>
+              <line x1="4" y1="12" x2="20" y2="12"></line>
+              <line x1="4" y1="17" x2="20" y2="17"></line>
+            </svg>
+          </button>
         </div>
       </div>
+      <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile">
+        <a href="#overview">Home</a>
+        <a href="#features">Features</a>
+        <a href="#simulator">Demo</a>
+        <a href="#benchmarks">Stats</a>
+        <a href="#architecture">Tech</a>
+        <a href="#faq">FAQ</a>
+      </nav>
     </header>
 
     <!-- ── HERO SECTION ── -->
-    <section class="hero-section" id="overview">
+    <section class="hero-section hero-split" id="overview">
       <div class="hero-content">
         <div class="badge-pill">
           <span class="pulse-dot"></span>
-          <span>v0.1.1 · macOS Native & Local-First AI Cockpit</span>
+          <span>v0.1.1 · macOS Native & Local-First</span>
         </div>
 
         <h1 class="hero-title">
-          The Developer Command Center & <span class="gradient-text">Second Brain</span> for macOS
+          All your AI tools in <span class="gradient-text">one place</span>
         </h1>
 
         <p class="hero-subtitle">
-          A distraction-free, local-first engineering workspace that unifies multi-model AI insights, eliminates Jira bloat with Squad Blocker Radars, and transcribes engineering voice flow on Apple Silicon.
+          Chat, build, organize and stay focused — right from your Mac.
         </p>
 
         <div class="hero-cta-bar">
@@ -1150,14 +1476,14 @@
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            <span>Download for macOS (DMG)</span>
+            <span>Download for macOS</span>
           </a>
 
           <a href="#simulator" class="btn btn-secondary" id="hero-live-demo-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            <span>Explore Interactive Simulator</span>
+            <span>Watch demo</span>
           </a>
         </div>
 
@@ -1195,31 +1521,30 @@
           <!-- Hotspots explaining features -->
           <div class="hotspot" style="top: 22%; left: 16%;" data-tooltip="Team Squads & Domain Switcher">1</div>
           <div class="hotspot" style="top: 36%; left: 48%;" data-tooltip="Task Stream & AI Context Cards">2</div>
-          <div class="hotspot" style="top: 18%; left: 88%;" data-tooltip="Universal AI Provider Ingest">3</div>
-          <div class="hotspot" style="top: 75%; left: 84%;" data-tooltip="On-Device RubaiSTT Voice Logger">4</div>
+          <div class="hotspot edge-right" style="top: 18%; left: 88%;" data-tooltip="Universal AI Provider Ingest">3</div>
+          <div class="hotspot edge-right" style="top: 75%; left: 84%;" data-tooltip="On-Device RubaiSTT Voice Logger">4</div>
         </div>
       </div>
     </section>
 
-    <!-- ── TECH STACK TRUST STRIP ── -->
-    <div class="trust-strip">
-      <div class="trust-label">ENGINEERED WITH MODERN HIGH-PERFORMANCE FOUNDATIONS</div>
+    <!-- ── TECH STACK STRIP ── -->
+    <div class="trust-strip tech-slim">
+      <div class="trust-label">Built with modern native foundations · Open Source · MIT License</div>
       <div class="trust-logos">
-        <div class="trust-item"><span class="icon">🦀</span> Rust 1.98 Core</div>
-        <div class="trust-item"><span class="icon">⚡️</span> Tauri v2 Desktop</div>
-        <div class="trust-item"><span class="icon">⚛️</span> React 19 Client</div>
-        <div class="trust-item"><span class="icon">🗄️</span> SQLite WAL Local-First</div>
-        <div class="trust-item"><span class="icon">🎙️</span> Apple Silicon Whisper STT</div>
-        <div class="trust-item"><span class="icon">🍎</span> macOS Native AppKit</div>
+        <div class="trust-item"><span class="icon">🦀</span> Rust</div>
+        <div class="trust-item"><span class="icon">⚡️</span> Tauri v2</div>
+        <div class="trust-item"><span class="icon">⚛️</span> React 19</div>
+        <div class="trust-item"><span class="icon">🔷</span> TypeScript</div>
+        <div class="trust-item"><span class="icon">🗄️</span> SQLite</div>
       </div>
     </div>
 
     <!-- ── INTERACTIVE COCKPIT PLAYGROUND (SIMULATOR) ── -->
     <section class="section-block" id="simulator">
       <div class="section-head">
-        <span class="section-tag">Interactive Simulator</span>
-        <h2>Test the Cockpit in Your Browser</h2>
-        <p>Experience how CogniDev parses multi-model prompts, visualizes squad blockers, and transcribes engineering flow in real time.</p>
+        <span class="section-tag">Live Demo</span>
+        <h2>Real workflow. Real productivity.</h2>
+        <p>Chat, code, track and organize — all in a single workspace.</p>
       </div>
 
       <div class="interactive-cockpit-box">
@@ -1389,14 +1714,15 @@
         <p>No browser tab clutter. No Jira story poker. Just pure, unadulterated engineering context.</p>
       </div>
 
-      <div class="bento-grid">
-        <!-- Card 1: Multi-Model AI Ingest -->
+      <div class="bento-grid features-compact">
+        <!-- Card 1: Multi-AI -->
         <div class="bento-card col-8">
           <div>
             <div class="bento-icon-badge">🤖</div>
-            <h3>Universal Multi-Model AI Ingestion</h3>
+            <h3>Multi-AI</h3>
+            <p class="feature-sub">ChatGPT, Claude, Gemini</p>
             <p>
-              Connect ChatGPT (gpt-4o), Claude Sonnet, Google Gemini, DeepSeek, Llama, and Muse. Paste raw chat logs or architecture breakthroughs—CogniDev automatically parses solutions, extracts executable code blocks, and archives prompt signatures.
+              Plus DeepSeek, Llama and Muse. Paste raw chats — solutions, code blocks and prompt hashes are parsed automatically.
             </p>
           </div>
           <div class="card-graphic-container">
@@ -1404,13 +1730,29 @@
           </div>
         </div>
 
-        <!-- Card 2: On-Device Uzbek Speech -->
+        <!-- Card 2: Team Sync -->
         <div class="bento-card col-4">
           <div>
-            <div class="bento-icon-badge">🎙️</div>
-            <h3>On-Device RubaiSTT Voice</h3>
+            <div class="bento-icon-badge">👥</div>
+            <h3>Team Sync</h3>
+            <p class="feature-sub">Track blockers early</p>
             <p>
-              Speak your architectural thoughts in Uzbek or English. Native whisper.cpp binary executes on Apple Silicon Neural Engine with zero cloud audio leakage.
+              Squads with live Blocker Radar constellations catch P0 roadblocks before velocity suffers.
+            </p>
+          </div>
+          <div class="card-graphic-container">
+            <img src="images/cognidev-squads-radar.jpg" alt="Squads Blocker Radar Constellation" />
+          </div>
+        </div>
+
+        <!-- Card 3: Voice Notes -->
+        <div class="bento-card col-6">
+          <div>
+            <div class="bento-icon-badge">🎙️</div>
+            <h3>Voice Notes</h3>
+            <p class="feature-sub">Speak, organize, search</p>
+            <p>
+              On-device RubaiSTT voice on Apple Silicon. Zero cloud audio leakage.
             </p>
           </div>
           <div style="background: #07090e; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 18px; font-family: var(--font-mono); font-size: 12px; color: var(--cyan); margin-top: auto;">
@@ -1420,37 +1762,24 @@
           </div>
         </div>
 
-        <!-- Card 3: Squads Blocker Radar -->
+        <!-- Card 4: Local-First -->
         <div class="bento-card col-6">
           <div>
-            <div class="bento-icon-badge">👥</div>
-            <h3>Zero-Bureaucracy Squads & Blocker Radar</h3>
+            <div class="bento-icon-badge">💾</div>
+            <h3>Local-First</h3>
+            <p class="feature-sub">Your data stays on Mac</p>
             <p>
-              Organize tasks by domains (Core Backend, Frontend Platform, AI Core) with real-time visual Blocker Constellations identifying critical P0 roadblocks before sprint velocity suffers.
-            </p>
-          </div>
-          <div class="card-graphic-container">
-            <img src="images/cognidev-squads-radar.jpg" alt="Squads Blocker Radar Constellation" />
-          </div>
-        </div>
-
-        <!-- Card 4: macOS Native Desktop Integration -->
-        <div class="bento-card col-6">
-          <div>
-            <div class="bento-icon-badge">🍎</div>
-            <h3>Native macOS HIG Polish</h3>
-            <p>
-              Frameless window with Overlay Titlebar, custom traffic light coordinate insets, and authentic Apple HIG continuous squircle Dock icon with transparent padding. Includes a floating Desktop HUD widget.
+              SQLite WAL engine, native overlay titlebar and floating HUD. Offline-ready by design.
             </p>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: auto;">
             <div style="background: #07090e; padding: 16px; border-radius: 10px; border: 1px solid var(--border-subtle);">
-              <div style="font-size: 12px; color: var(--text-dim);">DOCK PRESENCE</div>
-              <div style="font-size: 14px; font-weight: 700; color: #fff; margin-top: 4px;">Apple HIG Squircle</div>
-              <div style="font-size: 12px; color: var(--emerald);">Transparent Canvas</div>
+              <div style="font-size: 12px; color: var(--text-dim);">STORAGE</div>
+              <div style="font-size: 14px; font-weight: 700; color: #fff; margin-top: 4px;">SQLite WAL</div>
+              <div style="font-size: 12px; color: var(--emerald);">100% Offline</div>
             </div>
             <div style="background: #07090e; padding: 16px; border-radius: 10px; border: 1px solid var(--border-subtle);">
-              <div style="font-size: 12px; color: var(--text-dim);">DESKTOP OVERLAY</div>
+              <div style="font-size: 12px; color: var(--text-dim);">DESKTOP</div>
               <div style="font-size: 14px; font-weight: 700; color: #fff; margin-top: 4px;">Floating HUD</div>
               <div style="font-size: 12px; color: var(--cyan);">Always On Top</div>
             </div>
@@ -1679,16 +2008,18 @@
           <img src="images/cognidev-logo.png" alt="CogniDev Logo" />
           <div>
             <div style="font-weight: 700; color: #fff; font-size: 15px;">CogniDev</div>
-            <div class="footer-copy">© 2026 Farhodoff. Released under the MIT License.</div>
+            <div class="footer-copy">© 2026 Farhodoff · Open Source · MIT License</div>
           </div>
         </div>
 
         <ul class="footer-links">
-          <li><a href="#overview">Overview</a></li>
+          <li><a href="#overview">Home</a></li>
           <li><a href="#features">Features</a></li>
-          <li><a href="#simulator">Simulator</a></li>
-          <li><a href="#benchmarks">Benchmarks</a></li>
-          <li><a href="https://github.com/Farhodoff/CogniDev" target="_blank" rel="noopener noreferrer">GitHub Repo</a></li>
+          <li><a href="#simulator">Demo</a></li>
+          <li><a href="#benchmarks">Stats</a></li>
+          <li><a href="#architecture">Tech</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="https://github.com/Farhodoff/CogniDev" target="_blank" rel="noopener noreferrer">GitHub</a></li>
         </ul>
       </div>
     </footer>
@@ -1830,6 +2161,39 @@
         });
       });
     }
+
+    // Mobile hamburger menu
+    const navToggle = document.getElementById('nav-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+    if (navToggle && mobileMenu) {
+      navToggle.addEventListener('click', () => {
+        const open = mobileMenu.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      mobileMenu.querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', () => {
+          mobileMenu.classList.remove('open');
+          navToggle.setAttribute('aria-expanded', 'false');
+        });
+      });
+    }
+
+    // Gentle entrance animations (disabled with reduced-motion)
+    try {
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+        const revealEls = document.querySelectorAll('.hero-content, .hero-window-frame, .bento-card, .section-head, .download-hero-card, .comparison-table, .faq-item');
+        revealEls.forEach(el => el.classList.add('reveal'));
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            if (e.isIntersecting) {
+              e.target.classList.add('visible');
+              io.unobserve(e.target);
+            }
+          });
+        }, { threshold: 0.12 });
+        revealEls.forEach(el => io.observe(el));
+      }
+    } catch (e) { /* animations are optional */ }
   </script>
 </body>
 </html>

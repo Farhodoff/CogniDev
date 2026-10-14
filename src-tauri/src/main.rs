@@ -134,6 +134,12 @@ fn main() {
             sql: include_str!("./migrations4.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "create notes, roadmaps, learning_logs and project_ideas tables",
+            sql: include_str!("./migrations5.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

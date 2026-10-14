@@ -1,5 +1,5 @@
-import type { Task } from './types';
-import { tryCloudProviders, type AiSource } from './providers';
+import type { Task, TaskPriority } from './types';
+import { tryCloudProviders, trySingleProvider, type AiSource, type CloudProviderId } from './providers';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
 // Cloud flagships first (fast fail when offline/unsigned), local 3b as offline fallback.
@@ -321,3 +321,150 @@ export function parseRawAiConversation(text: string): ParsedAiIngestion {
     tags,
   };
 }
+
+/** General-purpose AI invoker that respects preferred provider or falls back smoothly. */
+export async function callAi(
+  prompt: string,
+  system = '',
+  preferredProvider?: CloudProviderId | 'ollama',
+): Promise<{ text: string; source: AiSource; model?: string }> {
+  if (preferredProvider && preferredProvider !== 'ollama') {
+    const hit = await trySingleProvider(preferredProvider, prompt, system);
+    if (hit) return { text: hit.text, source: hit.source, model: hit.model };
+  } else if (preferredProvider === 'ollama') {
+    const hit = await tryOllama(system ? `${system}\n\n${prompt}` : prompt);
+    if (hit) return { text: hit.text, source: 'ollama', model: hit.model };
+  }
+
+  // Fallback to active cloud providers
+  const cloud = await tryCloudProviders(prompt, system);
+  if (cloud) return { text: cloud.text, source: cloud.source, model: cloud.model };
+
+  // Fallback to local Ollama
+  const ollama = await tryOllama(system ? `${system}\n\n${prompt}` : prompt);
+  if (ollama) return { text: ollama.text, source: 'ollama', model: ollama.model };
+
+  return {
+    text: "AI javobi olib bo'lmadi. Iltimos, Sozlamalardan (AI Provayderlar) API kalitingiz kiritilganini yoki mahalliy Ollama ishlab turganini tekshiring.",
+    source: 'fallback',
+  };
+}
+
+/** Breaks down a project idea into 4-6 developer tasks in Uzbek. */
+export async function decomposeIdeaToTasks(
+  title: string,
+  stack: string,
+  description: string,
+  preferredProvider?: CloudProviderId,
+): Promise<Array<{ title: string; priority: TaskPriority }>> {
+  const system = `Siz katta dasturiy arxitektor va tech leadsiz. O'zbek tilida junior/middle dasturchi uchun loyiha g'oyasini 4-6 ta aniq, amaliy, ketma-ket bajariladigan vazifalarga (tasklarga) ajratib bering.
+Har bir vazifa bitta qatorda bo'lsin.
+Format:
+[Prioritet] Vazifa nomi
+Qayerdaki Prioritet quyidagilardan biri bo'lishi shart:
+- [P0 Blocker] (arxitektura, ma'lumotlar bazasi sxemasi yoki muhim poydevor)
+- [High Priority] (asosiy biznes mantiq, API yoki asosiy servis)
+- [Normal] (qo'shimcha funksiyalar, testlar, optimallashtirish)
+
+Faqat ro'yxatni qaytaring, ortiqcha kirish yoki xulosa so'zlar yozmang.`;
+
+  const prompt = `Loyiha nomi: ${title}
+Dasturlash tili / Stack: ${stack}
+Tavsif / Konsept: ${description || 'Konsept belgilanmagan'}`;
+
+  const res = await callAi(prompt, system, preferredProvider);
+  const lines = res.text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const tasks: Array<{ title: string; priority: TaskPriority }> = [];
+
+  for (const line of lines) {
+    const cleanLine = line.replace(/^\d+[\s.)-]+\s*/, '').replace(/^[-*]\s+/, '').trim();
+    if (!cleanLine) continue;
+
+    let priority: TaskPriority = 'Normal';
+    let taskTitle = cleanLine;
+
+    if (/\[P0 Blocker\]/i.test(cleanLine)) {
+      priority = 'P0 Blocker';
+      taskTitle = cleanLine.replace(/\[P0 Blocker\]/gi, '').trim();
+    } else if (/\[Critical\]/i.test(cleanLine)) {
+      priority = 'Critical';
+      taskTitle = cleanLine.replace(/\[Critical\]/gi, '').trim();
+    } else if (/\[High Priority\]/i.test(cleanLine) || /\[High\]/i.test(cleanLine)) {
+      priority = 'High Priority';
+      taskTitle = cleanLine.replace(/\[High Priority\]|\[High\]/gi, '').trim();
+    } else if (/\[Normal\]/i.test(cleanLine)) {
+      priority = 'Normal';
+      taskTitle = cleanLine.replace(/\[Normal\]/gi, '').trim();
+    }
+
+    if (taskTitle.length > 3) {
+      tasks.push({ title: taskTitle, priority });
+    }
+  }
+
+  if (tasks.length === 0) {
+    tasks.push({ title: `${stack} loyiha arxitekturasini loyihalash va bazani sozlash`, priority: 'P0 Blocker' });
+    tasks.push({ title: `${title} uchun asosiy mantiq va API endpointlarni yozish`, priority: 'High Priority' });
+    tasks.push({ title: `Xatoliklarni ushlash va unit testlar yozish`, priority: 'Normal' });
+    tasks.push({ title: `Benchmark qilish va Docker konteyneriga o'rash`, priority: 'Normal' });
+  }
+
+  return tasks;
+}
+
+/** Provides constructive coaching and test questions for junior dev's daily study log. */
+export async function analyzeLearningLog(
+  learned: string,
+  solvedProblem: string,
+  nextGoal: string,
+  preferredProvider?: CloudProviderId,
+): Promise<string> {
+  const system = `Siz dasturchilar uchun mehribon, tajribali Senior Mentor va Murabbiy AI'siz. Junior dasturchining kunlik o'rganish hisobotini tahlil qilasiz. O'zbek tilida, do'stona, lekin professional tilda tahlil bering:
+1. Qisqa tahlil: O'rganilgan mavzuning dasturlashdagi o'rni va ahamiyati (2-3 jumla).
+2. O'zlashtirishni sinash uchun 2 ta aniq, chuqur texnik savol yoki mini-kod misoli.
+3. Ko'p uchraydigan tuzoqlar (Common pitfalls) — junior dasturchilar ushbu mavzuda ko'p qiladigan xato.
+4. Ertangi maqsad bo'yicha amaliy maslahat.`;
+
+  const prompt = `Bugun o'rgangani:
+${learned}
+
+Hal qilgan muammosi / xatosi:
+${solvedProblem || "Ko'rsatilmagan"}
+
+Ertangi maqsadi:
+${nextGoal || "Ko'rsatilmagan"}`;
+
+  const res = await callAi(prompt, system, preferredProvider);
+  return res.text;
+}
+
+/** Enhances a Notion-style note with summaries, action items, or code review. */
+export async function enhanceNoteWithAi(
+  content: string,
+  action: 'summarize' | 'action_items' | 'code_review' | 'format',
+  preferredProvider?: CloudProviderId,
+): Promise<string> {
+  const prompts: Record<typeof action, { system: string; prompt: string }> = {
+    summarize: {
+      system: "Siz texnik hujjatlar tahlilchisisiz. Berilgan qayd matnini o'zbek tilida aniq, ixcham TL;DR va muhim xulosalarga ajratib bering.",
+      prompt: `Qayd matni:\n${content}`,
+    },
+    action_items: {
+      system: "Siz Agile tech leadsiz. Ushbu texnik qayddan amaliy dasturlash vazifalari (action items / todo checklist) ro'yxatini chiqarib bering. Har bir band '- [ ] ...' ko'rinishida bo'lsin.",
+      prompt: `Qayd matni:\n${content}`,
+    },
+    code_review: {
+      system: "Siz Senior Code Reviewer'siz. Berilgan qayddagi kod bloklari va arxitektura bo'yicha xavfsizlik, xotira, performance va toza kod (clean code) bo'yicha maslahat bering.",
+      prompt: `Qayd matni:\n${content}`,
+    },
+    format: {
+      system: "Siz Notion va Markdown bo'yicha mutaxassissiz. Matnni chiroyli Notion uslubidagi markdown sarlavhalari, calloutlari va kod bloklariga aylantirib bering.",
+      prompt: `Matn:\n${content}`,
+    },
+  };
+
+  const p = prompts[action];
+  const res = await callAi(p.prompt, p.system, preferredProvider);
+  return res.text;
+}
+

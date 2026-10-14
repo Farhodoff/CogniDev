@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Folder, Plus, Trophy, BookOpen, Layers, Users, X, HelpCircle } from 'lucide-react';
+import {
+  Folder,
+  Plus,
+  Trophy,
+  Layers,
+  Users,
+  X,
+  HelpCircle,
+  FileText,
+  Lightbulb,
+  Compass,
+  LayoutDashboard,
+  Sparkles,
+} from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { isBlocker } from '../lib/ai';
 import { fetchTagCounts } from '../lib/db';
@@ -27,6 +40,12 @@ export default function Sidebar() {
     userProfile,
     setProfileModal,
     setGuideModal,
+    mainView,
+    setMainView,
+    notesDocs,
+    roadmaps,
+    projectIdeas,
+    toggleAiDrawer,
   } = useSynapse();
 
   const [dbTagCounts, setDbTagCounts] = useState<{
@@ -60,15 +79,7 @@ export default function Sidebar() {
 
   // Compute fallback / in-memory counts
   const memBlockerCount = tasks.filter(isBlocker).length;
-  const memArchCount = tasks.filter(
-    (t) =>
-      t.title.toLowerCase().includes('arch') ||
-      t.title.toLowerCase().includes('refactor') ||
-      t.title.toLowerCase().includes('design'),
-  ).length;
-
   const blockerCount = dbTagCounts ? dbTagCounts.blocker : memBlockerCount;
-  const archCount = dbTagCounts ? dbTagCounts.architecture : memArchCount;
 
   // --- Haqiqiy teglar statistikasi (joriy workspace) ---
   const wsTagTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
@@ -101,49 +112,111 @@ export default function Sidebar() {
 
   return (
     <aside className="flex w-[246px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-white/[0.06] bg-[#0f1013]/80 px-3 py-4">
-      {/* Smart Ko'rinishlar (Asosiy Bo'limlar) */}
-      <nav className="space-y-0.5">
+      {/* Asosiy Ish Maydonlari (Workspaces & Views) */}
+      <nav className="space-y-1">
         <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Boshqaruv</p>
         
+        {/* 0. Boshqaruv Markazi (Dashboard) */}
         <button
-          onClick={() => { setFilter(null); setSearch(''); }}
+          onClick={() => { setMainView('dashboard'); setFilter(null); setSearch(''); }}
           className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
-            quickFilter === null && search.trim() === '' ? 'bg-white/[0.08] text-white font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+            mainView === 'dashboard'
+              ? 'bg-sky-500/15 text-sky-300 font-semibold border border-sky-500/25 shadow-sm'
+              : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+          }`}
+        >
+          <LayoutDashboard size={15} className="text-sky-400" />
+          <span>Boshqaruv Markazi</span>
+          <span className="ml-auto rounded-md bg-sky-500/10 px-1.5 py-0.5 font-mono text-[11px] text-sky-300">
+            ⌘1
+          </span>
+        </button>
+
+        {/* 1. Vazifalar Oqimi */}
+        <button
+          onClick={() => { setMainView('stream'); setFilter(null); setSearch(''); }}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
+            mainView === 'stream' && quickFilter === null && search.trim() === ''
+              ? 'bg-white/[0.08] text-white font-semibold'
+              : 'text-zinc-300 hover:bg-white/5 hover:text-white'
           }`}
         >
           <Layers size={15} className="text-sky-400" />
-          <span>Kunlik Oqim</span>
+          <span>Vazifalar Oqimi</span>
           <span className="ml-auto rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">
             {tasks.filter((t) => t.workspace_id === activeWorkspaceId).length}
           </span>
         </button>
 
+        {/* 2. Notion Qaydlar */}
         <button
-          onClick={() => setFilter('solved')}
+          onClick={() => setMainView('notes')}
           className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
-            quickFilter === 'solved' ? 'bg-emerald-500/15 text-emerald-300 font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+            mainView === 'notes' ? 'bg-purple-500/15 text-purple-300 font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+          }`}
+        >
+          <FileText size={15} className="text-purple-400" />
+          <span>Notion Qaydlar</span>
+          <span className="ml-auto rounded-md bg-purple-500/10 px-1.5 py-0.5 font-mono text-[11px] text-purple-300">
+            {notesDocs.length}
+          </span>
+        </button>
+
+        {/* 3. Roadmap & O'rganish */}
+        <button
+          onClick={() => setMainView('roadmap')}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
+            mainView === 'roadmap' ? 'bg-amber-500/15 text-amber-300 font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+          }`}
+        >
+          <Compass size={15} className="text-amber-400" />
+          <span>Roadmap & O'rganish</span>
+          <span className="ml-auto rounded-md bg-amber-500/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-400">
+            {roadmaps.length}
+          </span>
+        </button>
+
+        {/* 4. G'oyalar & Loyihalar */}
+        <button
+          onClick={() => setMainView('ideas')}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
+            mainView === 'ideas' ? 'bg-orange-500/15 text-orange-300 font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+          }`}
+        >
+          <Lightbulb size={15} className="text-orange-400" />
+          <span>G'oyalar Inkubatori</span>
+          <span className="ml-auto rounded-md bg-orange-500/10 px-1.5 py-0.5 font-mono text-[11px] text-orange-400">
+            {projectIdeas.length}
+          </span>
+        </button>
+
+        {/* 5. Haftalik Tahlil */}
+        <button
+          onClick={() => setMainView('retro')}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
+            mainView === 'retro' ? 'bg-emerald-500/15 text-emerald-300 font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
           }`}
         >
           <Trophy size={15} className="text-emerald-400" />
-          <span>Hal Qilinganlar</span>
+          <span>Haftalik Tahlil</span>
           <span className="ml-auto rounded-md bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] text-emerald-400">
             {completedCount}
           </span>
         </button>
 
-        <button
-          onClick={() => setFilter('knowledge')}
-          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition ${
-            quickFilter === 'knowledge' ? 'bg-violet-500/15 text-violet-300 font-semibold' : 'text-zinc-300 hover:bg-white/5 hover:text-white'
-          }`}
-        >
-          <BookOpen size={15} className="text-violet-400" />
-          <span>Bilimlar Ombori</span>
-          <span className="ml-auto rounded-md bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-300">
-            {archCount}
-          </span>
-        </button>
-
+        {/* AI Assistant Drawer Toggle */}
+        <div className="pt-1.5">
+          <button
+            onClick={toggleAiDrawer}
+            className="flex w-full items-center gap-2.5 rounded-xl border border-purple-500/25 bg-purple-500/10 px-2.5 py-2 text-left text-[12.5px] font-semibold text-purple-300 hover:bg-purple-500/20 active:scale-95 transition"
+          >
+            <Sparkles size={15} className="text-purple-400 animate-pulse" />
+            <span>AI Assistant</span>
+            <span className="ml-auto rounded-md bg-purple-500/20 px-1.5 py-0.5 font-mono text-[10px] text-purple-300">
+              ⌘J
+            </span>
+          </button>
+        </div>
       </nav>
 
       {/* Workspaces (Omborlar) */}

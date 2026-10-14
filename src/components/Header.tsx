@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus, BookOpen, ArrowDownCircle } from 'lucide-react';
+import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus, BookOpen, ArrowDownCircle, Sparkles } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
@@ -39,6 +39,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setGuideModal,
     showProvidersModal,
     setProvidersModal,
+    toggleAiDrawer,
+    isAiDrawerOpen,
   } = useSynapse();
 
   const [wsOpen, setWsOpen] = useState(false);
@@ -328,6 +330,23 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
               </div>
             )}
           </div>
+
+          {/* AI Assistant Drawer Toggle */}
+          <button
+            onClick={toggleAiDrawer}
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12.5px] font-semibold transition ${
+              isAiDrawerOpen
+                ? 'border-purple-400/50 bg-purple-500/20 text-purple-200 shadow-md shadow-purple-500/10'
+                : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
+            }`}
+            title="AI Assistant chat oynasini ochish / yopish (⌘J)"
+          >
+            <Sparkles size={14} className="text-purple-400" />
+            <span className="hidden sm:inline">AI Assistant</span>
+            <kbd className="hidden md:inline rounded bg-purple-500/20 px-1 font-mono text-[9.5px] text-purple-300">
+              ⌘J
+            </kbd>
+          </button>
 
           {/* Yangilanish mavjud bo'lsa ko'rinadigan belgi */}
           {updateInfo?.available && (

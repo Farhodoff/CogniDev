@@ -4,7 +4,7 @@
  * Chain: enabled cloud provider → local Ollama → offline template.
  */
 
-export type CloudProviderId = 'deepseek' | 'gemini' | 'claude' | 'openai' | 'llama' | 'muse';
+export type CloudProviderId = 'deepseek' | 'gemini' | 'claude' | 'openai' | 'groq' | 'openrouter' | 'llama' | 'muse';
 export type AiSource = 'ollama' | 'fallback' | CloudProviderId;
 
 export interface ProviderDef {
@@ -16,10 +16,12 @@ export interface ProviderDef {
 }
 
 export const PROVIDERS: ProviderDef[] = [
-  { id: 'deepseek', name: 'DeepSeek', modelDefault: 'deepseek-chat', keyHint: 'sk-… (platform.deepseek.com)', keyUrl: 'https://platform.deepseek.com/api_keys' },
   { id: 'gemini', name: 'Gemini', modelDefault: 'gemini-2.5-flash', keyHint: 'AIza… (aistudio.google.com)', keyUrl: 'https://aistudio.google.com/apikey' },
-  { id: 'claude', name: 'Claude', modelDefault: 'claude-sonnet-4-5-20250929', keyHint: 'sk-ant-… (console.anthropic.com)', keyUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'claude', name: 'Claude', modelDefault: 'claude-3-5-sonnet-20241022', keyHint: 'sk-ant-… (console.anthropic.com)', keyUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'openai', name: 'ChatGPT', modelDefault: 'gpt-4o-mini', keyHint: 'sk-… (platform.openai.com)', keyUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'deepseek', name: 'DeepSeek', modelDefault: 'deepseek-chat', keyHint: 'sk-… (platform.deepseek.com)', keyUrl: 'https://platform.deepseek.com/api_keys' },
+  { id: 'groq', name: 'Groq (Open-Source)', modelDefault: 'llama-3.3-70b-versatile', keyHint: 'gsk_… (console.groq.com)', keyUrl: 'https://console.groq.com/keys' },
+  { id: 'openrouter', name: 'OpenRouter', modelDefault: 'deepseek/deepseek-r1', keyHint: 'sk-or-… (openrouter.ai)', keyUrl: 'https://openrouter.ai/keys' },
   { id: 'llama', name: 'Llama (Meta)', modelDefault: 'Llama-4-Scout-17B-16E-Instruct', keyHint: 'LLM… (llama.developer.meta.com)', keyUrl: 'https://llama.developer.meta.com/' },
   { id: 'muse', name: 'Muse', modelDefault: 'muse-spark-1.3', keyHint: 'MODEL_API_KEY (api.meta.ai)', keyUrl: 'https://api.meta.ai/' },
 ];
@@ -120,12 +122,14 @@ export function moveProvider(id: CloudProviderId, dir: -1 | 1) {
 export const SOURCE_LABELS: Record<AiSource, string> = {
   ollama: 'Ollama · Mahalliy AI',
   fallback: 'Oflayn shablon',
+  gemini: 'Gemini · Google AI',
+  claude: 'Claude · Anthropic',
+  openai: 'ChatGPT · OpenAI',
   deepseek: 'DeepSeek · Cloud',
-  gemini: 'Gemini · Cloud',
-  claude: 'Claude · Cloud',
-  openai: 'ChatGPT · Cloud',
-  llama: 'Llama · Cloud',
-  muse: 'Muse · Cloud',
+  groq: 'Groq · Open-Source Ultra-Fast',
+  openrouter: 'OpenRouter · Multi-Model',
+  llama: 'Llama · Meta Cloud',
+  muse: 'Muse · Meta AI',
 };
 
 async function withTimeout(ms: number): Promise<{ ctrl: AbortController; done: () => void }> {
@@ -348,18 +352,81 @@ async function chatMuse(prompt: string, system: string, key: string, model: stri
   }
 }
 
+async function chatGroq(prompt: string, system: string, key: string, model: string): Promise<string | null> {
+  try {
+    const { ctrl, done } = await withTimeout(45000);
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          { role: 'user', content: prompt },
+        ],
+        stream: false,
+      }),
+      signal: ctrl.signal,
+    });
+    done();
+    if (!res.ok) return null;
+    return extractOpenAiText(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+async function chatOpenRouter(prompt: string, system: string, key: string, model: string): Promise<string | null> {
+  try {
+    const { ctrl, done } = await withTimeout(45000);
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+        'HTTP-Referer': 'https://github.com/Farhodoff/CogniDev',
+        'X-Title': 'CogniDev Desktop',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          { role: 'user', content: prompt },
+        ],
+        stream: false,
+      }),
+      signal: ctrl.signal,
+    });
+    done();
+    if (!res.ok) return null;
+    return extractOpenAiText(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+/** Try a single specified cloud provider. Returns null if key missing or failed. */
+export async function trySingleProvider(id: CloudProviderId, prompt: string, system = ''): Promise<ProviderHit | null> {
+  const s = getProvider(id);
+  if (!s.apiKey.trim()) return null;
+  let text: string | null = null;
+  if (id === 'gemini') text = await chatGemini(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'claude') text = await chatClaude(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'openai') text = await chatOpenAI(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'deepseek') text = await chatDeepSeek(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'groq') text = await chatGroq(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'openrouter') text = await chatOpenRouter(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'llama') text = await chatLlama(prompt, system, s.apiKey.trim(), s.model.trim());
+  else if (id === 'muse') text = await chatMuse(prompt, system, s.apiKey.trim(), s.model.trim());
+  if (text) return { text, source: id, model: s.model.trim() };
+  return null;
+}
+
 /** Try enabled cloud providers in registry order. Returns null when none works. */
 export async function tryCloudProviders(prompt: string, system = ''): Promise<ProviderHit | null> {
   for (const id of enabledProviders()) {
-    const s = getProvider(id);
-    let text: string | null = null;
-    if (id === 'deepseek') text = await chatDeepSeek(prompt, system, s.apiKey.trim(), s.model.trim());
-    else if (id === 'gemini') text = await chatGemini(prompt, system, s.apiKey.trim(), s.model.trim());
-    else if (id === 'claude') text = await chatClaude(prompt, system, s.apiKey.trim(), s.model.trim());
-    else if (id === 'openai') text = await chatOpenAI(prompt, system, s.apiKey.trim(), s.model.trim());
-    else if (id === 'llama') text = await chatLlama(prompt, system, s.apiKey.trim(), s.model.trim());
-    else if (id === 'muse') text = await chatMuse(prompt, system, s.apiKey.trim(), s.model.trim());
-    if (text) return { text, source: id, model: s.model.trim() };
+    const hit = await trySingleProvider(id, prompt, system);
+    if (hit) return hit;
   }
   return null;
 }
@@ -369,10 +436,12 @@ export async function testProvider(id: CloudProviderId): Promise<{ ok: boolean; 
   const s = getProvider(id);
   if (!s.apiKey.trim()) return { ok: false, detail: 'API kalit kiritilmagan' };
   const text = await (async () => {
-    if (id === 'deepseek') return chatDeepSeek('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     if (id === 'gemini') return chatGemini('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     if (id === 'claude') return chatClaude('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     if (id === 'openai') return chatOpenAI('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
+    if (id === 'deepseek') return chatDeepSeek('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
+    if (id === 'groq') return chatGroq('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
+    if (id === 'openrouter') return chatOpenRouter('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     if (id === 'muse') return chatMuse('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
     return chatLlama('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
   })();
