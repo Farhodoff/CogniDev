@@ -84,7 +84,7 @@ export interface Retrospective {
   created_at: string;
 }
 
-export type MainView = 'dashboard' | 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro' | 'calendar' | 'goals' | 'inbox' | 'habits';
+export type MainView = 'dashboard' | 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro' | 'calendar' | 'goals' | 'inbox' | 'habits' | 'projects';
 
 export interface GoalItem {
   id: string;
@@ -101,6 +101,11 @@ export interface ActiveProject {
   progress: number;
   icon?: string;
   color?: string;
+  github_url?: string;
+  category?: string;
+  status?: 'active' | 'in_progress' | 'completed' | 'on_hold';
+  tags?: string[];
+  created_at?: string;
 }
 
 export interface SpaceItem {

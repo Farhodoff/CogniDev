@@ -219,6 +219,7 @@ interface SynapseState {
   activeProjects: ActiveProject[];
   updateProjectProgress: (id: string, progress: number) => void;
   addActiveProject: (proj: Omit<ActiveProject, 'id'>) => void;
+  updateActiveProject: (id: string, updates: Partial<ActiveProject>) => void;
   deleteActiveProject: (id: string) => void;
 
   userProfile: UserProfile;
@@ -730,7 +731,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       const s = localStorage.getItem('cognidev_active_projects');
       if (s) {
         const parsed = JSON.parse(s);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.filter((x: any) => !/^p-[1-4]$/.test(x.id));
         }
       }
@@ -750,6 +751,14 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   addActiveProject: (proj) =>
     set((state) => {
       const next = [...state.activeProjects, { ...proj, id: 'proj-' + Date.now() }];
+      try {
+        localStorage.setItem('cognidev_active_projects', JSON.stringify(next));
+      } catch {}
+      return { activeProjects: next };
+    }),
+  updateActiveProject: (id, updates) =>
+    set((state) => {
+      const next = state.activeProjects.map((p) => (p.id === id ? { ...p, ...updates } : p));
       try {
         localStorage.setItem('cognidev_active_projects', JSON.stringify(next));
       } catch {}

@@ -556,7 +556,7 @@ ${realContext}`;
                       <Plus size={11} /> Loyiha
                     </button>
                     <button
-                      onClick={() => setMainView('ideas')}
+                      onClick={() => setMainView('projects')}
                       className="text-[11px] text-blue-400 hover:underline font-medium"
                     >
                       View All

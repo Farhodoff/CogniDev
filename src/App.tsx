@@ -10,6 +10,7 @@ import IdeasWorkspace from './components/IdeasWorkspace';
 import RetroWorkspace from './components/RetroWorkspace';
 import InboxWorkspace from './components/InboxWorkspace';
 import CalendarWorkspace from './components/CalendarWorkspace';
+import ProjectsWorkspace from './components/ProjectsWorkspace';
 import AiAssistantDrawer from './components/AiAssistantDrawer';
 import FloatingHud from './components/FloatingHud';
 import StandupModal from './components/StandupModal';
@@ -63,9 +64,10 @@ export default function App() {
           if (e.key === '1') { e.preventDefault(); setMainView('dashboard'); }
           else if (e.key === '2') { e.preventDefault(); setMainView('stream'); }
           else if (e.key === '3') { e.preventDefault(); setMainView('notes'); }
-          else if (e.key === '4') { e.preventDefault(); setMainView('roadmap'); }
-          else if (e.key === '5') { e.preventDefault(); setMainView('ideas'); }
-          else if (e.key === '6') { e.preventDefault(); setMainView('retro'); }
+          else if (e.key === '4') { e.preventDefault(); setMainView('projects'); }
+          else if (e.key === '5') { e.preventDefault(); setMainView('roadmap'); }
+          else if (e.key === '6') { e.preventDefault(); setMainView('ideas'); }
+          else if (e.key === '7') { e.preventDefault(); setMainView('retro'); }
         }
       }
     };
@@ -97,6 +99,8 @@ export default function App() {
       title = t ? `CogniDev — ${t.id} · ${t.title.slice(0, 40)}` : 'CogniDev — Vazifalar Oqimi';
     } else if (mainView === 'notes') {
       title = 'CogniDev — Notion Qaydlar & Docs';
+    } else if (mainView === 'projects') {
+      title = 'CogniDev — Faol Loyihalar & Portfel';
     } else if (mainView === 'roadmap') {
       title = 'CogniDev — Backend Roadmap & O‘rganish';
     } else if (mainView === 'ideas') {
@@ -126,6 +130,7 @@ export default function App() {
           </>
         )}
         {mainView === 'notes' && <NotionNotesWorkspace />}
+        {mainView === 'projects' && <ProjectsWorkspace />}
         {mainView === 'roadmap' && <RoadmapWorkspace />}
         {mainView === 'ideas' && <IdeasWorkspace />}
         {mainView === 'retro' && <RetroWorkspace />}

@@ -79,6 +79,7 @@ export default function Sidebar() {
     notesDocs,
     roadmaps,
     projectIdeas,
+    activeProjects,
     tasks,
     setHud,
     setFilter,
@@ -199,10 +200,10 @@ export default function Sidebar() {
       id: 'projects',
       label: 'Projects',
       icon: Briefcase,
-      count: 4,
+      count: activeProjects.length,
       onClick: () => {
-        setMainView('ideas');
-        setHud("Faol loyihalar & inkubator");
+        setMainView('projects');
+        setHud("Faol loyihalar markazi");
       },
     },
     {
@@ -273,6 +274,7 @@ export default function Sidebar() {
             (item.id === 'inbox' && mainView === 'inbox') ||
             (item.id === 'calendar' && mainView === 'calendar') ||
             (item.id === 'notes' && mainView === 'notes') ||
+            (item.id === 'projects' && mainView === 'projects') ||
             (item.id === 'tasks' && mainView === 'stream') ||
             (item.id === 'learning' && mainView === 'roadmap') ||
             (item.id === 'ideas' && mainView === 'ideas') ||

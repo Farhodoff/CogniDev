@@ -16,6 +16,7 @@ import {
   Layout,
   FileText,
   Lightbulb,
+  Briefcase,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
@@ -251,6 +252,16 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 >
                   <FileText size={14} className="text-emerald-400" />
                   <span>New Note</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMainView('projects');
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <Briefcase size={14} className="text-purple-400" />
+                  <span>New Project</span>
                 </button>
                 <button
                   onClick={() => {
