@@ -804,7 +804,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       const activeTasks = tasks.filter((t) => t.status === 'active');
 
       const currentDate = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
-      const systemPrompt = `Siz MySpace ilovasida Farhodning shaxsiy, aqlli va professional macOS AI yordamchisisiz.
+      const systemPrompt = `Siz MySpace ilovasida Farhodning shaxsiy, aqlli va professional AI yordamchisisiz.
 Foydalanuvchi: Farhod (Software / Backend Engineer).
 Bugungi sana: ${currentDate}.
 Haqiqiy ma'lumotlar:
@@ -892,7 +892,7 @@ MUHIM QOIDALAR:
 
 Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, professional va ruhlantiruvchi muhandislik xulosasini 2-3 jumlada o'zbek tilida yozib bering. Nimaga erishilgani va keyingi diqqat markazini qisqa ayting.`;
 
-      const res = await callAi(contextPrompt, "Siz Farhodning shaxsiy macOS dev-cockpit AI yordamchisisiz. Qisqa, aniq va texnik ruhda javob bering.");
+      const res = await callAi(contextPrompt, "Siz Farhodning shaxsiy dev-cockpit AI yordamchisisiz. Qisqa, aniq va texnik ruhda javob bering.");
       const cleanText = res.text.trim();
       set({ todayAiSummary: cleanText, isGeneratingTodayAiSummary: false });
       try {

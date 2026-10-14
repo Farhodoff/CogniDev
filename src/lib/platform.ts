@@ -1,4 +1,4 @@
-// Cross-platform helper for CogniDev (macOS & Windows)
+// Cross-platform helper for CogniDev (macOS, Windows & Linux)
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -14,13 +14,19 @@ export const isWindows =
     (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'Windows' ||
     (typeof navigator.platform === 'string' && /Win/i.test(navigator.platform)));
 
+export const isLinux =
+  typeof navigator !== 'undefined' &&
+  (/Linux/.test(navigator.userAgent) ||
+    (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'Linux' ||
+    (typeof navigator.platform === 'string' && /Linux/i.test(navigator.platform)));
+
 /**
- * Primary modifier key label: '⌘' on macOS, 'Ctrl' on Windows/Linux
+ * Primary modifier key label: '⌘' on macOS, 'Ctrl' on Windows & Linux
  */
 export const modKey = isMac ? '⌘' : 'Ctrl';
 
 /**
- * Primary modifier key with connector: '⌘' on macOS, 'Ctrl+' on Windows/Linux
+ * Primary modifier key with connector: '⌘' on macOS, 'Ctrl+' on Windows & Linux
  */
 export const modPrefix = isMac ? '⌘' : 'Ctrl+';
 
