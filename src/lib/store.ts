@@ -174,6 +174,7 @@ interface SynapseState {
   deleteTopicFromMilestone: (roadmapId: string, milestoneId: string, topicId: string) => Promise<void>;
   deleteMilestoneFromRoadmap: (roadmapId: string, milestoneId: string) => Promise<void>;
   deleteRoadmap: (roadmapId: string) => Promise<void>;
+  updateRoadmap: (roadmapId: string, updates: Partial<Pick<RoadmapItem, 'title' | 'stack' | 'description'>>) => Promise<void>;
 
   // Project Ideas
   projectIdeas: ProjectIdea[];
@@ -502,6 +503,22 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       await deleteRoadmapFromDb(roadmapId).catch(() => {});
     }
     get().setHud("Yo‘l xaritasi o‘chirildi");
+  },
+
+  updateRoadmap: async (roadmapId, updates) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const updatedRd: RoadmapItem = {
+      ...rd,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud("Yo‘l xaritasi yangilandi ✓");
   },
 
   // Project Ideas initial

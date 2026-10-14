@@ -31,7 +31,14 @@ export function parseRoadmapMarkdown(markdown: string, fallbackTitle = 'Mening Y
     const h1Match = line.match(/^#\s+(.+)$/);
     if (h1Match && milestones.length === 0 && (!currentMilestone || currentMilestone.topics.length === 0)) {
       const candidateTitle = h1Match[1].replace(/^[0-9.]+\s*/, '').trim();
-      if (!candidateTitle.toLowerCase().startsWith('yo‘l xaritasi') && candidateTitle.length > 2) {
+      const lowerCandidate = candidateTitle.toLowerCase();
+      const isMetaHeader =
+        lowerCandidate.startsWith('yo‘l xaritasi') ||
+        lowerCandidate.startsWith('finish:') ||
+        lowerCandidate.startsWith('start:') ||
+        lowerCandidate.startsWith('muddat:') ||
+        lowerCandidate.startsWith('deadline:');
+      if (!isMetaHeader && candidateTitle.length > 2) {
         title = candidateTitle;
         continue;
       }

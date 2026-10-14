@@ -14,6 +14,7 @@ import {
   X,
   PlusCircle,
   FolderUp,
+  Pencil,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { analyzeLearningLog } from '../lib/ai';
@@ -48,6 +49,7 @@ export default function RoadmapWorkspace() {
     deleteTopicFromMilestone,
     deleteMilestoneFromRoadmap,
     deleteRoadmap,
+    updateRoadmap,
     setHud,
   } = useSynapse();
 
@@ -59,6 +61,12 @@ export default function RoadmapWorkspace() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditRoadmapModal, setShowEditRoadmapModal] = useState(false);
+
+  // Edit roadmap modal state
+  const [editRoadmapTitle, setEditRoadmapTitle] = useState('');
+  const [editRoadmapStack, setEditRoadmapStack] = useState('');
+  const [editRoadmapDesc, setEditRoadmapDesc] = useState('');
 
   // Form states for modals
   const [pasteTitle, setPasteTitle] = useState('');
@@ -205,6 +213,27 @@ export default function RoadmapWorkspace() {
     setShowDeleteConfirm(false);
   };
 
+  // Open Edit Roadmap Modal
+  const handleOpenEditRoadmap = () => {
+    if (!currentRoadmap) return;
+    setEditRoadmapTitle(currentRoadmap.title);
+    setEditRoadmapStack(currentRoadmap.stack);
+    setEditRoadmapDesc(currentRoadmap.description);
+    setShowEditRoadmapModal(true);
+  };
+
+  // Save Edit Roadmap
+  const handleSaveEditRoadmap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentRoadmap || !editRoadmapTitle.trim()) return;
+    await updateRoadmap(currentRoadmap.id, {
+      title: editRoadmapTitle.trim(),
+      stack: editRoadmapStack.trim(),
+      description: editRoadmapDesc.trim(),
+    });
+    setShowEditRoadmapModal(false);
+  };
+
   // Submit daily learning check
   const handleSubmitDailyCheck = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,22 +290,17 @@ export default function RoadmapWorkspace() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              {roadmaps.length > 1 ? (
-                <select
-                  value={currentRoadmap?.id ?? ''}
-                  onChange={(e) => selectRoadmap(e.target.value)}
-                  className="rounded-lg border border-white/10 bg-black/60 px-2.5 py-1 text-[14px] font-bold text-white focus:outline-none"
+              <h1 className="text-[15px] font-bold text-white tracking-wide">
+                {currentRoadmap?.title || "Dasturchi Yo‘l Xaritasi"}
+              </h1>
+              {currentRoadmap && (
+                <button
+                  onClick={handleOpenEditRoadmap}
+                  className="rounded-lg p-1 text-zinc-400 hover:text-amber-300 hover:bg-white/[0.06] transition"
+                  title="Yo‘l xaritasi nomini tahrirlash"
                 >
-                  {roadmaps.map((r) => (
-                    <option key={r.id} value={r.id} className="bg-[#181920] text-white">
-                      {r.title}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <h1 className="text-[15px] font-bold text-white tracking-wide">
-                  {currentRoadmap?.title || "Dasturchi Yo‘l Xaritasi"}
-                </h1>
+                  <Pencil size={12} />
+                </button>
               )}
               <span className="rounded-md bg-white/[0.07] px-2 py-0.5 font-mono text-[10.5px] text-amber-300">
                 Junior → Senior Track
@@ -380,6 +404,51 @@ export default function RoadmapWorkspace() {
           </select>
         </div>
       </div>
+
+      {/* ── ROADMAPS SWITCHER TAB BAR (ALL UPLOADED ROADMAPS) ── */}
+      {roadmaps.length > 0 && (
+        <div className="flex items-center gap-2 border-b border-white/[0.06] bg-[#0c0d12] px-6 py-2 overflow-x-auto scrollbar-thin shrink-0">
+          <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
+            <BookOpen size={12} className="text-zinc-500" />
+            Yo‘l Xaritalari ({roadmaps.length}):
+          </span>
+          {roadmaps.map((r) => {
+            const isSelected = r.id === currentRoadmap?.id;
+            const total = r.milestones.reduce((acc, m) => acc + m.topics.length, 0);
+            const done = r.milestones.reduce((acc, m) => acc + m.topics.filter((t) => t.done).length, 0);
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            return (
+              <button
+                key={r.id}
+                onClick={() => selectRoadmap(r.id)}
+                className={`group flex items-center gap-2 rounded-xl px-3 py-1.5 text-[12px] font-medium transition border shrink-0 ${
+                  isSelected
+                    ? 'border-amber-500/50 bg-amber-500/15 text-white font-semibold shadow-sm'
+                    : 'border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                }`}
+              >
+                <TrendingUp size={13} className={isSelected ? 'text-amber-400' : 'text-zinc-500'} />
+                <span className="max-w-[170px] truncate">{r.title}</span>
+                <span
+                  className={`text-[10px] font-mono rounded-md px-1.5 py-0.2 ${
+                    isSelected ? 'bg-amber-500/25 text-amber-300' : 'bg-white/[0.04] text-zinc-500'
+                  }`}
+                >
+                  {pct}% ({done}/{total})
+                </span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1 rounded-xl border border-dashed border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 hover:text-white hover:border-white/20 transition shrink-0"
+            title="Yangi .md yo‘l xaritasi yuklash"
+          >
+            <Plus size={12} />
+            <span>+ Yangi .md</span>
+          </button>
+        </div>
+      )}
 
       {/* Progress Bar strip (only if roadmap exists) */}
       {currentRoadmap && (
@@ -1090,6 +1159,86 @@ export default function RoadmapWorkspace() {
                 Ha, O‘chirish
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 5: EDIT ROADMAP TITLE & STACK ── */}
+      {showEditRoadmapModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#16171f] p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3 mb-4">
+              <h3 className="text-[15px] font-bold text-white flex items-center gap-2">
+                <Pencil size={16} className="text-amber-400" />
+                Yo‘l xaritasi ma’lumotlarini tahrirlash
+              </h3>
+              <button
+                onClick={() => setShowEditRoadmapModal(false)}
+                className="rounded-lg p-1 text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditRoadmap} className="space-y-4">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                  Nomi (Title)
+                </label>
+                <input
+                  type="text"
+                  value={editRoadmapTitle}
+                  onChange={(e) => setEditRoadmapTitle(e.target.value)}
+                  placeholder="Masalan: Python Backend Track yoki Vue 3"
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-amber-500 focus:outline-none"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                  Texnologiyalar steki (Stack)
+                </label>
+                <input
+                  type="text"
+                  value={editRoadmapStack}
+                  onChange={(e) => setEditRoadmapStack(e.target.value)}
+                  placeholder="Masalan: Spring Boot → Go → System Design"
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-amber-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                  Tavsif (Description)
+                </label>
+                <textarea
+                  rows={3}
+                  value={editRoadmapDesc}
+                  onChange={(e) => setEditRoadmapDesc(e.target.value)}
+                  placeholder="Ushbu yo‘l xaritasi haqida qisqacha ma’lumot..."
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[12.5px] text-white focus:border-amber-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowEditRoadmapModal(false)}
+                  className="rounded-xl px-4 py-2 text-[12px] font-medium text-zinc-400 hover:text-white"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-600 hover:bg-amber-500 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg transition"
+                >
+                  Saqlash
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
