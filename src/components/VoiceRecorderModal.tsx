@@ -11,9 +11,30 @@ import type { Task } from '../lib/types';
 type Mode = 'task' | 'append';
 type Engine = 'web' | 'rubai';
 
-export default function VoiceRecorderModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { selectedTaskId, addTask, updateNote, dbMode, setHud } = useSynapse();
-  const [mode, setMode] = useState<Mode>('task');
+export default function VoiceRecorderModal({
+  open,
+  onClose,
+  targetNoteDocId,
+  onAppendText,
+}: {
+  open: boolean;
+  onClose: () => void;
+  targetNoteDocId?: string;
+  onAppendText?: (text: string) => void;
+}) {
+  const {
+    selectedTaskId,
+    selectedNoteId,
+    notesDocs,
+    addTask,
+    updateNote,
+    updateNoteDoc,
+    createNote,
+    dbMode,
+    setHud,
+    mainView,
+  } = useSynapse();
+  const [mode, setMode] = useState<Mode>(targetNoteDocId || mainView === 'notes' ? 'append' : 'task');
   const [engine, setEngine] = useState<Engine>('rubai');
   const [stt, setStt] = useState<SttStatus | null>(null);
   const [transcribing, setTranscribing] = useState(false);
@@ -157,13 +178,39 @@ export default function VoiceRecorderModal({ open, onClose }: { open: boolean; o
           formattedBy = r.source === 'fallback' ? '' : ` · ${SOURCE_LABELS[r.source]}${r.model ? ` ${r.model}` : ''}`;
         }
       }
-      if (mode === 'append' && selectedTaskId) {
-        const note = (useSynapse.getState().notes[selectedTaskId] ?? '') + "\n\n---\n### Ovozli qayd\n" + structured;
-        updateNote(selectedTaskId, note);
-        if (dbMode === 'sqlite') {
-          await upsertResolution(selectedTaskId, note, JSON.stringify(useSynapse.getState().checklists[selectedTaskId] ?? []));
+      if (onAppendText) {
+        onAppendText(structured);
+        setHud("Ovozli qayd matnga qo‘shildi ✓");
+      } else if (mode === 'append') {
+        const docId = targetNoteDocId || (mainView === 'notes' ? selectedNoteId : null);
+        if (docId) {
+          const doc = notesDocs.find((d) => d.id === docId);
+          if (doc) {
+            const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const block = `\n\n---\n> 🎙️ **Ovozli eslatma (${nowTime}):**\n> ${structured.replace(/\n/g, '\n> ')}\n`;
+            await updateNoteDoc(doc.id, { content: doc.content + block });
+            setHud(`"${doc.title}" hujjatiga ovozli eslatma qo‘shildi ✓`);
+          } else {
+            setError("Hujjat topilmadi");
+            return;
+          }
+        } else if (selectedTaskId) {
+          const note = (useSynapse.getState().notes[selectedTaskId] ?? '') + "\n\n---\n### 🎙️ Ovozli qayd\n" + structured;
+          updateNote(selectedTaskId, note);
+          if (dbMode === 'sqlite') {
+            await upsertResolution(selectedTaskId, note, JSON.stringify(useSynapse.getState().checklists[selectedTaskId] ?? []));
+          }
+          setHud("Ovozli qayd vazifa matniga qo'shildi");
+        } else {
+          // If no task and no note doc is selected, create a new Notion Note document!
+          const title = structured.split('\n')[0].slice(0, 50) || 'Ovozli Qayd';
+          const newNoteId = await createNote(title);
+          const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          await updateNoteDoc(newNoteId, {
+            content: `# ${title}\n\n> 🎙️ **Ovozli eslatma (${nowTime}):**\n\n${structured}`,
+          });
+          setHud(`"${title}" nomli yangi qayd yaratildi ✓`);
         }
-        setHud("Ovozli qayd vazifa matniga qo'shildi");
       } else {
         const title = structured.split('\n')[0].slice(0, 80) || 'Ovozli qayd';
         const now = new Date().toISOString();

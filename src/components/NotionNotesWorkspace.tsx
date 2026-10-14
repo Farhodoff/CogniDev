@@ -16,7 +16,9 @@ import {
   ListTodo,
   Quote,
   Minus,
+  Mic,
 } from 'lucide-react';
+import VoiceRecorderModal from './VoiceRecorderModal';
 import { useSynapse } from '../lib/store';
 import { enhanceNoteWithAi } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
@@ -44,6 +46,7 @@ export default function NotionNotesWorkspace() {
   const [newTagInput, setNewTagInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -356,6 +359,14 @@ export default function NotionNotesWorkspace() {
               </button>
 
               <button
+                onClick={() => setVoiceModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11.5px] font-medium text-rose-300 hover:bg-rose-500/20 transition"
+                title="Ovoz bilan matn yozish (Voice Note)"
+              >
+                <Mic size={12} /> Ovozli qayd
+              </button>
+
+              <button
                 onClick={handleExtractTasks}
                 title="Qayddagi checklist bandlarini Oqimga vazifa qilib ko'chirish"
                 className="flex items-center gap-1 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
@@ -397,6 +408,13 @@ export default function NotionNotesWorkspace() {
               className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] hover:bg-white/10 text-sky-300 transition"
             >
               <Code2 size={11} /> Kod bloki
+            </button>
+            <button
+              onClick={() => setVoiceModalOpen(true)}
+              className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] hover:bg-white/10 text-rose-300 transition"
+              title="Ovozli eslatma yozish"
+            >
+              <Mic size={11} /> Ovozli matn
             </button>
             <button
               onClick={() => insertBlock('- [ ] Yangi vazifa / tekshirish bandi')}
@@ -530,6 +548,15 @@ export default function NotionNotesWorkspace() {
             + Yangi sahifa ochish
           </button>
         </div>
+      )}
+
+      {/* Voice Recorder Modal for Notion Document */}
+      {voiceModalOpen && (
+        <VoiceRecorderModal
+          open={voiceModalOpen}
+          onClose={() => setVoiceModalOpen(false)}
+          targetNoteDocId={currentNote?.id}
+        />
       )}
     </div>
   );
