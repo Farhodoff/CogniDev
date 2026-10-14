@@ -11,7 +11,6 @@ import {
   Send,
   Paperclip,
   ChevronRight,
-  MoreHorizontal,
   ChevronLeft,
   Calendar as CalendarIcon,
   CheckSquare,
@@ -21,16 +20,34 @@ import {
   Folder,
   Edit2,
   Flame,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
+import type { ScheduleBlock } from '../lib/types';
 
 export default function DashboardWorkspace() {
   const {
+    tasks,
+    updateTaskStatus,
+    deleteTask,
     userProfile,
     notesDocs,
     activeProjects,
+    addActiveProject,
+    updateProjectProgress,
+    deleteActiveProject,
     goals,
+    addGoal,
+    updateGoalProgress,
+    deleteGoal,
+    scheduleBlocks,
+    addScheduleBlock,
+    toggleScheduleBlockDone,
+    deleteScheduleBlock,
+    roadmaps,
+    toggleTopicDone,
     setTaskModal,
     setMainView,
     selectNote,
@@ -40,172 +57,179 @@ export default function DashboardWorkspace() {
   } = useSynapse();
 
   const [taskCategoryFilter, setTaskCategoryFilter] = useState<'all' | 'work' | 'study' | 'personal' | 'other'>('all');
-  const [selectedRoadmapStack, setSelectedRoadmapStack] = useState<'japanese' | 'django' | 'ai' | 'dsa'>('japanese');
+  const [selectedRoadmapIndex, setSelectedRoadmapIndex] = useState(0);
   const [aiInputText, setAiInputText] = useState('');
   const [isAiSending, setIsAiSending] = useState(false);
   const [aiAssistantReply, setAiAssistantReply] = useState<string | null>(null);
+
+  // Modals for adding items directly from Dashboard
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState('');
+  const [newProjectSubtitle, setNewProjectSubtitle] = useState('');
+  const [newProjectProgress, setNewProjectProgress] = useState(50);
+  const [newProjectColor, setNewProjectColor] = useState('#3b82f6');
+
+  const [showAddGoalModal, setShowAddGoalModal] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState('');
+  const [newGoalCategory, setNewGoalCategory] = useState('Career');
+  const [newGoalProgress, setNewGoalProgress] = useState(30);
+
+  const [showAddBlockModal, setShowAddBlockModal] = useState(false);
+  const [newBlockTime, setNewBlockTime] = useState('14:00 - 15:30');
+  const [newBlockTitle, setNewBlockTitle] = useState('');
+  const [newBlockCategory, setNewBlockCategory] = useState<'work' | 'study' | 'personal' | 'health'>('work');
+  const [newBlockTag, setNewBlockTag] = useState('Work');
 
   // Time & Greeting
   const [greeting] = useState(() => {
     const h = new Date().getHours();
     return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   });
-  const todayDateStr = 'Tue, Oct 13, 2026';
+  const [todayDateStr] = useState(() =>
+    new Date().toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  );
 
-  // Tasks with dynamic or seeded data
-  const todayTasksList = [
-    {
-      id: 'task-1',
-      title: 'Django final exam preparation',
-      tag: 'Study',
-      tagColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
-      time: '09:00 - 11:00',
-      category: 'study',
-      completed: true,
-    },
-    {
-      id: 'task-2',
-      title: 'N2 Grammar (〜ものの、〜わけではない)',
-      tag: 'Japanese',
-      tagColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
-      time: '11:00 - 12:00',
-      category: 'study',
-      completed: false,
-    },
-    {
-      id: 'task-3',
-      title: 'Nihongo Talk — Scheduler bug fix',
-      tag: 'Work',
-      tagColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-      time: '13:00 - 15:00',
-      category: 'work',
-      completed: false,
-    },
-    {
-      id: 'task-4',
-      title: 'Gym (Chest + Triceps)',
-      tag: 'Health',
-      tagColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-      time: '16:00 - 17:30',
-      category: 'personal',
-      completed: false,
-    },
-    {
-      id: 'task-5',
-      title: 'Read 1 chapter (Algorithms)',
-      tag: 'Study',
-      tagColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
-      time: '20:00 - 21:00',
-      category: 'study',
-      completed: false,
-    },
-    {
-      id: 'task-6',
-      title: 'Plan tomorrow',
-      tag: 'Personal',
-      tagColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
-      time: '21:30',
-      category: 'personal',
-      completed: false,
-    },
-  ];
+  // Filter tasks based on tags and category
+  const isWorkTask = (t: { tags: string[] }) =>
+    t.tags?.some((x) => ['work', 'backend', 'bugfix', 'api', 'dev', 'deploy'].includes(x.toLowerCase()));
+  const isStudyTask = (t: { tags: string[] }) =>
+    t.tags?.some((x) => ['study', 'japanese', 'grammar', 'dsa', 'algo', 'read', 'learn', 'book'].includes(x.toLowerCase()));
+  const isPersonalTask = (t: { tags: string[] }) =>
+    t.tags?.some((x) => ['personal', 'health', 'sport', 'gym', 'fitness', 'run'].includes(x.toLowerCase()));
 
-  const [localTasks, setLocalTasks] = useState(todayTasksList);
+  const workTasksCount = tasks.filter(isWorkTask).length;
+  const studyTasksCount = tasks.filter(isStudyTask).length;
+  const personalTasksCount = tasks.filter(isPersonalTask).length;
+  const otherTasksCount = tasks.filter((t) => !isWorkTask(t) && !isStudyTask(t) && !isPersonalTask(t)).length;
 
-  const toggleTask = (id: string) => {
-    setLocalTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
-    );
-  };
-
-  const filteredTasks = localTasks.filter((t) => {
+  const filteredTasks = tasks.filter((t) => {
     if (taskCategoryFilter === 'all') return true;
-    if (taskCategoryFilter === 'work') return t.category === 'work';
-    if (taskCategoryFilter === 'study') return t.category === 'study';
-    if (taskCategoryFilter === 'personal') return t.category === 'personal';
-    return t.category === 'other';
+    if (taskCategoryFilter === 'work') return isWorkTask(t);
+    if (taskCategoryFilter === 'study') return isStudyTask(t);
+    if (taskCategoryFilter === 'personal') return isPersonalTask(t);
+    return !isWorkTask(t) && !isStudyTask(t) && !isPersonalTask(t);
   });
 
-  // Handle AI quick prompt
-  const handleQuickPrompt = async (promptText: string) => {
+  // Dynamic real metrics
+  const completedTasksCount = tasks.filter((t) => t.status === 'completed').length;
+  const completedStudyCount = tasks.filter((t) => isStudyTask(t) && t.status === 'completed').length;
+  const completedWorkCount = tasks.filter((t) => isWorkTask(t) && t.status === 'completed').length;
+  const completedGoalsCount = goals.filter((g) => g.progress >= 100).length;
+
+  // Real Weekly Progress calculation
+  const studyTargetHours = 7;
+  const studyActualHours = Math.min(studyTargetHours, Math.round(completedStudyCount * 1.5 * 10) / 10);
+  const workTargetHours = 25;
+  const workActualHours = Math.min(workTargetHours, Math.round(completedWorkCount * 2.5 * 10) / 10);
+  const healthCompletedCount = tasks.filter((t) => t.tags?.some((x) => ['health', 'sport', 'gym'].includes(x.toLowerCase())) && t.status === 'completed').length;
+  const personalCompletedCount = tasks.filter((t) => isPersonalTask(t) && t.status === 'completed').length;
+
+  // Active Roadmap
+  const currentRoadmap = roadmaps[selectedRoadmapIndex] || roadmaps[0];
+  const roadmapNodes = currentRoadmap
+    ? currentRoadmap.milestones.flatMap((m) =>
+        m.topics.map((t) => ({
+          id: t.id,
+          label: t.title,
+          status: t.done ? 'done' : 'pending',
+          milestoneId: m.id,
+          roadmapId: currentRoadmap.id,
+        }))
+      )
+    : [];
+
+  // Handle AI with real context
+  const handleAiQuery = async (promptText: string) => {
+    if (!promptText.trim() || isAiSending) return;
     setAiInputText(promptText);
     setIsAiSending(true);
+
+    const contextData = `
+Farhod's current live data:
+- Active tasks (${tasks.length} total): ${tasks.slice(0, 8).map((t) => `[${t.status}] ${t.title} (${t.tags.join(', ')})`).join('; ') || 'No tasks yet'}
+- Notes (${notesDocs.length} total): ${notesDocs.slice(0, 5).map((n) => n.title).join(', ') || 'No notes yet'}
+- Goals (${goals.length} total): ${goals.map((g) => `${g.title} (${g.progress}%)`).join(', ') || 'No goals yet'}
+- Projects (${activeProjects.length} total): ${activeProjects.map((p) => `${p.title} (${p.progress}%)`).join(', ') || 'No active projects'}
+- Schedule Blocks (${scheduleBlocks.length}): ${scheduleBlocks.map((b) => `${b.time_range} - ${b.title}`).join(', ') || 'No schedule blocks for today'}
+    `.trim();
+
     try {
       const response = await callAi(
         promptText,
-        "You are Farhod's personal macOS AI Assistant in MySpace. Answer clearly and concisely in Uzbek.",
+        `You are Farhod's personal AI Assistant in MySpace desktop. Answer concisely in Uzbek based on his real live data:\n${contextData}`
       );
       setAiAssistantReply(response.text);
     } catch {
       setAiAssistantReply(
-        promptText.includes('task')
-          ? 'Bugun rejalashtirilgan 6 ta vazifangiz bor: Django imtihoni, N2 grammatika, Nihongo Talk cron scheduler va kechki sport.'
-          : 'Rejangiz bo‘yicha haftalik o‘sish 78% ga yetdi. JLPT N2 va Backend bo‘yicha maqsadlaringiz o‘z vaqtida bajarilmoqda!'
+        tasks.length > 0
+          ? `Hozirda profilingizda ${tasks.length} ta faol vazifa mavjud: ${tasks.slice(0, 3).map((t) => t.title).join(', ')}.`
+          : `Hozircha vazifalar ro'yxati bo'sh. "+ Quick Add" orqali birinchi vazifangizni qo'shishingiz mumkin.`
       );
     } finally {
       setIsAiSending(false);
     }
   };
 
-  const handleAiSubmit = async (e: React.FormEvent) => {
+  const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!aiInputText.trim() || isAiSending) return;
-    const text = aiInputText.trim();
-    setIsAiSending(true);
-    try {
-      const response = await callAi(
-        text,
-        "You are Farhod's personal macOS AI Assistant in MySpace. Answer clearly and concisely in Uzbek.",
-      );
-      setAiAssistantReply(response.text);
-    } catch {
-      setAiAssistantReply(`"${text}" bo'yicha tahlil yakunlandi. Barcha ma'lumotlar profilingizga moslashtirildi.`);
-    } finally {
-      setIsAiSending(false);
-    }
+    if (!newProjectTitle.trim()) return;
+    addActiveProject({
+      title: newProjectTitle.trim(),
+      subtitle: newProjectSubtitle.trim() || 'Software Development Project',
+      progress: Math.min(100, Math.max(0, Number(newProjectProgress) || 0)),
+      color: newProjectColor,
+    });
+    setNewProjectTitle('');
+    setNewProjectSubtitle('');
+    setShowAddProjectModal(false);
+    setHud("Yangi loyiha muvaffaqiyatli qo'shildi!");
   };
 
-  // Roadmap Nodes data based on selected stack
-  const roadmapNodes = {
-    japanese: [
-      { id: '1', label: 'N3 Review', status: 'done' },
-      { id: '2', label: 'Grammar', status: 'done' },
-      { id: '3', label: 'Vocabulary', status: 'done' },
-      { id: '4', label: 'Reading', status: 'current' },
-      { id: '5', label: 'Listening', status: 'pending' },
-      { id: '6', label: 'Mock Test', status: 'pending' },
-    ],
-    django: [
-      { id: '1', label: 'ORM & Models', status: 'done' },
-      { id: '2', label: 'DRF & APIs', status: 'done' },
-      { id: '3', label: 'Auth & JWT', status: 'done' },
-      { id: '4', label: 'Celery & Redis', status: 'current' },
-      { id: '5', label: 'Docker & CI', status: 'pending' },
-      { id: '6', label: 'Production', status: 'pending' },
-    ],
-    ai: [
-      { id: '1', label: 'Python & Math', status: 'done' },
-      { id: '2', label: 'Prompt Eng', status: 'done' },
-      { id: '3', label: 'RAG & VectorDB', status: 'done' },
-      { id: '4', label: 'Agents & Tools', status: 'current' },
-      { id: '5', label: 'Fine-tuning', status: 'pending' },
-      { id: '6', label: 'Deployment', status: 'pending' },
-    ],
-    dsa: [
-      { id: '1', label: 'Arrays & Strings', status: 'done' },
-      { id: '2', label: 'Linked Lists', status: 'done' },
-      { id: '3', label: 'Trees & Graphs', status: 'done' },
-      { id: '4', label: 'DP & Recursion', status: 'current' },
-      { id: '5', label: 'System Design', status: 'pending' },
-      { id: '6', label: 'Contests', status: 'pending' },
-    ],
-  }[selectedRoadmapStack];
+  const handleCreateGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGoalTitle.trim()) return;
+    addGoal({
+      title: newGoalTitle.trim(),
+      category: newGoalCategory,
+      progress: Math.min(100, Math.max(0, Number(newGoalProgress) || 0)),
+    });
+    setNewGoalTitle('');
+    setShowAddGoalModal(false);
+    setHud("Yangi maqsad qo'shildi!");
+  };
+
+  const handleCreateBlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBlockTitle.trim()) return;
+    const colors: Record<ScheduleBlock['category'], string> = {
+      work: '#3b82f6',
+      study: '#a855f7',
+      personal: '#f59e0b',
+      health: '#10b981',
+    };
+    addScheduleBlock({
+      time_range: newBlockTime.trim(),
+      title: newBlockTitle.trim(),
+      category: newBlockCategory,
+      tag: newBlockTag.trim() || 'General',
+      color: colors[newBlockCategory],
+      done: false,
+    });
+    setNewBlockTitle('');
+    setShowAddBlockModal(false);
+    setHud("Vaqt bloki taqvimga qo'shildi!");
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#0a0b0f] p-4 text-zinc-100 select-none scrollbar-thin">
       <div className="mx-auto max-w-[1550px] space-y-4">
 
-        {/* 12-Column Responsive Layout */}
+        {/* 12-Column Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
           {/* LEFT 8 COLUMNS: Main Cockpit */}
@@ -220,10 +244,8 @@ export default function DashboardWorkspace() {
                 backgroundPosition: 'center 40%',
               }}
             >
-              {/* Subtle dark gradient overlay for text readability */}
               <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/30 pointer-events-none" />
 
-              {/* Left Quote & Greeting */}
               <div className="relative z-10 space-y-1.5 max-w-md">
                 <h1 className="text-2xl font-bold tracking-tight text-white drop-shadow-md">
                   {greeting}, {userProfile.full_name || 'Farhod'} 👋
@@ -238,7 +260,6 @@ export default function DashboardWorkspace() {
                 </div>
               </div>
 
-              {/* Right Translucent Card */}
               <div className="relative z-10 hidden sm:block rounded-xl border border-white/15 bg-black/45 backdrop-blur-md px-4 py-3 max-w-[240px] text-right shadow-lg">
                 <p className="text-[12px] font-semibold text-zinc-200">
                   {todayDateStr}
@@ -252,76 +273,69 @@ export default function DashboardWorkspace() {
               </div>
             </div>
 
-            {/* 2. 4 Metric Cards */}
+            {/* 2. 4 Metric Cards (Real Dynamic Metrics) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {/* Metric 1 */}
               <div className="flex items-center gap-3.5 rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-3.5 shadow-sm">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/15 text-purple-400">
                   <CheckSquare size={18} />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-white tracking-tight">12</p>
+                  <p className="text-xl font-bold text-white tracking-tight">{completedTasksCount}</p>
                   <p className="text-[11px] text-zinc-400">Tasks done this week</p>
                 </div>
               </div>
 
-              {/* Metric 2 */}
               <div className="flex items-center gap-3.5 rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-3.5 shadow-sm">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400">
                   <BookOpen size={18} />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-white tracking-tight">8h 30m</p>
+                  <p className="text-xl font-bold text-white tracking-tight">{studyActualHours}h</p>
                   <p className="text-[11px] text-zinc-400">Study time this week</p>
                 </div>
               </div>
 
-              {/* Metric 3 */}
               <div className="flex items-center gap-3.5 rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-3.5 shadow-sm">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400">
                   <Laptop size={18} />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-white tracking-tight">18h 15m</p>
+                  <p className="text-xl font-bold text-white tracking-tight">{workActualHours}h</p>
                   <p className="text-[11px] text-zinc-400">Work time this week</p>
                 </div>
               </div>
 
-              {/* Metric 4 */}
               <div className="flex items-center gap-3.5 rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-3.5 shadow-sm">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-400">
                   <Target size={18} />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-white tracking-tight">3 / 5</p>
+                  <p className="text-xl font-bold text-white tracking-tight">{completedGoalsCount} / {goals.length || 0}</p>
                   <p className="text-[11px] text-zinc-400">Goals progress this week</p>
                 </div>
               </div>
             </div>
 
-            {/* 3. Today's Tasks */}
+            {/* 3. Today's Tasks (Real User Tasks) */}
             <div className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3">
-              {/* Header */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <CalendarIcon size={16} className="text-zinc-400" />
                   <h2 className="text-[14px] font-bold text-white">Today's Tasks</h2>
                 </div>
 
-                {/* Filter tabs */}
+                {/* Filter tabs with real dynamic counts */}
                 <div className="flex items-center gap-1">
-                  {(
-                    [
-                      { id: 'all', label: 'All 7' },
-                      { id: 'work', label: 'Work 2' },
-                      { id: 'study', label: 'Study 2' },
-                      { id: 'personal', label: 'Personal 2' },
-                      { id: 'other', label: 'Other 1' },
-                    ] as const
-                  ).map((tab) => (
+                  {[
+                    { id: 'all', label: `All ${tasks.length}` },
+                    { id: 'work', label: `Work ${workTasksCount}` },
+                    { id: 'study', label: `Study ${studyTasksCount}` },
+                    { id: 'personal', label: `Personal ${personalTasksCount}` },
+                    { id: 'other', label: `Other ${otherTasksCount}` },
+                  ].map((tab) => (
                     <button
                       key={tab.id}
-                      onClick={() => setTaskCategoryFilter(tab.id)}
+                      onClick={() => setTaskCategoryFilter(tab.id as any)}
                       className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                         taskCategoryFilter === tab.id
                           ? 'bg-blue-600/20 text-blue-300 font-semibold border border-blue-500/30'
@@ -333,10 +347,9 @@ export default function DashboardWorkspace() {
                   ))}
                 </div>
 
-                {/* + Add Task button */}
                 <button
                   onClick={() => setTaskModal(true)}
-                  className="flex items-center gap-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 px-2.5 py-1 text-[11px] font-medium text-zinc-200 transition"
+                  className="flex items-center gap-1 rounded-lg bg-blue-600 hover:bg-blue-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm transition"
                 >
                   <Plus size={12} />
                   <span>Add Task</span>
@@ -344,46 +357,68 @@ export default function DashboardWorkspace() {
               </div>
 
               {/* Task Items */}
-              <div className="divide-y divide-white/[0.04]">
-                {filteredTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 py-2.5 hover:bg-white/[0.02] px-2 rounded-xl transition group"
+              {filteredTasks.length === 0 ? (
+                <div className="py-8 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                  <p className="text-[13px] text-zinc-400">Hozircha hech qanday vazifa yo‘q.</p>
+                  <p className="text-[11px] text-zinc-600 mt-1">Yangi vazifa kiritish uchun yuqoridagi tugmani bosing yoki ⌘N bosing.</p>
+                  <button
+                    onClick={() => setTaskModal(true)}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/10 px-3 py-1.5 text-[11.5px] font-medium text-white transition"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <button
-                        onClick={() => toggleTask(t.id)}
-                        className="text-zinc-400 hover:text-blue-400 transition shrink-0"
+                    <Plus size={13} />
+                    <span>Yangi Vazifa Qo‘shish</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {filteredTasks.map((t) => {
+                    const isDone = t.status === 'completed';
+                    const mainTag = t.tags?.[0] || 'Task';
+                    return (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between gap-3 py-2.5 hover:bg-white/[0.02] px-2 rounded-xl transition group"
                       >
-                        {t.completed ? (
-                          <CheckCircle2 size={17} className="text-blue-400 fill-blue-500/20" />
-                        ) : (
-                          <Circle size={17} className="text-zinc-500" />
-                        )}
-                      </button>
-                      <span
-                        className={`text-[12.5px] truncate font-medium ${
-                          t.completed ? 'line-through text-zinc-500' : 'text-zinc-200'
-                        }`}
-                      >
-                        {t.title}
-                      </span>
-                    </div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <button
+                            onClick={() => updateTaskStatus(t.id, isDone ? 'active' : 'completed')}
+                            className="text-zinc-400 hover:text-blue-400 transition shrink-0"
+                          >
+                            {isDone ? (
+                              <CheckCircle2 size={17} className="text-blue-400 fill-blue-500/20" />
+                            ) : (
+                              <Circle size={17} className="text-zinc-500" />
+                            )}
+                          </button>
+                          <span
+                            className={`text-[12.5px] truncate font-medium ${
+                              isDone ? 'line-through text-zinc-500' : 'text-zinc-200'
+                            }`}
+                          >
+                            {t.title}
+                          </span>
+                        </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${t.tagColor}`}>
-                        {t.tag}
-                      </span>
-                      <span className="font-mono text-[11px] text-zinc-400 hidden sm:inline-block">
-                        {t.time}
-                      </span>
-                      <button className="text-zinc-500 hover:text-zinc-300 p-1">
-                        <MoreHorizontal size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="rounded-md bg-white/[0.06] border border-white/[0.08] px-2 py-0.5 text-[10px] font-medium text-zinc-300">
+                            {mainTag}
+                          </span>
+                          <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline-block">
+                            {t.priority}
+                          </span>
+                          <button
+                            onClick={() => deleteTask(t.id)}
+                            title="O'chirish"
+                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-1 transition"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* 4. Subgrid: Recent Notes & Active Projects */}
@@ -395,38 +430,66 @@ export default function DashboardWorkspace() {
                     <FileText size={15} className="text-amber-400" />
                     <h3 className="text-[13.5px] font-bold text-white">Recent Notes</h3>
                   </div>
-                  <button
-                    onClick={() => setMainView('notes')}
-                    className="text-[11px] text-blue-400 hover:underline font-medium"
-                  >
-                    View All
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {notesDocs.slice(0, 5).map((doc) => (
-                    <div
-                      key={doc.id}
-                      onClick={() => {
-                        selectNote(doc.id);
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        const id = await createNote('Yangi Qayd');
+                        selectNote(id);
                         setMainView('notes');
                       }}
-                      className="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-white/[0.04] cursor-pointer transition"
+                      className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[12px] font-semibold text-zinc-200 truncate">
-                          {doc.title}
-                        </p>
-                        <p className="text-[11px] text-zinc-500 truncate mt-0.5">
-                          {doc.content.replace(/^#+\s*/, '').slice(0, 55)}...
-                        </p>
-                      </div>
-                      <span className="text-[10px] text-zinc-500 font-mono shrink-0">
-                        Oct {new Date(doc.created_at).getDate()}
-                      </span>
-                    </div>
-                  ))}
+                      <Plus size={11} /> Qayd
+                    </button>
+                    <button
+                      onClick={() => setMainView('notes')}
+                      className="text-[11px] text-blue-400 hover:underline font-medium"
+                    >
+                      View All
+                    </button>
+                  </div>
                 </div>
+
+                {notesDocs.length === 0 ? (
+                  <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                    <p className="text-[12px] text-zinc-400">Hozircha qaydlar yo‘q.</p>
+                    <button
+                      onClick={async () => {
+                        const id = await createNote('Yangi Qayd');
+                        selectNote(id);
+                        setMainView('notes');
+                      }}
+                      className="mt-2 text-[11px] text-blue-400 hover:underline font-medium"
+                    >
+                      + Birinchi qaydingizni yozing
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {notesDocs.slice(0, 5).map((doc) => (
+                      <div
+                        key={doc.id}
+                        onClick={() => {
+                          selectNote(doc.id);
+                          setMainView('notes');
+                        }}
+                        className="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-white/[0.04] cursor-pointer transition"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-semibold text-zinc-200 truncate">
+                            {doc.title}
+                          </p>
+                          <p className="text-[11px] text-zinc-500 truncate mt-0.5">
+                            {doc.content.replace(/^#+\s*/, '').slice(0, 55)}...
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-zinc-500 font-mono shrink-0">
+                          {new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Active Projects */}
@@ -436,51 +499,81 @@ export default function DashboardWorkspace() {
                     <Folder size={15} className="text-blue-400" />
                     <h3 className="text-[13.5px] font-bold text-white">Active Projects</h3>
                   </div>
-                  <button
-                    onClick={() => setMainView('ideas')}
-                    className="text-[11px] text-blue-400 hover:underline font-medium"
-                  >
-                    View All
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowAddProjectModal(true)}
+                      className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"
+                    >
+                      <Plus size={11} /> Loyiha
+                    </button>
+                    <button
+                      onClick={() => setMainView('ideas')}
+                      className="text-[11px] text-blue-400 hover:underline font-medium"
+                    >
+                      View All
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-2.5">
-                  {activeProjects.map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={() => setMainView('ideas')}
-                      className="p-2 rounded-xl hover:bg-white/[0.04] cursor-pointer transition space-y-1.5"
+                {activeProjects.length === 0 ? (
+                  <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                    <p className="text-[12px] text-zinc-400">Hozircha loyihalar kiritilmagan.</p>
+                    <button
+                      onClick={() => setShowAddProjectModal(true)}
+                      className="mt-2 text-[11px] text-blue-400 hover:underline font-medium"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="h-2 w-2 rounded-full shrink-0"
-                            style={{ backgroundColor: p.color || '#3b82f6' }}
-                          />
-                          <span className="text-[12px] font-semibold text-zinc-200 truncate">
-                            {p.title}
-                          </span>
+                      + Loyiha qo‘shish
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {activeProjects.map((p) => (
+                      <div
+                        key={p.id}
+                        className="p-2 rounded-xl hover:bg-white/[0.04] transition space-y-1.5 group"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: p.color || '#3b82f6' }}
+                            />
+                            <span className="text-[12px] font-semibold text-zinc-200 truncate">
+                              {p.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => updateProjectProgress(p.id, Math.min(100, p.progress + 10))}
+                              title="+10% oshirish"
+                              className="text-[11px] font-bold text-zinc-300 font-mono hover:text-blue-400 transition"
+                            >
+                              {p.progress}%
+                            </button>
+                            <button
+                              onClick={() => deleteActiveProject(p.id)}
+                              className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5"
+                            >
+                              <X size={11} />
+                            </button>
+                          </div>
                         </div>
-                        <span className="text-[11px] font-bold text-zinc-300 font-mono">
-                          {p.progress}%
-                        </span>
+                        <p className="text-[10.5px] text-zinc-500 truncate pl-4">
+                          {p.subtitle}
+                        </p>
+                        <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${p.progress}%`,
+                              backgroundColor: p.color || '#3b82f6',
+                            }}
+                          />
+                        </div>
                       </div>
-                      <p className="text-[10.5px] text-zinc-500 truncate pl-4">
-                        {p.subtitle}
-                      </p>
-                      {/* Progress bar */}
-                      <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${p.progress}%`,
-                            backgroundColor: p.color || '#3b82f6',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -501,62 +594,65 @@ export default function DashboardWorkspace() {
                   </button>
                 </div>
 
-                {/* Stack Tabs */}
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
-                  {[
-                    { id: 'japanese', label: 'Japanese (N2)' },
-                    { id: 'django', label: 'Django/Backend' },
-                    { id: 'ai', label: 'AI & ML' },
-                    { id: 'dsa', label: 'DSA' },
-                  ].map((stack) => (
+                {roadmaps.length === 0 ? (
+                  <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                    <p className="text-[12px] text-zinc-400">Hozircha o‘rganish yo‘l xaritasi yo‘q.</p>
                     <button
-                      key={stack.id}
-                      onClick={() => setSelectedRoadmapStack(stack.id as any)}
-                      className={`rounded-lg px-2.5 py-1 text-[10.5px] font-semibold whitespace-nowrap transition ${
-                        selectedRoadmapStack === stack.id
-                          ? 'bg-blue-600/25 text-blue-300 border border-blue-500/30'
-                          : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-                      }`}
+                      onClick={() => setMainView('roadmap')}
+                      className="mt-2 text-[11px] text-blue-400 hover:underline font-medium"
                     >
-                      {stack.label}
+                      + Yo‘l xaritasi (Roadmap) yaratish
                     </button>
-                  ))}
-                </div>
-
-                {/* Timeline Connected Nodes */}
-                <div className="pt-3 pb-2 px-1">
-                  <div className="relative flex items-center justify-between">
-                    {/* Connecting line */}
-                    <div className="absolute left-2 right-2 top-2 h-0.5 bg-white/10 -z-0" />
-
-                    {roadmapNodes.map((node) => (
-                      <div key={node.id} className="relative z-10 flex flex-col items-center">
-                        <div
-                          className={`h-4 w-4 rounded-full flex items-center justify-center transition ${
-                            node.status === 'done'
-                              ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.8)]'
-                              : node.status === 'current'
-                              ? 'bg-blue-500 ring-4 ring-blue-500/20'
-                              : 'bg-zinc-800 border border-white/20'
-                          }`}
-                        >
-                          {node.status === 'done' && <span className="h-1.5 w-1.5 bg-white rounded-full" />}
-                        </div>
-                        <span
-                          className={`mt-2 text-[10px] whitespace-nowrap text-center ${
-                            node.status === 'current'
-                              ? 'text-blue-300 font-bold'
-                              : node.status === 'done'
-                              ? 'text-zinc-300'
-                              : 'text-zinc-600'
-                          }`}
-                        >
-                          {node.label}
-                        </span>
-                      </div>
-                    ))}
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
+                      {roadmaps.map((r, i) => (
+                        <button
+                          key={r.id}
+                          onClick={() => setSelectedRoadmapIndex(i)}
+                          className={`rounded-lg px-2.5 py-1 text-[10.5px] font-semibold whitespace-nowrap transition ${
+                            selectedRoadmapIndex === i
+                              ? 'bg-blue-600/25 text-blue-300 border border-blue-500/30'
+                              : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                          }`}
+                        >
+                          {r.title}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="pt-3 pb-2 px-1">
+                      <div className="relative flex items-center justify-between">
+                        <div className="absolute left-2 right-2 top-2 h-0.5 bg-white/10 -z-0" />
+                        {roadmapNodes.slice(0, 6).map((node) => (
+                          <div
+                            key={node.id}
+                            onClick={() => toggleTopicDone(node.roadmapId, node.milestoneId, node.id)}
+                            className="relative z-10 flex flex-col items-center cursor-pointer group"
+                          >
+                            <div
+                              className={`h-4 w-4 rounded-full flex items-center justify-center transition ${
+                                node.status === 'done'
+                                  ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.8)]'
+                                  : 'bg-zinc-800 border border-white/20 group-hover:border-blue-400'
+                              }`}
+                            >
+                              {node.status === 'done' && <span className="h-1.5 w-1.5 bg-white rounded-full" />}
+                            </div>
+                            <span
+                              className={`mt-2 text-[10px] whitespace-nowrap text-center ${
+                                node.status === 'done' ? 'text-zinc-300' : 'text-zinc-600'
+                              }`}
+                            >
+                              {node.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Goals */}
@@ -566,34 +662,66 @@ export default function DashboardWorkspace() {
                     <Target size={15} className="text-rose-400" />
                     <h3 className="text-[13.5px] font-bold text-white">Goals</h3>
                   </div>
-                  <button
-                    onClick={() => setMainView('roadmap')}
-                    className="text-[11px] text-blue-400 hover:underline font-medium"
-                  >
-                    View All
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowAddGoalModal(true)}
+                      className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"
+                    >
+                      <Plus size={11} /> Maqsad
+                    </button>
+                    <button
+                      onClick={() => setMainView('roadmap')}
+                      className="text-[11px] text-blue-400 hover:underline font-medium"
+                    >
+                      View All
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {goals.map((g) => (
-                    <div key={g.id} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11.5px]">
-                        <span className="font-semibold text-zinc-200 truncate">
-                          {g.title}
-                        </span>
-                        <span className="font-mono text-zinc-400 font-bold">
-                          {g.progress}%
-                        </span>
+                {goals.length === 0 ? (
+                  <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                    <p className="text-[12px] text-zinc-400">Hozircha maqsadlar yo‘q.</p>
+                    <button
+                      onClick={() => setShowAddGoalModal(true)}
+                      className="mt-2 text-[11px] text-blue-400 hover:underline font-medium"
+                    >
+                      + Maqsad qo‘shish
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {goals.map((g) => (
+                      <div key={g.id} className="space-y-1.5 group">
+                        <div className="flex items-center justify-between text-[11.5px]">
+                          <span className="font-semibold text-zinc-200 truncate">
+                            {g.title}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => updateGoalProgress(g.id, Math.min(100, g.progress + 10))}
+                              title="+10% qo'shish"
+                              className="font-mono text-zinc-400 hover:text-purple-300 font-bold"
+                            >
+                              {g.progress}%
+                            </button>
+                            <button
+                              onClick={() => deleteGoal(g.id)}
+                              className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5"
+                            >
+                              <X size={11} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                            style={{ width: `${g.progress}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-purple-500 rounded-full transition-all duration-500"
-                          style={{ width: `${g.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -602,7 +730,7 @@ export default function DashboardWorkspace() {
           {/* RIGHT 4 COLUMNS: AI Assistant, Weekly Progress, Calendar, Quick Capture */}
           <div className="lg:col-span-4 space-y-4">
 
-            {/* 1. Integrated AI Assistant Card */}
+            {/* 1. Integrated AI Assistant Card (Live Context) */}
             <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/95 p-4 shadow-md space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -618,7 +746,6 @@ export default function DashboardWorkspace() {
                 </button>
               </div>
 
-              {/* Greeting Bubble */}
               <div className="rounded-xl bg-purple-600/10 border border-purple-500/20 p-2.5 text-[12px] text-purple-200">
                 {aiAssistantReply || 'Bugun qanday yordam bera olaman?'}
               </div>
@@ -626,26 +753,14 @@ export default function DashboardWorkspace() {
               {/* Suggested Prompt Chips */}
               <div className="space-y-1.5">
                 {[
-                  {
-                    icon: '📋',
-                    text: "Mening bugungi tasklarimni ko'rsat",
-                  },
-                  {
-                    icon: '📊',
-                    text: "O'tgan haftaning qisqa hisobotini ber",
-                  },
-                  {
-                    icon: '🇯🇵',
-                    text: "JLPT N2 uchun o'quv reja tavsiya qil",
-                  },
-                  {
-                    icon: '💡',
-                    text: "Yangi loyiha g'oyalarini aniqla",
-                  },
+                  { icon: '📋', text: "Mening bugungi tasklarimni ko'rsat" },
+                  { icon: '📊', text: "Haftalik natijalarim qanday?" },
+                  { icon: '🎯', text: "Maqsadlarim bo'yicha maslahat ber" },
+                  { icon: '💡', text: "Yangi g'oyalarni rejalashtir" },
                 ].map((chip) => (
                   <button
                     key={chip.text}
-                    onClick={() => handleQuickPrompt(chip.text)}
+                    onClick={() => handleAiQuery(chip.text)}
                     className="flex w-full items-center gap-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-2 text-left text-[11px] text-zinc-300 hover:border-purple-500/30 hover:bg-purple-500/10 transition group"
                   >
                     <span>{chip.icon}</span>
@@ -654,8 +769,13 @@ export default function DashboardWorkspace() {
                 ))}
               </div>
 
-              {/* Input Box */}
-              <form onSubmit={handleAiSubmit} className="relative pt-1">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAiQuery(aiInputText);
+                }}
+                className="relative pt-1"
+              >
                 <input
                   value={aiInputText}
                   onChange={(e) => setAiInputText(e.target.value)}
@@ -681,7 +801,7 @@ export default function DashboardWorkspace() {
               </form>
             </div>
 
-            {/* 2. Weekly Progress Card */}
+            {/* 2. Weekly Progress Card (Real Calculated Progress) */}
             <div className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-[13.5px] font-bold text-white">Weekly Progress</h3>
@@ -694,65 +814,73 @@ export default function DashboardWorkspace() {
               </div>
 
               <div className="space-y-3">
-                {/* Study */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5">
                       <Clock size={12} className="text-purple-400" />
-                      <span className="text-zinc-300">Study (JLPT N2)</span>
+                      <span className="text-zinc-300">Study (Tasks & Topics)</span>
                     </div>
-                    <span className="font-mono text-zinc-400 font-bold">4.5 / 7 h</span>
+                    <span className="font-mono text-zinc-400 font-bold">{completedStudyCount} / {Math.max(studyTasksCount, 1)}</span>
                   </div>
                   <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 rounded-full" style={{ width: '64%' }} />
+                    <div
+                      className="h-full bg-purple-500 rounded-full"
+                      style={{ width: `${Math.round((completedStudyCount / Math.max(studyTasksCount, 1)) * 100)}%` }}
+                    />
                   </div>
                 </div>
 
-                {/* Work */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5">
                       <Laptop size={12} className="text-blue-400" />
                       <span className="text-zinc-300">Work / Projects</span>
                     </div>
-                    <span className="font-mono text-zinc-400 font-bold">18 / 25 h</span>
+                    <span className="font-mono text-zinc-400 font-bold">{completedWorkCount} / {Math.max(workTasksCount, 1)}</span>
                   </div>
                   <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: '72%' }} />
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{ width: `${Math.round((completedWorkCount / Math.max(workTasksCount, 1)) * 100)}%` }}
+                    />
                   </div>
                 </div>
 
-                {/* Health */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5">
                       <Flame size={12} className="text-emerald-400" />
                       <span className="text-zinc-300">Health & Sport</span>
                     </div>
-                    <span className="font-mono text-zinc-400 font-bold">2 / 3 times</span>
+                    <span className="font-mono text-zinc-400 font-bold">{healthCompletedCount} / 3 times</span>
                   </div>
                   <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: '66%' }} />
+                    <div
+                      className="h-full bg-emerald-500 rounded-full"
+                      style={{ width: `${Math.min(100, Math.round((healthCompletedCount / 3) * 100))}%` }}
+                    />
                   </div>
                 </div>
 
-                {/* Personal */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5">
                       <CheckSquare size={12} className="text-amber-400" />
                       <span className="text-zinc-300">Personal Tasks</span>
                     </div>
-                    <span className="font-mono text-zinc-400 font-bold">5 / 7</span>
+                    <span className="font-mono text-zinc-400 font-bold">{personalCompletedCount} / {Math.max(personalTasksCount, 1)}</span>
                   </div>
                   <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: '71%' }} />
+                    <div
+                      className="h-full bg-amber-500 rounded-full"
+                      style={{ width: `${Math.round((personalCompletedCount / Math.max(personalTasksCount, 1)) * 100)}%` }}
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 3. Calendar Timeline Card */}
+            {/* 3. Calendar Timeline Card (Real Schedule Blocks) */}
             <div id="myspace-calendar-card" className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -760,9 +888,12 @@ export default function DashboardWorkspace() {
                   <h3 className="text-[13.5px] font-bold text-white">Calendar</h3>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[10.5px] text-zinc-300 font-medium">
-                    Today
-                  </span>
+                  <button
+                    onClick={() => setShowAddBlockModal(true)}
+                    className="rounded bg-white/[0.06] hover:bg-white/[0.12] px-2 py-0.5 text-[10.5px] text-zinc-200 font-medium flex items-center gap-1"
+                  >
+                    <Plus size={11} /> Blok
+                  </button>
                   <div className="flex items-center">
                     <button className="p-1 text-zinc-500 hover:text-zinc-200">
                       <ChevronLeft size={13} />
@@ -774,44 +905,52 @@ export default function DashboardWorkspace() {
                 </div>
               </div>
 
-              {/* Timeline slots */}
-              <div className="space-y-2 text-[11px] font-mono">
-                {/* 09:00 - 11:00 */}
-                <div className="flex items-center gap-3">
-                  <span className="text-zinc-500 w-11 shrink-0">9:00</span>
-                  <div className="flex-1 rounded-xl bg-purple-500/15 border border-purple-500/30 p-2 text-purple-200">
-                    <p className="font-semibold text-[11.5px]">Django final exam</p>
-                    <p className="text-[10px] text-purple-400 font-mono">09:00 - 11:00</p>
-                  </div>
+              {scheduleBlocks.length === 0 ? (
+                <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                  <p className="text-[12px] text-zinc-400">Bugun uchun vaqt bloklari belgilanmagan.</p>
+                  <button
+                    onClick={() => setShowAddBlockModal(true)}
+                    className="mt-2 text-[11px] text-blue-400 hover:underline font-medium"
+                  >
+                    + Vaqt bloki qo‘shish
+                  </button>
                 </div>
-
-                {/* 11:00 - 12:00 */}
-                <div className="flex items-center gap-3">
-                  <span className="text-zinc-500 w-11 shrink-0">11:00</span>
-                  <div className="flex-1 rounded-xl bg-rose-500/15 border border-rose-500/30 p-2 text-rose-200">
-                    <p className="font-semibold text-[11.5px]">N2 Grammar</p>
-                    <p className="text-[10px] text-rose-400 font-mono">11:00 - 12:00</p>
-                  </div>
+              ) : (
+                <div className="space-y-2 text-[11px] font-mono">
+                  {scheduleBlocks.map((b) => (
+                    <div key={b.id} className="flex items-center gap-2.5 group">
+                      <span className="text-zinc-500 text-[10px] w-12 shrink-0 truncate">
+                        {b.time_range.split('-')[0]?.trim()}
+                      </span>
+                      <div
+                        onClick={() => toggleScheduleBlockDone(b.id)}
+                        className={`flex-1 rounded-xl p-2 cursor-pointer transition border ${
+                          b.done
+                            ? 'bg-white/[0.03] border-white/10 opacity-60'
+                            : 'bg-white/[0.05] border-white/10 hover:border-white/20'
+                        }`}
+                        style={{ borderLeftColor: b.color || '#3b82f6', borderLeftWidth: 3 }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className={`font-semibold text-[11.5px] truncate ${b.done ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>
+                            {b.title}
+                          </p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteScheduleBlock(b.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 font-mono mt-0.5">{b.time_range}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-
-                {/* 13:00 - 15:00 */}
-                <div className="flex items-center gap-3">
-                  <span className="text-zinc-500 w-11 shrink-0">13:00</span>
-                  <div className="flex-1 rounded-xl bg-blue-500/15 border border-blue-500/30 p-2 text-blue-200">
-                    <p className="font-semibold text-[11.5px]">Nihongo Talk — Scheduler fix</p>
-                    <p className="text-[10px] text-blue-400 font-mono">13:00 - 15:00</p>
-                  </div>
-                </div>
-
-                {/* 16:00 - 17:30 */}
-                <div className="flex items-center gap-3">
-                  <span className="text-zinc-500 w-11 shrink-0">16:00</span>
-                  <div className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 p-2 text-emerald-200">
-                    <p className="font-semibold text-[11.5px]">Gym</p>
-                    <p className="text-[10px] text-emerald-400 font-mono">16:00 - 17:30</p>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* 4. Quick Capture Card */}
@@ -819,7 +958,6 @@ export default function DashboardWorkspace() {
               <h3 className="text-[13.5px] font-bold text-white">Quick Capture</h3>
 
               <div className="grid grid-cols-5 gap-2 text-center">
-                {/* Task */}
                 <button
                   onClick={() => setTaskModal(true)}
                   className="flex flex-col items-center gap-1.5 group"
@@ -832,10 +970,10 @@ export default function DashboardWorkspace() {
                   </span>
                 </button>
 
-                {/* Note */}
                 <button
                   onClick={async () => {
-                    await createNote('Yangi Qayd');
+                    const id = await createNote('Yangi Qayd');
+                    selectNote(id);
                     setMainView('notes');
                   }}
                   className="flex flex-col items-center gap-1.5 group"
@@ -848,7 +986,6 @@ export default function DashboardWorkspace() {
                   </span>
                 </button>
 
-                {/* Idea */}
                 <button
                   onClick={() => setMainView('ideas')}
                   className="flex flex-col items-center gap-1.5 group"
@@ -861,7 +998,6 @@ export default function DashboardWorkspace() {
                   </span>
                 </button>
 
-                {/* Link */}
                 <button
                   onClick={() => {
                     const url = prompt("Havola (URL) manzilini kiriting:");
@@ -879,7 +1015,6 @@ export default function DashboardWorkspace() {
                   </span>
                 </button>
 
-                {/* File */}
                 <button
                   onClick={() => {
                     setMainView('notes');
@@ -902,6 +1037,251 @@ export default function DashboardWorkspace() {
         </div>
 
       </div>
+
+      {/* Modal: Add Project */}
+      {showAddProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateProject}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#16171d] p-5 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-[15px] font-bold text-white">Yangi Faol Loyiha Qo‘shish</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddProjectModal(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Loyiha Nomi</label>
+                <input
+                  autoFocus
+                  value={newProjectTitle}
+                  onChange={(e) => setNewProjectTitle(e.target.value)}
+                  placeholder="masalan: Nihongo Talk..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Tavsif / Texnologiya</label>
+                <input
+                  value={newProjectSubtitle}
+                  onChange={(e) => setNewProjectSubtitle(e.target.value)}
+                  placeholder="masalan: Django + DRF backend..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Joriy Bajarilish Foizi ({newProjectProgress}%)</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={newProjectProgress}
+                  onChange={(e) => setNewProjectProgress(Number(e.target.value))}
+                  className="mt-1 w-full accent-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Rang</label>
+                <div className="flex items-center gap-2 mt-1">
+                  {['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444'].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewProjectColor(c)}
+                      className={`h-5 w-5 rounded-full transition ${newProjectColor === c ? 'scale-125 ring-2 ring-white' : 'opacity-60'}`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddProjectModal(false)}
+                className="rounded-xl px-3 py-1.5 text-[12px] text-zinc-400 hover:text-white"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="submit"
+                disabled={!newProjectTitle.trim()}
+                className="rounded-xl bg-blue-600 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-blue-500 disabled:opacity-40"
+              >
+                Saqlash
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: Add Goal */}
+      {showAddGoalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateGoal}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#16171d] p-5 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-[15px] font-bold text-white">Yangi Maqsad Qo‘shish</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddGoalModal(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Maqsad Nomi</label>
+                <input
+                  autoFocus
+                  value={newGoalTitle}
+                  onChange={(e) => setNewGoalTitle(e.target.value)}
+                  placeholder="masalan: JLPT N2 imtihonidan o'tish..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Toifa</label>
+                <select
+                  value={newGoalCategory}
+                  onChange={(e) => setNewGoalCategory(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-purple-500 focus:outline-none"
+                >
+                  <option value="Japanese">Japanese / JLPT</option>
+                  <option value="Engineering">Engineering / Backend</option>
+                  <option value="Career">Career & Travel</option>
+                  <option value="Health">Health & Sport</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Bajarilish Foizi ({newGoalProgress}%)</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={newGoalProgress}
+                  onChange={(e) => setNewGoalProgress(Number(e.target.value))}
+                  className="mt-1 w-full accent-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddGoalModal(false)}
+                className="rounded-xl px-3 py-1.5 text-[12px] text-zinc-400 hover:text-white"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="submit"
+                disabled={!newGoalTitle.trim()}
+                className="rounded-xl bg-purple-600 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-purple-500 disabled:opacity-40"
+              >
+                Maqsadni Saqlash
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: Add Schedule Block */}
+      {showAddBlockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateBlock}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#16171d] p-5 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-[15px] font-bold text-white">Taqvimga Vaqt Bloki Qo‘shish</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddBlockModal(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Vaqt Oralig‘i</label>
+                <input
+                  autoFocus
+                  value={newBlockTime}
+                  onChange={(e) => setNewBlockTime(e.target.value)}
+                  placeholder="masalan: 13:00 - 15:00..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Mavzu / Vazifa</label>
+                <input
+                  value={newBlockTitle}
+                  onChange={(e) => setNewBlockTitle(e.target.value)}
+                  placeholder="masalan: Django imtihoniga tayyorgarlik..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase">Toifa</label>
+                <select
+                  value={newBlockCategory}
+                  onChange={(e) => {
+                    const c = e.target.value as any;
+                    setNewBlockCategory(c);
+                    setNewBlockTag(c.charAt(0).toUpperCase() + c.slice(1));
+                  }}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="work">Work (Ish & Dasturlash)</option>
+                  <option value="study">Study (O‘qish & Til)</option>
+                  <option value="personal">Personal (Shaxsiy)</option>
+                  <option value="health">Health (Sport & Salomatlik)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddBlockModal(false)}
+                className="rounded-xl px-3 py-1.5 text-[12px] text-zinc-400 hover:text-white"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="submit"
+                disabled={!newBlockTitle.trim()}
+                className="rounded-xl bg-blue-600 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-blue-500 disabled:opacity-40"
+              >
+                Blokni Qo‘shish
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -218,32 +218,19 @@ export async function ensureDefaultWorkspace(): Promise<void> {
  *  Only touches known seed IDs — user-created tasks are never affected. */
 export async function purgeMockDataIfPresent(): Promise<void> {
   const db = await getDb();
-  const legacyTasks = ['DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115', 'TSK-101', 'TSK-102', 'TSK-103'];
+  const legacyTasks = [
+    'DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115',
+    'TSK-101', 'TSK-102', 'TSK-103', 'task-1', 'task-2', 'task-3', 'task-4', 'task-5', 'task-6',
+  ];
+  const legacyNotes = ['n-1', 'n-2', 'n-3', 'n-4', 'n-5'];
   const legacyPrompts = ['pv-101', 'pv-102', 'pv-103'];
   const inList = (ids: string[]) => ids.map((id) => `'${id}'`).join(',');
-  const mockTasks = await db.select<{ id: string }[]>(
-    `SELECT id FROM tasks WHERE id IN (${inList(legacyTasks)})`,
-  );
-  const mockPrompts = await db.select<{ id: string }[]>(
-    `SELECT id FROM prompt_vault WHERE id IN (${inList(legacyPrompts)})`,
-  );
-  if (mockTasks.length > 0) {
-    await db.execute(
-      `DELETE FROM prompt_vault WHERE task_id IN (${inList(legacyTasks)})`,
-    ).catch(() => {});
-    await db.execute(
-      `DELETE FROM task_resolutions WHERE task_id IN (${inList(legacyTasks)})`,
-    ).catch(() => {});
-    await db.execute(
-      `DELETE FROM tasks WHERE id IN (${inList(legacyTasks)})`,
-    ).catch(() => {});
-    await db.execute("DELETE FROM workspaces WHERE id = 'ws-team'").catch(() => {});
-  }
-  if (mockPrompts.length > 0) {
-    await db.execute(
-      `DELETE FROM prompt_vault WHERE id IN (${inList(legacyPrompts)})`,
-    ).catch(() => {});
-  }
+
+  await db.execute(`DELETE FROM tasks WHERE id IN (${inList(legacyTasks)})`).catch(() => {});
+  await db.execute(`DELETE FROM prompt_vault WHERE id IN (${inList(legacyPrompts)}) OR task_id IN (${inList(legacyTasks)})`).catch(() => {});
+  await db.execute(`DELETE FROM task_resolutions WHERE task_id IN (${inList(legacyTasks)})`).catch(() => {});
+  await db.execute(`DELETE FROM notion_notes WHERE id IN (${inList(legacyNotes)})`).catch(() => {});
+  await db.execute("DELETE FROM workspaces WHERE id = 'ws-team'").catch(() => {});
 }
 
 /** Complete reset to pristine state. */

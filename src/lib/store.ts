@@ -209,10 +209,13 @@ interface SynapseState {
   goals: GoalItem[];
   updateGoalProgress: (id: string, progress: number) => void;
   addGoal: (goal: Omit<GoalItem, 'id'>) => void;
+  deleteGoal: (id: string) => void;
 
   // Active Projects
   activeProjects: ActiveProject[];
   updateProjectProgress: (id: string, progress: number) => void;
+  addActiveProject: (proj: Omit<ActiveProject, 'id'>) => void;
+  deleteActiveProject: (id: string) => void;
 
   userProfile: UserProfile;
   showProfileModal: boolean;
@@ -584,7 +587,13 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   scheduleBlocks: (() => {
     try {
       const s = localStorage.getItem('cognidev_schedule_blocks');
-      return s ? JSON.parse(s) : DEFAULT_SCHEDULE_BLOCKS;
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((x: any) => !/^b-[1-6]$/.test(x.id));
+        }
+      }
+      return DEFAULT_SCHEDULE_BLOCKS;
     } catch {
       return DEFAULT_SCHEDULE_BLOCKS;
     }
@@ -633,7 +642,13 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   goals: (() => {
     try {
       const s = localStorage.getItem('cognidev_goals');
-      return s ? JSON.parse(s) : DEFAULT_GOALS;
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((x: any) => !/^g-[1-3]$/.test(x.id));
+        }
+      }
+      return DEFAULT_GOALS;
     } catch {
       return DEFAULT_GOALS;
     }
@@ -654,12 +669,26 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       } catch {}
       return { goals: next };
     }),
+  deleteGoal: (id) =>
+    set((state) => {
+      const next = state.goals.filter((g) => g.id !== id);
+      try {
+        localStorage.setItem('cognidev_goals', JSON.stringify(next));
+      } catch {}
+      return { goals: next };
+    }),
 
   // Active Projects state
   activeProjects: (() => {
     try {
       const s = localStorage.getItem('cognidev_active_projects');
-      return s ? JSON.parse(s) : DEFAULT_ACTIVE_PROJECTS;
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((x: any) => !/^p-[1-4]$/.test(x.id));
+        }
+      }
+      return DEFAULT_ACTIVE_PROJECTS;
     } catch {
       return DEFAULT_ACTIVE_PROJECTS;
     }
@@ -667,6 +696,22 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   updateProjectProgress: (id, progress) =>
     set((state) => {
       const next = state.activeProjects.map((p) => (p.id === id ? { ...p, progress: Math.min(100, Math.max(0, progress)) } : p));
+      try {
+        localStorage.setItem('cognidev_active_projects', JSON.stringify(next));
+      } catch {}
+      return { activeProjects: next };
+    }),
+  addActiveProject: (proj) =>
+    set((state) => {
+      const next = [...state.activeProjects, { ...proj, id: 'proj-' + Date.now() }];
+      try {
+        localStorage.setItem('cognidev_active_projects', JSON.stringify(next));
+      } catch {}
+      return { activeProjects: next };
+    }),
+  deleteActiveProject: (id) =>
+    set((state) => {
+      const next = state.activeProjects.filter((p) => p.id !== id);
       try {
         localStorage.setItem('cognidev_active_projects', JSON.stringify(next));
       } catch {}
