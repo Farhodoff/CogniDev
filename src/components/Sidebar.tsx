@@ -6,7 +6,6 @@ import {
   Layers,
   Users,
   X,
-  HelpCircle,
   FileText,
   Lightbulb,
   Compass,
@@ -39,7 +38,6 @@ export default function Sidebar() {
     deleteGroup,
     userProfile,
     setProfileModal,
-    setGuideModal,
     mainView,
     setMainView,
     notesDocs,
@@ -519,24 +517,14 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Qo'llanma & Yordam tugmasi */}
-      <div className="mt-auto space-y-2">
-        <button
-          onClick={() => setGuideModal(true)}
-          className="flex w-full items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/[0.05] px-3 py-2 text-[12px] font-medium text-sky-300 hover:bg-sky-500/10 hover:text-sky-200 transition"
-        >
-          <HelpCircle size={14} className="text-sky-400 shrink-0" />
-          <span>Qo'llanma & Imkoniyatlar</span>
-        </button>
-
-        {/* Tizim holati */}
-        <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+      {/* Tizim holati */}
+      <div className="mt-auto space-y-1.5 pt-2 border-t border-white/[0.05]">
+        <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-1.5">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" />
           <span className="truncate font-mono text-[11px] text-zinc-300">
-            {dbMode === 'sqlite' ? `synapse.db · ${tasks.length} ta yozuv` : 'RAM xotira rejimi'}
+            {dbMode === 'sqlite' ? `synapse.db · ${tasks.length} ta yozuv` : 'RAM xotira'}
           </span>
         </div>
-        <p className="px-1 font-mono text-[9.5px] text-zinc-600">Mahalliy SQLite · Ollama · RubaiSTT</p>
       </div>
     </aside>
   );

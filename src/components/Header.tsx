@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, RefreshCw, Bot, Plus, BookOpen, ArrowDownCircle, Sparkles } from 'lucide-react';
+import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, Bot, Plus, BookOpen, ArrowDownCircle } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
@@ -32,22 +32,18 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setTaskModal,
     showChatModal,
     setChatModal,
-    userProfile,
     showProfileModal,
     setProfileModal,
     showGuideModal,
     setGuideModal,
     showProvidersModal,
     setProvidersModal,
-    toggleAiDrawer,
-    isAiDrawerOpen,
   } = useSynapse();
 
   const [wsOpen, setWsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const enabledCount = enabledProviders().length;
-  const [aiSyncOpen, setAiSyncOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
@@ -218,71 +214,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
           </button>
         </div>
 
-        {/* O'ng qism: Multi-AI Sync, + Yangi, Sozlamalar va Profil */}
+        {/* O'ng qism: + Yangi, Yangilanish, Qo'llanma va Sozlamalar */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Multi-AI Sync Status Pill */}
-          <div className="relative hidden md:block">
-            <button
-              onClick={() => setAiSyncOpen((v) => !v)}
-              className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition shadow-sm"
-              title="Ulangan AI modellar holati"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="font-semibold">AI Sync</span>
-              <span className="hidden xl:inline text-zinc-400 text-[11px]">• Claude • ChatGPT • Gemini</span>
-              <ChevronDown size={13} className={`text-emerald-400 transition-transform ${aiSyncOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {aiSyncOpen && (
-              <div className="absolute right-0 top-10 z-50 w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#16171d] shadow-2xl p-2.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-white/[0.06]">
-                  <span className="font-mono text-[10.5px] uppercase tracking-wider text-zinc-400 font-semibold">AI holati</span>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full font-mono">Barchasi faol</span>
-                </div>
-                <div className="space-y-1 pt-1">
-                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] text-[12px]">
-                    <span className="flex items-center gap-2 text-zinc-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-violet-400" /> Claude 3.5 Sonnet
-                    </span>
-                    <span className="text-[11px] text-zinc-500 font-mono">Ulangan ✓</span>
-                  </div>
-                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] text-[12px]">
-                    <span className="flex items-center gap-2 text-zinc-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> Gemini 1.5 Pro
-                    </span>
-                    <span className="text-[11px] text-zinc-500 font-mono">Ulangan ✓</span>
-                  </div>
-                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] text-[12px]">
-                    <span className="flex items-center gap-2 text-zinc-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> ChatGPT (GPT-4o)
-                    </span>
-                    <span className="text-[11px] text-zinc-500 font-mono">Ulangan ✓</span>
-                  </div>
-                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] text-[12px]">
-                    <span className="flex items-center gap-2 text-zinc-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Local Ollama
-                    </span>
-                    <span className="text-[11px] text-zinc-500 font-mono">Lokal ✓</span>
-                  </div>
-                </div>
-                <div className="pt-2 border-t border-white/[0.06]">
-                  <button
-                    onClick={() => {
-                      setAiSyncOpen(false);
-                      setHud('Barcha AI suhbatlari va xulosalari muvaffaqiyatli yangilandi');
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-1.5 text-[11.5px] font-semibold text-white shadow hover:brightness-110 transition"
-                  >
-                    <RefreshCw size={12} /> Hozir Sinxronlash
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Bitta toza + Yangi tugmasi (Dropdown) */}
           <div className="relative">
             <button
@@ -330,23 +263,6 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
               </div>
             )}
           </div>
-
-          {/* AI Assistant Drawer Toggle */}
-          <button
-            onClick={toggleAiDrawer}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12.5px] font-semibold transition ${
-              isAiDrawerOpen
-                ? 'border-purple-400/50 bg-purple-500/20 text-purple-200 shadow-md shadow-purple-500/10'
-                : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
-            }`}
-            title="AI Assistant chat oynasini ochish / yopish (⌘J)"
-          >
-            <Sparkles size={14} className="text-purple-400" />
-            <span className="hidden sm:inline">AI Assistant</span>
-            <kbd className="hidden md:inline rounded bg-purple-500/20 px-1 font-mono text-[9.5px] text-purple-300">
-              ⌘J
-            </kbd>
-          </button>
 
           {/* Yangilanish mavjud bo'lsa ko'rinadigan belgi */}
           {updateInfo?.available && (
@@ -406,16 +322,6 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
               </div>
             )}
           </div>
-
-          {/* User Avatar & Profil ochish */}
-          <button
-            onClick={() => setProfileModal(true)}
-            title={`Profil: ${userProfile.full_name} (@${userProfile.username})`}
-            className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm ring-2 ring-[#0c0d11] transition-transform hover:scale-110"
-            style={{ backgroundColor: userProfile.avatar_color }}
-          >
-            {userProfile.avatar_initials}
-          </button>
         </div>
       </header>
 
