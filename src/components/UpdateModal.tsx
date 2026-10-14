@@ -8,12 +8,14 @@ export default function UpdateModal({
   initialUpdateHandle,
   initialVersion,
   initialBody,
+  autoStart = false,
 }: {
   open: boolean;
   onClose: () => void;
   initialUpdateHandle?: any;
   initialVersion?: string;
   initialBody?: string;
+  autoStart?: boolean;
 }) {
   if (!open) return null;
   return (
@@ -22,6 +24,7 @@ export default function UpdateModal({
       initialUpdateHandle={initialUpdateHandle}
       initialVersion={initialVersion}
       initialBody={initialBody}
+      autoStart={autoStart}
     />
   );
 }
@@ -31,11 +34,13 @@ function UpdateDialog({
   initialUpdateHandle,
   initialVersion,
   initialBody,
+  autoStart = false,
 }: {
   onClose: () => void;
   initialUpdateHandle?: any;
   initialVersion?: string;
   initialBody?: string;
+  autoStart?: boolean;
 }) {
   const [checking, setChecking] = useState(!initialUpdateHandle);
   const [updateObj, setUpdateObj] = useState<any>(initialUpdateHandle ?? null);
@@ -69,6 +74,13 @@ function UpdateDialog({
       cancelled = true;
     };
   }, [initialUpdateHandle]);
+
+  useEffect(() => {
+    if (autoStart && updateObj && !downloading && progress === 0 && !error) {
+      handleApply();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, updateObj]);
 
   async function handleApply() {
     if (!updateObj || downloading) return;

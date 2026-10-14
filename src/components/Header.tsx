@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, Bot, Plus, BookOpen, ArrowDownCircle } from 'lucide-react';
+import { ChevronDown, Download, Mic, Search, Settings, ClipboardList, Upload, Bot, Plus, BookOpen, ArrowDownCircle, X } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
@@ -47,17 +47,25 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [updateAutoStart, setUpdateAutoStart] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ available: boolean; version?: string; body?: string; handle?: any } | null>(null);
 
   useEffect(() => {
-    // Fondagi avtomatik tekshiruv
-    checkAppUpdate()
-      .then((res) => {
-        if (res.available) {
-          setUpdateInfo({ available: true, version: res.version, body: res.body, handle: res.updateHandle });
-        }
-      })
-      .catch(() => {});
+    // Fondagi avtomatik yangilanishlarni tekshirish (startda va har 15 daqiqada)
+    const runCheck = () => {
+      checkAppUpdate()
+        .then((res) => {
+          if (res.available) {
+            setUpdateInfo({ available: true, version: res.version, body: res.body, handle: res.updateHandle });
+          }
+        })
+        .catch(() => {});
+    };
+
+    runCheck();
+    const interval = setInterval(runCheck, 15 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -264,15 +272,18 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             )}
           </div>
 
-          {/* Yangilanish mavjud bo'lsa ko'rinadigan belgi */}
+          {/* Yangilanish mavjud bo'lsa ko'rinadigan "Yangilang" tugmasi */}
           {updateInfo?.available && (
             <button
-              onClick={() => setUpdateModalOpen(true)}
-              title={`Yangi versiya mavjud: ${updateInfo.version} · Yangilash uchun bosing`}
-              className="flex items-center gap-1.5 rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-1 text-[11px] font-bold text-sky-200 animate-pulse hover:bg-sky-500/25 transition"
+              onClick={() => {
+                setUpdateAutoStart(true);
+                setUpdateModalOpen(true);
+              }}
+              title={`Yangi versiya mavjud: ${updateInfo.version} · Yuklash va o‘rnatish uchun bosing`}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-[0_0_18px_-2px_rgba(16,185,129,0.7)] hover:brightness-110 active:scale-95 transition animate-pulse"
             >
-              <ArrowDownCircle size={13} className="text-sky-300" />
-              <span>Yangilash ({updateInfo.version})</span>
+              <ArrowDownCircle size={15} className="text-white animate-bounce" />
+              <span>Yangilang ({updateInfo.version})</span>
             </button>
           )}
 
@@ -325,6 +336,37 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
         </div>
       </header>
 
+      {/* Yangilanish mavjud bo'lsa yuqori ogohlantirish banneri */}
+      {updateInfo?.available && !bannerDismissed && (
+        <div className="flex items-center justify-between border-b border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-sky-500/15 px-6 py-2 backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+            <p className="text-[12.5px] text-emerald-200">
+              🎉 <strong>CogniDev {updateInfo.version}</strong> yangilanishi chiqdi! Yangi imkoniyatlar va yaxshilanishlar tayyor.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setUpdateAutoStart(true);
+                setUpdateModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1 text-[11.5px] font-bold text-black hover:bg-emerald-400 shadow-md transition"
+            >
+              <ArrowDownCircle size={13} />
+              <span>Hozir Yangilang</span>
+            </button>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="p-1 text-zinc-400 hover:text-white transition"
+              title="Yopish"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onFilePicked} />
       {showTaskModal && <TaskModal open={showTaskModal} onClose={() => setTaskModal(false)} />}
       {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
@@ -335,10 +377,14 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       {updateModalOpen && (
         <UpdateModal
           open={updateModalOpen}
-          onClose={() => setUpdateModalOpen(false)}
+          onClose={() => {
+            setUpdateModalOpen(false);
+            setUpdateAutoStart(false);
+          }}
           initialUpdateHandle={updateInfo?.handle}
           initialVersion={updateInfo?.version}
           initialBody={updateInfo?.body}
+          autoStart={updateAutoStart}
         />
       )}
     </>
