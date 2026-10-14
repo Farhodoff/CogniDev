@@ -53,6 +53,9 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Ensure frontend dist exists for Tauri proc macro
+        run: mkdir -p dist && touch dist/index.html
+
       - name: Check Rust formatting
         run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
