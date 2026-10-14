@@ -12,6 +12,8 @@ import type {
   MainView,
   NoteDoc,
   RoadmapItem,
+  RoadmapMilestone,
+  RoadmapTopic,
   LearningLog,
   ProjectIdea,
   ScheduleBlock,
@@ -58,6 +60,7 @@ import {
   deleteNoteFromDb,
   fetchRoadmaps,
   upsertRoadmap,
+  deleteRoadmapFromDb,
   fetchLearningLogs,
   insertLearningLog,
   fetchProjectIdeas,
@@ -65,6 +68,7 @@ import {
   deleteProjectIdeaFromDb,
   type VaultDump,
 } from './db';
+import { parseRoadmapMarkdown } from './roadmapParser';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
 import type { AiSource } from './providers';
@@ -158,6 +162,12 @@ interface SynapseState {
   learningLogs: LearningLog[];
   addLearningLog: (roadmapId: string, learned: string, solvedProblem: string, nextGoal: string, aiFeedback?: string) => Promise<void>;
   createRoadmap: (title: string, stack: string, description: string) => Promise<string>;
+  importRoadmapFromMarkdown: (title: string, stack: string, markdown: string) => Promise<string>;
+  addMilestoneToRoadmap: (roadmapId: string, title: string, duration?: string, priority?: string) => Promise<void>;
+  addTopicToMilestone: (roadmapId: string, milestoneId: string, title: string) => Promise<void>;
+  deleteTopicFromMilestone: (roadmapId: string, milestoneId: string, topicId: string) => Promise<void>;
+  deleteMilestoneFromRoadmap: (roadmapId: string, milestoneId: string) => Promise<void>;
+  deleteRoadmap: (roadmapId: string) => Promise<void>;
 
   // Project Ideas
   projectIdeas: ProjectIdea[];
@@ -367,6 +377,105 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       await upsertRoadmap(newRd).catch(() => {});
     }
     return id;
+  },
+
+  importRoadmapFromMarkdown: async (title, stack, markdown) => {
+    const parsed = parseRoadmapMarkdown(markdown, title);
+    const id = uid('rd');
+    const newRd: RoadmapItem = {
+      id,
+      title: parsed.title || title || 'Mening Yo‘l Xaritam',
+      stack: parsed.stack || stack || 'Backend / Software Engineering',
+      description: parsed.description || 'Markdown fayldan yuklangan o‘rganish yo‘l xaritasi',
+      milestones: parsed.milestones,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const updated = [newRd, ...get().roadmaps];
+    set({ roadmaps: updated, selectedRoadmapId: id });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(newRd).catch(() => {});
+    }
+    const topicCount = parsed.milestones.reduce((acc, m) => acc + m.topics.length, 0);
+    get().setHud(`Yo‘l xaritasi yuklandi: ${parsed.milestones.length} ta bosqich, ${topicCount} ta mavzu ✓`);
+    return id;
+  },
+
+  addMilestoneToRoadmap: async (roadmapId, title, duration = '2–4 hafta', priority = 'Yuqori') => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const newMilestone: RoadmapMilestone = {
+      id: 'm-' + uid('ms'),
+      title,
+      duration,
+      priority,
+      topics: [],
+    };
+    const updatedMilestones = [...rd.milestones, newMilestone];
+    const updatedRd: RoadmapItem = { ...rd, milestones: updatedMilestones, updated_at: new Date().toISOString() };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud(`Yangi bosqich qo‘shildi: "${title}" ✓`);
+  },
+
+  addTopicToMilestone: async (roadmapId, milestoneId, title) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const newTopic: RoadmapTopic = {
+      id: 't-' + uid('top'),
+      title,
+      done: false,
+    };
+    const updatedMilestones = rd.milestones.map((m) =>
+      m.id === milestoneId ? { ...m, topics: [...m.topics, newTopic] } : m
+    );
+    const updatedRd: RoadmapItem = { ...rd, milestones: updatedMilestones, updated_at: new Date().toISOString() };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud(`Yangi mavzu qo‘shildi: "${title}" ✓`);
+  },
+
+  deleteTopicFromMilestone: async (roadmapId, milestoneId, topicId) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const updatedMilestones = rd.milestones.map((m) =>
+      m.id === milestoneId ? { ...m, topics: m.topics.filter((t) => t.id !== topicId) } : m
+    );
+    const updatedRd: RoadmapItem = { ...rd, milestones: updatedMilestones, updated_at: new Date().toISOString() };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+  },
+
+  deleteMilestoneFromRoadmap: async (roadmapId, milestoneId) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const updatedMilestones = rd.milestones.filter((m) => m.id !== milestoneId);
+    const updatedRd: RoadmapItem = { ...rd, milestones: updatedMilestones, updated_at: new Date().toISOString() };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud("Bosqich o‘chirildi");
+  },
+
+  deleteRoadmap: async (roadmapId) => {
+    const remaining = get().roadmaps.filter((r) => r.id !== roadmapId);
+    const sel = get().selectedRoadmapId === roadmapId ? remaining[0]?.id ?? null : get().selectedRoadmapId;
+    set({ roadmaps: remaining, selectedRoadmapId: sel });
+    if (get().dbMode === 'sqlite') {
+      await deleteRoadmapFromDb(roadmapId).catch(() => {});
+    }
+    get().setHud("Yo‘l xaritasi o‘chirildi");
   },
 
   // Project Ideas initial
