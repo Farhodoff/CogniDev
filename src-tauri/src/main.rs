@@ -78,13 +78,19 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
     let lang = lang.unwrap_or_else(|| "uz".to_string());
     let mut cmd = std::process::Command::new(&st.bin_path);
     cmd.args([
-        "-m", &st.model_path,
-        "-l", &lang,
-        "-f", &wav_path.to_string_lossy(),
-        "-t", "8",
+        "-m",
+        &st.model_path,
+        "-l",
+        &lang,
+        "-f",
+        &wav_path.to_string_lossy(),
+        "-t",
+        "8",
         "--output-txt",
-        "--output-file", &out_prefix,
-        "-np", "-nt",
+        "--output-file",
+        &out_prefix,
+        "-np",
+        "-nt",
     ]);
 
     #[cfg(target_os = "windows")]
@@ -170,11 +176,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![
-            stt_status,
-            transcribe_audio
-        ])
+        .invoke_handler(tauri::generate_handler![stt_status, transcribe_audio])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
