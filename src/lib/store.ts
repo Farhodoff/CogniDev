@@ -18,6 +18,9 @@ import type {
   ProjectIdea,
   ScheduleBlock,
   AiDrawerMessage,
+  GoalItem,
+  ActiveProject,
+  SpaceItem,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -30,6 +33,9 @@ import {
   DEFAULT_NOTION_NOTES,
   DEFAULT_PROJECT_IDEAS,
   DEFAULT_SCHEDULE_BLOCKS,
+  DEFAULT_SPACES,
+  DEFAULT_GOALS,
+  DEFAULT_ACTIVE_PROJECTS,
 } from './seed';
 import {
   deleteTaskFromDb,
@@ -193,6 +199,20 @@ interface SynapseState {
   todayAiSummary: string;
   isGeneratingTodayAiSummary: boolean;
   generateTodayAiSummary: () => Promise<void>;
+
+  // Spaces
+  spaces: SpaceItem[];
+  activeSpaceId: string | null;
+  selectSpace: (id: string | null) => void;
+
+  // Goals
+  goals: GoalItem[];
+  updateGoalProgress: (id: string, progress: number) => void;
+  addGoal: (goal: Omit<GoalItem, 'id'>) => void;
+
+  // Active Projects
+  activeProjects: ActiveProject[];
+  updateProjectProgress: (id: string, progress: number) => void;
 
   userProfile: UserProfile;
   showProfileModal: boolean;
@@ -595,6 +615,62 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
       } catch {}
       return { scheduleBlocks: next };
+    }),
+
+  // Spaces state
+  spaces: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_spaces');
+      return s ? JSON.parse(s) : DEFAULT_SPACES;
+    } catch {
+      return DEFAULT_SPACES;
+    }
+  })(),
+  activeSpaceId: null,
+  selectSpace: (id) => set({ activeSpaceId: id }),
+
+  // Goals state
+  goals: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_goals');
+      return s ? JSON.parse(s) : DEFAULT_GOALS;
+    } catch {
+      return DEFAULT_GOALS;
+    }
+  })(),
+  updateGoalProgress: (id, progress) =>
+    set((state) => {
+      const next = state.goals.map((g) => (g.id === id ? { ...g, progress: Math.min(100, Math.max(0, progress)) } : g));
+      try {
+        localStorage.setItem('cognidev_goals', JSON.stringify(next));
+      } catch {}
+      return { goals: next };
+    }),
+  addGoal: (goal) =>
+    set((state) => {
+      const next = [...state.goals, { ...goal, id: uid('goal') }];
+      try {
+        localStorage.setItem('cognidev_goals', JSON.stringify(next));
+      } catch {}
+      return { goals: next };
+    }),
+
+  // Active Projects state
+  activeProjects: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_active_projects');
+      return s ? JSON.parse(s) : DEFAULT_ACTIVE_PROJECTS;
+    } catch {
+      return DEFAULT_ACTIVE_PROJECTS;
+    }
+  })(),
+  updateProjectProgress: (id, progress) =>
+    set((state) => {
+      const next = state.activeProjects.map((p) => (p.id === id ? { ...p, progress: Math.min(100, Math.max(0, progress)) } : p));
+      try {
+        localStorage.setItem('cognidev_active_projects', JSON.stringify(next));
+      } catch {}
+      return { activeProjects: next };
     }),
 
   aiDrawerMessages: (() => {

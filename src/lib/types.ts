@@ -84,7 +84,31 @@ export interface Retrospective {
   created_at: string;
 }
 
-export type MainView = 'dashboard' | 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro';
+export type MainView = 'dashboard' | 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro' | 'calendar' | 'goals' | 'inbox' | 'habits';
+
+export interface GoalItem {
+  id: string;
+  title: string;
+  progress: number;
+  category: string;
+  target_date?: string;
+}
+
+export interface ActiveProject {
+  id: string;
+  title: string;
+  subtitle: string;
+  progress: number;
+  icon?: string;
+  color?: string;
+}
+
+export interface SpaceItem {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+}
 
 export interface ScheduleBlock {
   id: string;
