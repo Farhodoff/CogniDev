@@ -1,5 +1,6 @@
-import type { Task, TaskPriority } from './types';
+import type { Task, TaskPriority, VoiceIntentResult } from './types';
 import { tryCloudProviders, trySingleProvider, type AiSource, type CloudProviderId } from './providers';
+import { parseNaturalTimeToIso } from './notifications';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
 // Cloud flagships first (fast fail when offline/unsigned), local 3b as offline fallback.
@@ -473,5 +474,187 @@ export async function enhanceNoteWithAi(
   const p = prompts[action];
   const res = await callAi(p.prompt, p.system, preferredProvider);
   return res.text;
+}
+
+/**
+ * Intelligent AI classifier that inspects a voice transcript to decide:
+ * - 'reminder': A time-sensitive notification / cron reminder (e.g. "soat 10 da", "ertaga 14:00 da", "har kuni 09:00 da")
+ * - 'task': An actionable engineering task
+ * - 'note': A technical note, idea, or brainstorming thought
+ *
+ * Automatically computes target ISO timestamp and falls back gracefully when offline.
+ */
+export async function analyzeVoiceIntent(
+  rawTranscript: string,
+  preferredProvider?: CloudProviderId,
+): Promise<VoiceIntentResult> {
+  const clean = rawTranscript.trim();
+  if (!clean) {
+    return {
+      intent: 'note',
+      title: 'Bo‘sh qayd',
+      description: '',
+      reasoning: 'Matn kiritilmagan.',
+    };
+  }
+
+  const now = new Date();
+  const nowStr = now.toLocaleDateString('uz-UZ', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const system = `Siz dasturchilar uchun ovozli xabarlarni tahlil qiluvchi yuqori intellektli AI yordamchisiz.
+Joriy mahalliy vaqt: ${nowStr}.
+
+Vazifangiz: Foydalanuvchining ovozli xabarini tahlil qiling va quyidagi 3 toifadan biriga ajrating:
+1. "reminder" (Bildirishnoma / Eslatma / Cron) — Agar xabarda aniq vaqt, soat, muddat, eslatma yoki cron so'ralgan bo'lsa (masalan: "soat 10 da", "ertaga 14:00 da", "kechki 6 da", "15 minutdan keyin", "har kuni 9 da", "eslatib qo'y", "bildirishnoma").
+2. "task" — Agar bu dasturchi bajarishi kerak bo'lgan amaliy ish yoki vazifa bo'lsa, lekin aniq eslatma vaqti aytilmagan bo'lsa.
+3. "note" — Agar bu umumiy fikr, texnik qayd, tushuncha yoki g'oya bo'lsa.
+
+MUHIM: Agar "reminder" bo'lsa, foydalanuvchi aytgan vaqtni joriy vaqtga (${nowStr}) nisbatan hisoblab, to'liq ISO-8601 formatidagi "targetTime" (masalan: "${now.toISOString().slice(0, 10)}T10:00:00") va odam o'qiydigan "timeString" (masalan: "10:00" yoki "Bugun, 10:00") ni aniqlang.
+
+JAVOBNI FAQAT STRICT JSON FORMATIDA QAYTAR (boshqa hech qanday so'z yoki belgisiz):
+{
+  "intent": "reminder" | "task" | "note",
+  "title": "Aniq va lo'nda sarlavha (5-8 so'z)",
+  "description": "Batafsil matn",
+  "timeString": "Soat 10:00",
+  "targetTime": "YYYY-MM-DDTHH:mm:ss",
+  "isRecurring": false,
+  "cronExpression": "0 10 * * *",
+  "priority": "Normal" | "High Priority" | "Critical" | "P0 Blocker",
+  "reasoning": "Nima sababdan bu toifa tanlangani (1 jumla)"
+}`;
+
+  try {
+    const res = await callAi(clean, system, preferredProvider);
+    const m = res.text.match(/\{[\s\S]*\}/);
+    if (m) {
+      const parsed = JSON.parse(m[0]) as Partial<VoiceIntentResult>;
+      if (parsed.intent && parsed.title) {
+        // If reminder, ensure a valid target ISO timestamp
+        let targetTime = parsed.targetTime;
+        let timeString = parsed.timeString;
+
+        if (parsed.intent === 'reminder') {
+          if (!targetTime || isNaN(new Date(targetTime).getTime())) {
+            const timeCalc = parseNaturalTimeToIso(parsed.timeString || clean, now);
+            targetTime = timeCalc.iso;
+            timeString = timeCalc.timeString;
+          }
+        }
+
+        return {
+          intent: parsed.intent as 'reminder' | 'task' | 'note',
+          title: parsed.title,
+          description: parsed.description || clean,
+          timeString: timeString || undefined,
+          targetTime: targetTime || undefined,
+          isRecurring: parsed.isRecurring ?? false,
+          cronExpression: parsed.cronExpression || undefined,
+          priority: parsed.priority || 'Normal',
+          reasoning: parsed.reasoning || "AI tahlili muvaffaqiyatli yakunlandi.",
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[analyzeVoiceIntent] AI parse error, using fallback:', err);
+  }
+
+  // Deterministic smart offline fallback
+  return fallbackVoiceIntent(clean, now);
+}
+
+function fallbackVoiceIntent(transcript: string, now = new Date()): VoiceIntentResult {
+  const text = transcript.trim();
+  const lower = text.toLowerCase();
+
+  // Time keywords
+  const timeKeywords = [
+    'soat',
+    'minut',
+    'daqiqa',
+    'ertaga',
+    'eslatma',
+    'eslatib',
+    'bildirishnoma',
+    'cron',
+    'kechki',
+    'kechqurun',
+    'ertalab',
+    'har kuni',
+  ];
+  const hasClockPattern = /(?:soat\s*)?\d{1,2}(?::\d{2})?/.test(lower);
+  const hasTimeIndicator = timeKeywords.some((w) => lower.includes(w)) || hasClockPattern;
+
+  // Task keywords
+  const taskKeywords = [
+    'kerak',
+    'qilish',
+    'yozish',
+    'tuzatish',
+    'fix',
+    'bug',
+    'deploy',
+    'refactor',
+    'test',
+    'docker',
+    'pr',
+    'branch',
+    'api',
+    'vazifa',
+  ];
+  const hasTaskIndicator = taskKeywords.some((w) => lower.includes(w));
+
+  if (hasTimeIndicator) {
+    const parsed = parseNaturalTimeToIso(text, now);
+    const cleanTitle = text
+      .replace(/^(?:eslatma|eslatib qo'y|eslatib quy|bildirishnoma):\s*/i, '')
+      .split(/[.!?\n]/)[0]
+      .slice(0, 70);
+
+    return {
+      intent: 'reminder',
+      title: cleanTitle || 'Ovozli Bildirishnoma',
+      description: text,
+      timeString: parsed.timeString,
+      targetTime: parsed.iso,
+      isRecurring: parsed.isRecurring,
+      cronExpression: parsed.isRecurring ? '0 10 * * *' : undefined,
+      priority: 'Normal',
+      reasoning: "Xabarda eslatma vaqti aniqlandi va bildirishnoma rejalashtirildi.",
+    };
+  }
+
+  if (hasTaskIndicator) {
+    const title = text.split(/[.!?\n]/)[0].slice(0, 80);
+    let priority: TaskPriority = 'Normal';
+    if (lower.includes('muhim') || lower.includes('shoshilinch') || lower.includes('high')) {
+      priority = 'High Priority';
+    }
+    if (lower.includes('p0') || lower.includes('blocker') || lower.includes('kritik')) {
+      priority = 'P0 Blocker';
+    }
+
+    return {
+      intent: 'task',
+      title: title || 'Ovozli Vazifa',
+      description: text,
+      priority,
+      reasoning: "Dasturchi vazifasi aniqlandi.",
+    };
+  }
+
+  return {
+    intent: 'note',
+    title: text.split(/[.!?\n]/)[0].slice(0, 60) || 'Ovozli Qayd',
+    description: text,
+    reasoning: "Umumiy texnik qayd sifatida qabul qilindi.",
+  };
 }
 

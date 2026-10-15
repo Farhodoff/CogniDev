@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Lightbulb,
   Plus,
@@ -7,22 +7,48 @@ import {
   ArrowRight,
   Filter,
   ListTodo,
+  Pencil,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { decomposeIdeaToTasks } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 import type { ProjectIdea } from '../lib/types';
 
-const STACK_PRESETS = [
-  'Barchasi',
+// Quick suggestions for the creation & edit modal
+const POPULAR_STACK_SUGGESTIONS = [
   'Go',
   'Python',
   'Rust',
-  'PostgreSQL',
+  'Java',
   'TypeScript',
-  'C',
+  'C++',
+  'PostgreSQL',
   'Docker',
 ];
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Checks whether an idea's stack string matches the selected filter tag.
+ * Handles exact matches, compound stacks (e.g. "Go + Redis"), and prevents
+ * substring collisions (e.g. "Go" won't match "Django", "Java" won't match "JavaScript").
+ */
+export function matchesStack(fullStack: string | undefined, targetFilter: string): boolean {
+  if (!fullStack) return false;
+  if (!targetFilter || targetFilter === 'Barchasi') return true;
+
+  const trimmedStack = fullStack.trim();
+  const trimmedTarget = targetFilter.trim();
+  if (!trimmedTarget) return true;
+
+  if (trimmedStack.toLowerCase() === trimmedTarget.toLowerCase()) return true;
+
+  const escaped = escapeRegExp(trimmedTarget);
+  const regex = new RegExp(`(^|[\\s,/|&+()])${escaped}($|[\\s,/|&+()])`, 'i');
+  return regex.test(trimmedStack);
+}
 
 export default function IdeasWorkspace() {
   const {
@@ -45,23 +71,88 @@ export default function IdeasWorkspace() {
   const [newStack, setNewStack] = useState('Go');
   const [newDescription, setNewDescription] = useState('');
 
-  // Filter ideas by stack
+  // Edit idea form
+  const [editingIdea, setEditingIdea] = useState<ProjectIdea | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editStack, setEditStack] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
+  /**
+   * Dynamically extract all unique stacks that actually exist in projectIdeas.
+   * If there are no projects with a certain stack, it does NOT appear.
+   * If a new idea with 'Java' is added, 'Java' automatically appears!
+   */
+  const availableStacks = useMemo(() => {
+    const stackMap = new Map<string, string>(); // lowercase key -> display name
+
+    for (const idea of projectIdeas) {
+      const rawStack = idea.stack?.trim();
+      if (!rawStack) continue;
+
+      // Split compound stacks like "Go + Redis", "Python, FastAPI", "React / TypeScript"
+      // Preserves "C++" and "C#" as \s+\+\s+ requires whitespace on both sides of '+'
+      const parts = rawStack.split(/[,/|&]|\s+\+\s+/);
+
+      for (const part of parts) {
+        const clean = part.trim();
+        if (!clean) continue;
+        const lower = clean.toLowerCase();
+        if (!stackMap.has(lower)) {
+          stackMap.set(lower, clean);
+        }
+      }
+    }
+
+    const dynamicList = Array.from(stackMap.values());
+    return ['Barchasi', ...dynamicList];
+  }, [projectIdeas]);
+
+  // If the active filter was deleted or no longer exists in any idea, reset to 'Barchasi'
+  useEffect(() => {
+    if (
+      selectedStackFilter !== 'Barchasi' &&
+      !availableStacks.some((st) => st.toLowerCase() === selectedStackFilter.toLowerCase())
+    ) {
+      setSelectedStackFilter('Barchasi');
+    }
+  }, [availableStacks, selectedStackFilter]);
+
+  // Filter ideas by dynamic stack
   const filteredIdeas = useMemo(() => {
     if (selectedStackFilter === 'Barchasi') return projectIdeas;
-    return projectIdeas.filter((i) =>
-      i.stack.toLowerCase().includes(selectedStackFilter.toLowerCase()),
-    );
+    return projectIdeas.filter((i) => matchesStack(i.stack, selectedStackFilter));
   }, [projectIdeas, selectedStackFilter]);
 
   // Handle creating idea
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    await createIdea(newTitle.trim(), newStack.trim(), newDescription.trim());
+    await createIdea(newTitle.trim(), newStack.trim() || 'General', newDescription.trim());
     setNewTitle('');
     setNewDescription('');
     setShowCreateModal(false);
     setHud("Yangi loyiha g'oyasi saqlandi ✓");
+  };
+
+  // Open edit modal
+  const openEditModal = (idea: ProjectIdea) => {
+    setEditingIdea(idea);
+    setEditTitle(idea.title);
+    setEditStack(idea.stack);
+    setEditDescription(idea.description || '');
+  };
+
+  // Handle updating existing idea
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIdea || !editTitle.trim()) return;
+    await updateIdea(editingIdea.id, {
+      title: editTitle.trim(),
+      stack: editStack.trim() || 'General',
+      description: editDescription.trim(),
+    });
+    setEditingIdea(null);
+    setHud("Loyiha g'oyasi yangilandi ✓");
   };
 
   // AI Decomposition
@@ -153,24 +244,42 @@ export default function IdeasWorkspace() {
         </div>
       </div>
 
-      {/* Stack filter tags */}
+      {/* Dynamic Stack filter tags */}
       <div className="flex items-center gap-1.5 border-b border-white/[0.06] bg-black/20 px-6 py-2 overflow-x-auto">
-        <span className="font-mono text-[10.5px] text-zinc-500 uppercase mr-2 tracking-wider flex items-center gap-1">
+        <span className="font-mono text-[10.5px] text-zinc-500 uppercase mr-2 tracking-wider flex items-center gap-1 shrink-0">
           <Filter size={11} /> Filtr:
         </span>
-        {STACK_PRESETS.map((st) => (
-          <button
-            key={st}
-            onClick={() => setSelectedStackFilter(st)}
-            className={`rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition ${
-              selectedStackFilter === st
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30 font-semibold'
-                : 'text-zinc-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            {st}
-          </button>
-        ))}
+        {availableStacks.map((st) => {
+          const isAll = st === 'Barchasi';
+          const count = isAll
+            ? projectIdeas.length
+            : projectIdeas.filter((i) => matchesStack(i.stack, st)).length;
+
+          const isSelected = selectedStackFilter.toLowerCase() === st.toLowerCase();
+
+          return (
+            <button
+              key={st}
+              onClick={() => setSelectedStackFilter(st)}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition whitespace-nowrap ${
+                isSelected
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30 font-semibold shadow-sm'
+                  : 'text-zinc-400 hover:bg-white/5 hover:text-white border border-transparent'
+              }`}
+            >
+              <span>{st}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                  isSelected
+                    ? 'bg-amber-400/30 text-amber-200 font-bold'
+                    : 'bg-white/5 text-zinc-500'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── IDEAS GRID ── */}
@@ -189,7 +298,7 @@ export default function IdeasWorkspace() {
                   {/* Card Header */}
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-amber-300">
                           {idea.stack}
                         </span>
@@ -205,17 +314,26 @@ export default function IdeasWorkspace() {
                       </h3>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        if (confirm("Ushbu g'oyani o'chirishni xohlaysizmi?")) {
-                          deleteIdea(idea.id);
-                        }
-                      }}
-                      title="O'chirish"
-                      className="p-1 text-zinc-500 hover:text-rose-400 transition"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEditModal(idea)}
+                        title="Tahrirlash"
+                        className="p-1 text-zinc-500 hover:text-amber-300 transition rounded-md hover:bg-white/5"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("Ushbu g'oyani o'chirishni xohlaysizmi?")) {
+                            deleteIdea(idea.id);
+                          }
+                        }}
+                        title="O'chirish"
+                        className="p-1 text-zinc-500 hover:text-rose-400 transition rounded-md hover:bg-white/5"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Description */}
@@ -350,9 +468,27 @@ export default function IdeasWorkspace() {
                   required
                   value={newStack}
                   onChange={(e) => setNewStack(e.target.value)}
-                  placeholder="Masalan: Go + Redis, Python + Asyncio, Rust, C..."
+                  placeholder="Masalan: Go, Python, Rust, Java, TypeScript..."
                   className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-amber-400 focus:outline-none"
                 />
+                {/* Quick preset chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                  <span className="text-[10.5px] text-zinc-500 font-mono">Tezkor:</span>
+                  {POPULAR_STACK_SUGGESTIONS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setNewStack(preset)}
+                      className={`rounded-md px-2 py-0.5 font-mono text-[11px] transition ${
+                        newStack.trim().toLowerCase() === preset.toLowerCase()
+                          ? 'bg-amber-500 text-black font-semibold shadow'
+                          : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -382,6 +518,100 @@ export default function IdeasWorkspace() {
                   className="rounded-xl bg-amber-500 px-4 py-2 text-[12px] font-semibold text-white hover:bg-amber-400 disabled:opacity-40"
                 >
                   Saqlash
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT IDEA MODAL ── */}
+      {editingIdea && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#16171d] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✏️</span>
+                <h3 className="text-[15px] font-bold text-white">G'oyani Tahrirlash</h3>
+              </div>
+              <button
+                onClick={() => setEditingIdea(null)}
+                className="text-zinc-500 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div>
+                <label className="block text-[12px] font-semibold text-zinc-300 mb-1">
+                  Loyiha Nomi *
+                </label>
+                <input
+                  required
+                  autoFocus
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-zinc-300 mb-1">
+                  Dasturlash tili va Stack *
+                </label>
+                <input
+                  required
+                  value={editStack}
+                  onChange={(e) => setEditStack(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-amber-400 focus:outline-none"
+                />
+                {/* Quick preset chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                  <span className="text-[10.5px] text-zinc-500 font-mono">Tezkor:</span>
+                  {POPULAR_STACK_SUGGESTIONS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setEditStack(preset)}
+                      className={`rounded-md px-2 py-0.5 font-mono text-[11px] transition ${
+                        editStack.trim().toLowerCase() === preset.toLowerCase()
+                          ? 'bg-amber-500 text-black font-semibold shadow'
+                          : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-zinc-300 mb-1">
+                  Konsept va Texnik Maqsad
+                </label>
+                <textarea
+                  rows={3}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 p-3 text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
+                <button
+                  type="button"
+                  onClick={() => setEditingIdea(null)}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-[12px] text-zinc-400 hover:text-white"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editTitle.trim()}
+                  className="rounded-xl bg-amber-500 px-4 py-2 text-[12px] font-semibold text-white hover:bg-amber-400 disabled:opacity-40"
+                >
+                  Yangilash
                 </button>
               </div>
             </form>

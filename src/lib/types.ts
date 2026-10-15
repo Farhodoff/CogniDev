@@ -49,6 +49,10 @@ export interface Task {
   assignee_avatar2: string | null;
   /** Normalized tags without '#' prefix, e.g. ['bugfix', 'arch'] */
   tags: string[];
+  /** Optional deadline / reminder time, e.g. "10:00" or ISO timestamp */
+  due_time?: string | null;
+  /** Whether a notification / reminder is enabled for this task */
+  reminder_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -214,4 +218,35 @@ export interface WeeklyCoachInsight {
   aiSource?: string;
   aiModel?: string;
 }
+
+export type ReminderStatus = 'pending' | 'triggered' | 'dismissed';
+export type ReminderSourceType = 'task' | 'schedule' | 'voice' | 'custom' | 'calendar';
+
+export interface ScheduledReminder {
+  id: string;
+  title: string;
+  description: string;
+  source_type: ReminderSourceType;
+  source_id?: string | null;
+  target_time: string; // ISO datetime string: "2026-10-15T10:00:00"
+  time_string: string; // e.g. "10:00" or "Bugun, 10:00"
+  cron_expression?: string | null; // e.g. "daily" or cron syntax
+  status: ReminderStatus;
+  sound_enabled?: boolean;
+  created_at: string;
+  triggered_at?: string | null;
+}
+
+export interface VoiceIntentResult {
+  intent: 'reminder' | 'task' | 'note';
+  title: string;
+  description: string;
+  timeString?: string;
+  targetTime?: string; // ISO datetime
+  isRecurring?: boolean;
+  cronExpression?: string;
+  priority?: TaskPriority;
+  reasoning: string;
+}
+
 

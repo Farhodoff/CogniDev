@@ -13,10 +13,15 @@ import {
   ArrowDownCircle,
   X,
   Sparkles,
-  Layout,
   FileText,
   Lightbulb,
   Briefcase,
+  Bell,
+  Clock,
+  Volume2,
+  VolumeX,
+  Trash2,
+  Layout,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
@@ -59,11 +64,18 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     userProfile,
     createNote,
     setMainView,
+    reminders,
+    soundEnabled,
+    toggleSoundEnabled,
+    deleteReminder,
+    testNotification,
   } = useSynapse();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const enabledCount = enabledProviders().length;
+  const pendingCount = reminders.filter((r) => r.status === 'pending').length;
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
@@ -357,6 +369,104 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   {updateInfo?.available && <span className="ml-auto h-2 w-2 rounded-full bg-sky-400 animate-ping" />}
                 </button>
                 <SttStatusRow />
+              </div>
+            )}
+          </div>
+
+          {/* Notifications / Reminders Bell */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setNotificationsOpen((v) => !v);
+                setSettingsOpen(false);
+                setQuickAddOpen(false);
+              }}
+              title="Eslatmalar va Bildirishnomalar"
+              className={`relative flex h-7 w-7 items-center justify-center rounded-lg border transition ${
+                pendingCount > 0
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                  : 'border-white/10 bg-white/[0.04] text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Bell size={13} />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 font-mono text-[9px] font-bold text-black shadow">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <div className="absolute right-0 top-9 z-50 w-80 rounded-2xl border border-white/10 bg-[#16171d] p-3 shadow-2xl backdrop-blur-xl space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between border-b border-white/[0.07] pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Bell size={13} className="text-amber-400" />
+                    <span className="text-[12px] font-bold text-white">Eslatmalar & Bildirishnomalar</span>
+                  </div>
+                  <button
+                    onClick={toggleSoundEnabled}
+                    title={soundEnabled ? "Ovoz yoqilgan" : "Ovoz o'chirilgan"}
+                    className="p-1 text-zinc-400 hover:text-white rounded hover:bg-white/5 transition"
+                  >
+                    {soundEnabled ? <Volume2 size={13} className="text-emerald-400" /> : <VolumeX size={13} className="text-zinc-600" />}
+                  </button>
+                </div>
+
+                {/* Reminders List */}
+                <div className="max-h-60 overflow-y-auto space-y-1.5 py-1">
+                  {reminders.length === 0 ? (
+                    <div className="py-6 text-center text-zinc-500 text-[11.5px] space-y-1">
+                      <p>Rejalashtirilgan bildirishnomalar yo‘q</p>
+                      <p className="text-[10.5px] text-zinc-600">Ovoz orqali "soat 10 da eslatma" deb ayting!</p>
+                    </div>
+                  ) : (
+                    reminders.map((r) => (
+                      <div
+                        key={r.id}
+                        className={`flex items-start justify-between gap-2 rounded-xl border p-2.5 text-[12px] transition ${
+                          r.status === 'triggered'
+                            ? 'border-white/[0.05] bg-white/[0.02] opacity-60'
+                            : 'border-amber-500/20 bg-amber-500/5'
+                        }`}
+                      >
+                        <div className="space-y-0.5 min-w-0">
+                          <p className="font-semibold text-white truncate">{r.title}</p>
+                          <p className="font-mono text-[10.5px] text-amber-300 flex items-center gap-1">
+                            <Clock size={10} /> {r.time_string}
+                            {r.status === 'triggered' && <span className="text-zinc-500">(Bajarildi)</span>}
+                            {r.cron_expression && <span className="text-purple-400 font-bold">(Cron)</span>}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => deleteReminder(r.id)}
+                          title="O'chirish"
+                          className="p-1 text-zinc-500 hover:text-rose-400 transition"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Bottom actions */}
+                <div className="pt-2 border-t border-white/[0.07] flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => {
+                      setVoiceOpen(true);
+                      setNotificationsOpen(false);
+                    }}
+                    className="flex-1 rounded-lg bg-amber-500/15 border border-amber-500/30 px-2 py-1.5 text-center text-[11px] font-semibold text-amber-300 hover:bg-amber-500/25 transition"
+                  >
+                    + Ovozli Eslatma
+                  </button>
+                  <button
+                    onClick={() => testNotification()}
+                    className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 hover:text-white hover:bg-white/10 transition"
+                  >
+                    🔔 Sinab ko‘rish
+                  </button>
+                </div>
               </div>
             )}
           </div>

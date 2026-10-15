@@ -21,6 +21,7 @@ import type {
   GoalItem,
   ActiveProject,
   SpaceItem,
+  ScheduledReminder,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -72,12 +73,16 @@ import {
   fetchProjectIdeas,
   upsertProjectIdea,
   deleteProjectIdeaFromDb,
+  fetchReminders,
+  upsertReminder,
+  deleteReminderFromDb,
   type VaultDump,
 } from './db';
 import { parseRoadmapMarkdown } from './roadmapParser';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
 import type { AiSource } from './providers';
+import { playNotificationSound, sendDesktopNotification } from './notifications';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -222,6 +227,18 @@ interface SynapseState {
   updateActiveProject: (id: string, updates: Partial<ActiveProject>) => void;
   deleteActiveProject: (id: string) => void;
 
+  // Reminders & Notifications
+  reminders: ScheduledReminder[];
+  activeAlertReminder: ScheduledReminder | null;
+  soundEnabled: boolean;
+  toggleSoundEnabled: () => void;
+  addReminder: (rem: Omit<ScheduledReminder, 'id' | 'created_at' | 'status'>) => Promise<string>;
+  updateReminder: (id: string, patch: Partial<ScheduledReminder>) => Promise<void>;
+  deleteReminder: (id: string) => Promise<void>;
+  dismissAlertReminder: () => void;
+  snoozeReminder: (id: string, minutes?: number) => Promise<void>;
+  testNotification: () => Promise<void>;
+
   userProfile: UserProfile;
   showProfileModal: boolean;
   setProfileModal: (open: boolean) => void;
@@ -270,6 +287,79 @@ interface SynapseState {
   createWorkspace: (name: string, type: 'personal' | 'team') => Promise<void>;
   addPrompt: (p: PromptEntry) => void;
   triggerStandup: () => Promise<void>;
+}
+
+let schedulerIntervalId: ReturnType<typeof setInterval> | null = null;
+
+function ensureSchedulerStarted(
+  getState: () => SynapseState,
+  setState: (patch: Partial<SynapseState> | ((state: SynapseState) => Partial<SynapseState>)) => void,
+) {
+  if (schedulerIntervalId) return;
+
+  schedulerIntervalId = setInterval(() => {
+    const { reminders, soundEnabled, dbMode } = getState();
+    const now = Date.now();
+
+    for (const r of reminders) {
+      if (r.status !== 'pending') continue;
+      const targetMs = new Date(r.target_time).getTime();
+
+      if (!isNaN(targetMs) && targetMs <= now) {
+        // Play audio chime
+        if (soundEnabled && r.sound_enabled) {
+          playNotificationSound();
+        }
+
+        // Send OS native notification
+        sendDesktopNotification(
+          `⏰ ${r.title}`,
+          r.description ? `${r.time_string}: ${r.description}` : `Rejalashtirilgan vaqt: ${r.time_string}`,
+        );
+
+        // Mark as triggered and display interactive in-app alert banner
+        const triggeredRem: ScheduledReminder = {
+          ...r,
+          status: 'triggered',
+          triggered_at: new Date().toISOString(),
+        };
+
+        const updated = getState().reminders.map((rem) =>
+          rem.id === r.id ? triggeredRem : rem,
+        );
+
+        // If recurring (e.g. daily cron): advance target_time by 24h
+        if (r.cron_expression) {
+          const nextDay = new Date(targetMs + 24 * 3600 * 1000).toISOString();
+          const recurringRem: ScheduledReminder = {
+            ...r,
+            id: uid('rem'),
+            target_time: nextDay,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+          };
+          updated.push(recurringRem);
+          if (dbMode === 'sqlite') {
+            upsertReminder(recurringRem).catch(() => {});
+          }
+        }
+
+        setState({
+          reminders: updated,
+          activeAlertReminder: triggeredRem,
+        });
+
+        try {
+          localStorage.setItem('cognidev_reminders', JSON.stringify(updated));
+        } catch {}
+
+        if (dbMode === 'sqlite') {
+          upsertReminder(triggeredRem).catch(() => {});
+        }
+        break;
+      }
+    }
+  }, 4000);
 }
 
 export const useSynapse = create<SynapseState>((set, get) => ({
@@ -773,6 +863,100 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       return { activeProjects: next };
     }),
 
+  // Reminders & Notifications
+  reminders: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_reminders');
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  activeAlertReminder: null,
+  soundEnabled: true,
+  toggleSoundEnabled: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+
+  addReminder: async (rem) => {
+    const id = uid('rem');
+    const newRem: ScheduledReminder = {
+      ...rem,
+      id,
+      status: 'pending',
+      sound_enabled: rem.sound_enabled ?? true,
+      created_at: new Date().toISOString(),
+    };
+    const next = [...get().reminders, newRem].sort(
+      (a, b) => new Date(a.target_time).getTime() - new Date(b.target_time).getTime(),
+    );
+    set({ reminders: next });
+    try {
+      localStorage.setItem('cognidev_reminders', JSON.stringify(next));
+    } catch {}
+    if (get().dbMode === 'sqlite') {
+      await upsertReminder(newRem).catch(() => {});
+    }
+    get().setHud(`⏰ Bildirishnoma o‘rnatildi: ${newRem.time_string} ✓`);
+    return id;
+  },
+
+  updateReminder: async (id, patch) => {
+    const next = get().reminders.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    set({ reminders: next });
+    try {
+      localStorage.setItem('cognidev_reminders', JSON.stringify(next));
+    } catch {}
+    if (get().dbMode === 'sqlite') {
+      const target = next.find((r) => r.id === id);
+      if (target) await upsertReminder(target).catch(() => {});
+    }
+  },
+
+  deleteReminder: async (id) => {
+    const next = get().reminders.filter((r) => r.id !== id);
+    set({ reminders: next });
+    try {
+      localStorage.setItem('cognidev_reminders', JSON.stringify(next));
+    } catch {}
+    if (get().dbMode === 'sqlite') {
+      await deleteReminderFromDb(id).catch(() => {});
+    }
+    get().setHud("Eslatma o‘chirildi ✓");
+  },
+
+  dismissAlertReminder: () => set({ activeAlertReminder: null }),
+
+  snoozeReminder: async (id, minutes = 10) => {
+    const rem = get().reminders.find((r) => r.id === id);
+    if (!rem) {
+      set({ activeAlertReminder: null });
+      return;
+    }
+    const newTarget = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+    const newTimeString = `+${minutes} daqiqa (${new Date(newTarget).toLocaleTimeString('uz-UZ', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })})`;
+
+    await get().updateReminder(id, {
+      target_time: newTarget,
+      time_string: newTimeString,
+      status: 'pending',
+    });
+    set({ activeAlertReminder: null });
+    get().setHud(`Eslatma ${minutes} daqiqaga kechiktirildi ✓`);
+  },
+
+  testNotification: async () => {
+    if (get().soundEnabled) {
+      playNotificationSound();
+    }
+    await sendDesktopNotification(
+      "CogniDev Bildirishnomasi",
+      "Ovozli va ish stoli bildirishnomalari muvaffaqiyatli ishlamoqda! 🚀",
+    );
+    get().setHud("Test bildirishnoma yuborildi 🔔");
+  },
+
   aiDrawerMessages: (() => {
     try {
       const s = localStorage.getItem('cognidev_drawer_messages');
@@ -941,6 +1125,7 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
   },
 
   init: async () => {
+    ensureSchedulerStarted(get, set);
     if (!isTauri) {
       set({ ready: true, dbMode: 'memory' });
       return;
@@ -964,20 +1149,23 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
       set({ dbMode: 'memory' });
     } finally {
       set({ ready: true });
+      ensureSchedulerStarted(get, set);
     }
   },
 
   refresh: async () => {
-    const [ws, rawTasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas] = await Promise.all([
-      fetchWorkspaces().catch(() => []),
-      fetchTasks().catch(() => []),
-      fetchGroups().catch(() => []),
-      fetchUserProfile().catch(() => DEFAULT_USER_PROFILE),
-      fetchNotes(get().activeWorkspaceId).catch(() => []),
-      fetchRoadmaps().catch(() => []),
-      fetchLearningLogs().catch(() => []),
-      fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
-    ]);
+    const [ws, rawTasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas, rawReminders] =
+      await Promise.all([
+        fetchWorkspaces().catch(() => []),
+        fetchTasks().catch(() => []),
+        fetchGroups().catch(() => []),
+        fetchUserProfile().catch(() => DEFAULT_USER_PROFILE),
+        fetchNotes(get().activeWorkspaceId).catch(() => []),
+        fetchRoadmaps().catch(() => []),
+        fetchLearningLogs().catch(() => []),
+        fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
+        fetchReminders().catch(() => []),
+      ]);
 
     // Seed initial tasks if empty in SQLite
     let tasks = rawTasks;
@@ -1036,6 +1224,7 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
       learningLogs: rawLogs,
       projectIdeas,
       selectedIdeaId: get().selectedIdeaId ?? projectIdeas[0]?.id ?? null,
+      reminders: rawReminders.length ? rawReminders : get().reminders,
     });
 
     if (sel) {

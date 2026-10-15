@@ -13,6 +13,7 @@ import {
   Sparkles,
   CalendarDays,
   X,
+  Bell,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 
@@ -28,6 +29,9 @@ export default function CalendarWorkspace() {
     toggleScheduleBlockDone,
     addScheduleBlock,
     deleteScheduleBlock,
+    reminders,
+    addReminder,
+    deleteReminder,
     tasks,
     setMainView,
     setFilter,
@@ -47,6 +51,7 @@ export default function CalendarWorkspace() {
   const [newCategory, setNewCategory] = useState<'work' | 'study' | 'personal' | 'health'>('work');
   const [newTag, setNewTag] = useState('#Focus');
   const [newColor, setNewColor] = useState('#3b82f6');
+  const [newReminderEnabled, setNewReminderEnabled] = useState(true);
 
   // Filtered blocks
   const filteredBlocks = useMemo(() => {
@@ -100,9 +105,25 @@ export default function CalendarWorkspace() {
       done: false,
     });
 
+    if (newReminderEnabled) {
+      const [h, m] = newStartTime.split(':').map((v) => parseInt(v, 10));
+      const target = new Date();
+      target.setHours(isNaN(h) ? 9 : h, isNaN(m) ? 0 : m, 0, 0);
+      if (target.getTime() <= Date.now()) {
+        target.setDate(target.getDate() + 1);
+      }
+      addReminder({
+        title: `Vaqt bloki boshlandi: ${newTitle.trim()}`,
+        description: `${newStartTime} - ${newEndTime} oralig'idagi reja`,
+        time_string: newStartTime,
+        target_time: target.toISOString(),
+        source_type: 'calendar',
+      });
+    }
+
     setNewTitle('');
     setShowAddModal(false);
-    setHud(`"${newTitle.trim()}" vaqt bloki jadvalga kiritildi ✓`);
+    setHud(`"${newTitle.trim()}" vaqt bloki jadvalga kiritildi ${newReminderEnabled ? 'va eslatma yoqildi 🔔' : '✓'}`);
   };
 
   const formattedDateTitle = useMemo(() => {
@@ -424,7 +445,49 @@ export default function CalendarWorkspace() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        {(() => {
+                          const isReminderActive = reminders.some(
+                            (r) => r.source_type === 'calendar' && r.title.includes(block.title) && r.status === 'pending'
+                          );
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isReminderActive) {
+                                  const existing = reminders.find(
+                                    (r) => r.source_type === 'calendar' && r.title.includes(block.title) && r.status === 'pending'
+                                  );
+                                  if (existing) deleteReminder(existing.id);
+                                  setHud(`"${block.title}" uchun bildirishnoma bekor qilindi`);
+                                } else {
+                                  const startTime = block.time_range.split('-')[0]?.trim() || '09:00';
+                                  const [h, m] = startTime.split(':').map((v) => parseInt(v, 10));
+                                  const target = new Date();
+                                  target.setHours(isNaN(h) ? 9 : h, isNaN(m) ? 0 : m, 0, 0);
+                                  if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+                                  addReminder({
+                                    title: `Vaqt bloki boshlandi: ${block.title}`,
+                                    description: `${block.time_range} vaqt oralig'i`,
+                                    time_string: startTime,
+                                    target_time: target.toISOString(),
+                                    source_type: 'calendar',
+                                  });
+                                  setHud(`"${block.title}" uchun ${startTime} ga bildirishnoma yoqildi 🔔`);
+                                }
+                              }}
+                              className={`p-1.5 rounded-lg transition ${
+                                isReminderActive
+                                  ? 'text-amber-400 bg-amber-500/10 opacity-100 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                                  : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-amber-300 hover:bg-white/5'
+                              }`}
+                              title={isReminderActive ? "Bildirishnoma yoqilgan (o'chirish)" : "Bildirishnoma yoqish"}
+                            >
+                              <Bell size={13} />
+                            </button>
+                          );
+                        })()}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -855,6 +918,34 @@ export default function CalendarWorkspace() {
                     />
                   ))}
                 </div>
+              </div>
+
+              {/* Notification / Reminder toggle */}
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                    newReminderEnabled ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' : 'bg-white/5 border-white/10 text-zinc-500'
+                  }`}>
+                    <Bell size={15} />
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-medium text-white">Boshlanishida bildirishnoma yuborilsin</p>
+                    <p className="text-[10.5px] text-zinc-400">Belgilangan vaqtda ekran xabarnomasi va ovozli signal chiqadi</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNewReminderEnabled(!newReminderEnabled)}
+                  className={`h-5 w-9 rounded-full transition-colors relative ${
+                    newReminderEnabled ? 'bg-amber-500' : 'bg-zinc-700'
+                  }`}
+                >
+                  <div
+                    className={`h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                      newReminderEnabled ? 'translate-x-4' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
 
               <div className="flex justify-end gap-2.5 pt-3 border-t border-white/[0.06]">

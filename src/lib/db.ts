@@ -11,6 +11,7 @@ import type {
   RoadmapItem,
   LearningLog,
   ProjectIdea,
+  ScheduledReminder,
 } from './types';
 import { isTauri } from './vault';
 import {
@@ -166,6 +167,20 @@ CREATE TABLE IF NOT EXISTS project_ideas (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS scheduled_reminders (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    source_type TEXT DEFAULT 'voice',
+    source_id TEXT,
+    target_time TEXT NOT NULL,
+    time_string TEXT NOT NULL,
+    cron_expression TEXT,
+    status TEXT DEFAULT 'pending',
+    sound_enabled INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    triggered_at DATETIME
+);
 `;
 
 /** Mirrors the Rust-side migrations:
@@ -175,7 +190,14 @@ export async function migrate(): Promise<void> {
   for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
     await db.execute(stmt);
   }
-  for (const col of ['assignee_name2 TEXT', 'assignee_avatar2 TEXT', 'group_id TEXT', "tags TEXT DEFAULT '[]'"]) {
+  for (const col of [
+    'assignee_name2 TEXT',
+    'assignee_avatar2 TEXT',
+    'group_id TEXT',
+    "tags TEXT DEFAULT '[]'",
+    'due_time TEXT',
+    'reminder_enabled INTEGER DEFAULT 0',
+  ]) {
     try {
       await db.execute(`ALTER TABLE tasks ADD COLUMN ${col}`);
     } catch {
@@ -725,4 +747,79 @@ export async function deleteProjectIdeaFromDb(id: string): Promise<void> {
   const db = await getDb();
   await db.execute('DELETE FROM project_ideas WHERE id = $1', [id]);
 }
+
+export async function fetchReminders(): Promise<ScheduledReminder[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<Array<{
+      id: string;
+      title: string;
+      description: string;
+      source_type: string;
+      source_id: string | null;
+      target_time: string;
+      time_string: string;
+      cron_expression: string | null;
+      status: string;
+      sound_enabled: number;
+      created_at: string;
+      triggered_at: string | null;
+    }>>('SELECT * FROM scheduled_reminders ORDER BY target_time ASC');
+
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description || '',
+      source_type: (r.source_type as any) || 'custom',
+      source_id: r.source_id,
+      target_time: r.target_time,
+      time_string: r.time_string,
+      cron_expression: r.cron_expression,
+      status: (r.status as any) || 'pending',
+      sound_enabled: r.sound_enabled === 1,
+      created_at: r.created_at,
+      triggered_at: r.triggered_at,
+    }));
+  } catch (err) {
+    console.warn('[db.ts fetchReminders] error:', err);
+    return [];
+  }
+}
+
+export async function upsertReminder(r: ScheduledReminder): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO scheduled_reminders (id, title, description, source_type, source_id, target_time, time_string, cron_expression, status, sound_enabled, created_at, triggered_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     ON CONFLICT(id) DO UPDATE SET
+       title=excluded.title,
+       description=excluded.description,
+       target_time=excluded.target_time,
+       time_string=excluded.time_string,
+       cron_expression=excluded.cron_expression,
+       status=excluded.status,
+       sound_enabled=excluded.sound_enabled,
+       triggered_at=excluded.triggered_at`,
+    [
+      r.id,
+      r.title,
+      r.description || '',
+      r.source_type,
+      r.source_id ?? null,
+      r.target_time,
+      r.time_string,
+      r.cron_expression ?? null,
+      r.status,
+      r.sound_enabled ? 1 : 0,
+      r.created_at || new Date().toISOString(),
+      r.triggered_at ?? null,
+    ],
+  );
+}
+
+export async function deleteReminderFromDb(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM scheduled_reminders WHERE id = $1', [id]);
+}
+
 

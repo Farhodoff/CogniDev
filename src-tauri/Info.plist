@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>CogniDev ovozli qaydlar va eslatmalarni yozish uchun mikrofondan foydalanadi.</string>
+	<string>CogniDev ovozli qaydlar, eslatmalar va vazifalarni kiritish uchun mikrofondan foydalanadi.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CogniDev ovozli xabarlarni matnga aylantirish uchun nutqni aniqlashdan foydalanadi.</string>
 </dict>
 </plist>
