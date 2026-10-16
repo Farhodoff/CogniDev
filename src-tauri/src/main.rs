@@ -174,10 +174,16 @@ fn run_git_cmd(dir: &str, args: &[&str]) -> Result<String, String> {
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
 
-    let output = cmd.output().map_err(|e| format!("git buyrug'i bajarilmadi: {e}"))?;
+    let output = cmd
+        .output()
+        .map_err(|e| format!("git buyrug'i bajarilmadi: {e}"))?;
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if err.is_empty() { "git xatosi".to_string() } else { err });
+        return Err(if err.is_empty() {
+            "git xatosi".to_string()
+        } else {
+            err
+        });
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
@@ -197,11 +203,10 @@ fn get_git_repo_info(repo_path: Option<String>) -> Result<GitRepoInfo, String> {
     let branch = run_git_cmd(&toplevel, &["branch", "--show-current"])
         .unwrap_or_else(|_| "HEAD".to_string());
 
-    let remote_url = run_git_cmd(&toplevel, &["remote", "get-url", "origin"])
-        .unwrap_or_else(|_| "".to_string());
+    let remote_url =
+        run_git_cmd(&toplevel, &["remote", "get-url", "origin"]).unwrap_or_else(|_| "".to_string());
 
-    let status_raw = run_git_cmd(&toplevel, &["status", "--porcelain"])
-        .unwrap_or_default();
+    let status_raw = run_git_cmd(&toplevel, &["status", "--porcelain"]).unwrap_or_default();
 
     let mut files = Vec::new();
     let mut modified_count = 0;
@@ -214,7 +219,8 @@ fn get_git_repo_info(repo_path: Option<String>) -> Result<GitRepoInfo, String> {
             let file_path = line[3..].trim().to_string();
             if status == "??" {
                 untracked_count += 1;
-            } else if status.starts_with('M') || status.starts_with('A') || status.starts_with('D') {
+            } else if status.starts_with('M') || status.starts_with('A') || status.starts_with('D')
+            {
                 staged_count += 1;
             } else {
                 modified_count += 1;
@@ -226,8 +232,11 @@ fn get_git_repo_info(repo_path: Option<String>) -> Result<GitRepoInfo, String> {
         }
     }
 
-    let log_raw = run_git_cmd(&toplevel, &["log", "-n", "8", "--pretty=format:%h|%an|%ar|%s"])
-        .unwrap_or_default();
+    let log_raw = run_git_cmd(
+        &toplevel,
+        &["log", "-n", "8", "--pretty=format:%h|%an|%ar|%s"],
+    )
+    .unwrap_or_default();
 
     let mut recent_commits = Vec::new();
     for line in log_raw.lines() {
@@ -242,8 +251,7 @@ fn get_git_repo_info(repo_path: Option<String>) -> Result<GitRepoInfo, String> {
         }
     }
 
-    let diff_summary = run_git_cmd(&toplevel, &["diff", "--stat"])
-        .unwrap_or_default();
+    let diff_summary = run_git_cmd(&toplevel, &["diff", "--stat"]).unwrap_or_default();
 
     let diff_full = run_git_cmd(&toplevel, &["diff", "HEAD"])
         .unwrap_or_else(|_| run_git_cmd(&toplevel, &["diff"]).unwrap_or_default());
@@ -333,4 +341,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
