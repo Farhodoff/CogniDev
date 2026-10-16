@@ -17,4 +17,27 @@ export default defineConfig(async () => ({
     hmr: { protocol: 'ws', host: '127.0.0.1' },
     watch: { ignored: ['**/src-tauri/**'] },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('@tauri-apps')) {
+              return 'vendor-tauri';
+            }
+            if (id.includes('zustand')) {
+              return 'vendor-state';
+            }
+          }
+        },
+      },
+    },
+  },
 }))

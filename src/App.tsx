@@ -1,23 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import DashboardWorkspace from './components/DashboardWorkspace';
 import TaskStream from './components/TaskStream';
 import WorkspaceEditor from './components/WorkspaceEditor';
-import NotionNotesWorkspace from './components/NotionNotesWorkspace';
-import RoadmapWorkspace from './components/RoadmapWorkspace';
-import IdeasWorkspace from './components/IdeasWorkspace';
-import RetroWorkspace from './components/RetroWorkspace';
-import InboxWorkspace from './components/InboxWorkspace';
-import CalendarWorkspace from './components/CalendarWorkspace';
-import ProjectsWorkspace from './components/ProjectsWorkspace';
-import AiAssistantDrawer from './components/AiAssistantDrawer';
 import FloatingHud from './components/FloatingHud';
-import StandupModal from './components/StandupModal';
-import WeeklyCoachModal from './components/WeeklyCoachModal';
-import CommandPalette from './components/CommandPalette';
 import NotificationBanner from './components/NotificationBanner';
+import WorkspaceLoading from './components/WorkspaceLoading';
 import { useSynapse } from './lib/store';
+
+// Workspaces lazy loaded on demand for faster initial startup:
+const NotionNotesWorkspace = lazy(() => import('./components/NotionNotesWorkspace'));
+const RoadmapWorkspace = lazy(() => import('./components/RoadmapWorkspace'));
+const IdeasWorkspace = lazy(() => import('./components/IdeasWorkspace'));
+const RetroWorkspace = lazy(() => import('./components/RetroWorkspace'));
+const InboxWorkspace = lazy(() => import('./components/InboxWorkspace'));
+const CalendarWorkspace = lazy(() => import('./components/CalendarWorkspace'));
+const ProjectsWorkspace = lazy(() => import('./components/ProjectsWorkspace'));
+
+// Drawers & Modals lazy loaded on demand:
+const AiAssistantDrawer = lazy(() => import('./components/AiAssistantDrawer'));
+const StandupModal = lazy(() => import('./components/StandupModal'));
+const WeeklyCoachModal = lazy(() => import('./components/WeeklyCoachModal'));
+const CommandPalette = lazy(() => import('./components/CommandPalette'));
 
 export default function App() {
   const {
@@ -121,27 +126,33 @@ export default function App() {
       <Header onPalette={() => setPaletteOpen(true)} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
-        {mainView === 'dashboard' && <DashboardWorkspace />}
-        {mainView === 'inbox' && <InboxWorkspace />}
-        {mainView === 'calendar' && <CalendarWorkspace />}
-        {mainView === 'stream' && (
-          <>
-            <TaskStream />
-            <WorkspaceEditor />
-          </>
-        )}
-        {mainView === 'notes' && <NotionNotesWorkspace />}
-        {mainView === 'projects' && <ProjectsWorkspace />}
-        {mainView === 'roadmap' && <RoadmapWorkspace />}
-        {mainView === 'ideas' && <IdeasWorkspace />}
-        {mainView === 'retro' && <RetroWorkspace />}
-        <AiAssistantDrawer />
+        <Suspense fallback={<WorkspaceLoading />}>
+          {mainView === 'dashboard' && <DashboardWorkspace />}
+          {mainView === 'inbox' && <InboxWorkspace />}
+          {mainView === 'calendar' && <CalendarWorkspace />}
+          {mainView === 'stream' && (
+            <>
+              <TaskStream />
+              <WorkspaceEditor />
+            </>
+          )}
+          {mainView === 'notes' && <NotionNotesWorkspace />}
+          {mainView === 'projects' && <ProjectsWorkspace />}
+          {mainView === 'roadmap' && <RoadmapWorkspace />}
+          {mainView === 'ideas' && <IdeasWorkspace />}
+          {mainView === 'retro' && <RetroWorkspace />}
+        </Suspense>
+        <Suspense fallback={null}>
+          <AiAssistantDrawer />
+        </Suspense>
       </div>
       <FloatingHud />
       <NotificationBanner />
-      <StandupModal />
-      <WeeklyCoachModal />
-      {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
+      <Suspense fallback={null}>
+        <StandupModal />
+        <WeeklyCoachModal />
+        {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
+      </Suspense>
     </div>
   );
 }

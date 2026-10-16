@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import {
   ChevronDown,
   Download,
@@ -22,6 +22,8 @@ import {
   VolumeX,
   Trash2,
   Layout,
+  GitBranch,
+  FolderGit2,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
@@ -30,13 +32,17 @@ import { isMac, formatShortcut } from '../lib/platform';
 import { rubaiStatus } from '../lib/stt';
 import { enabledProviders } from '../lib/providers';
 import { checkAppUpdate } from '../lib/updater';
-import TaskModal from './TaskModal';
-import LogChatModal from './LogChatModal';
-import VoiceRecorderModal from './VoiceRecorderModal';
-import AiProvidersModal from './AiProvidersModal';
-import ProfileModal from './ProfileModal';
-import GuideModal from './GuideModal';
-import UpdateModal from './UpdateModal';
+import { fetchGitRepoInfo } from '../lib/git';
+
+// Lazy-loaded dialogs & modals on-demand:
+const TaskModal = lazy(() => import('./TaskModal'));
+const LogChatModal = lazy(() => import('./LogChatModal'));
+const VoiceRecorderModal = lazy(() => import('./VoiceRecorderModal'));
+const AiProvidersModal = lazy(() => import('./AiProvidersModal'));
+const ProfileModal = lazy(() => import('./ProfileModal'));
+const GuideModal = lazy(() => import('./GuideModal'));
+const UpdateModal = lazy(() => import('./UpdateModal'));
+const GitInspectorModal = lazy(() => import('./GitInspectorModal'));
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -82,6 +88,26 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
   const [updateAutoStart, setUpdateAutoStart] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ available: boolean; version?: string; body?: string; handle?: any } | null>(null);
+
+  // Live Git State
+  const [gitModalOpen, setGitModalOpen] = useState(false);
+  const [gitBranch, setGitBranch] = useState<string | null>(null);
+  const [gitChangesCount, setGitChangesCount] = useState<number>(0);
+
+  const refreshGit = () => {
+    fetchGitRepoInfo()
+      .then((info) => {
+        if (info?.is_repo) {
+          setGitBranch(info.branch);
+          setGitChangesCount(info.files.length);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshGit();
+  }, []);
 
   useEffect(() => {
     const runCheck = () => {
@@ -305,9 +331,34 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <Mic size={14} className="text-rose-400" />
                   <span>Voice Note</span>
                 </button>
+                <button
+                  onClick={() => {
+                    setGitModalOpen(true);
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <FolderGit2 size={14} className="text-orange-400" />
+                  <span>Git Repozitoriy</span>
+                </button>
               </div>
             )}
           </div>
+
+          {/* 🌿 Git Branch & Status Pill */}
+          <button
+            onClick={() => setGitModalOpen(true)}
+            title="Git Repozitoriy va Commitlar"
+            className="flex items-center gap-1.5 rounded-full bg-white/[0.06] border border-white/10 px-2.5 py-1 text-[11.5px] font-mono text-zinc-300 hover:bg-white/10 hover:text-white transition"
+          >
+            <GitBranch size={12} className="text-orange-400" />
+            <span className="truncate max-w-[100px]">{gitBranch || 'git'}</span>
+            {gitChangesCount > 0 && (
+              <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.2 text-[10px] font-bold text-amber-300">
+                {gitChangesCount}
+              </span>
+            )}
+          </button>
 
           {/* ✨ AI Assistant Button */}
           <button
@@ -514,25 +565,36 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
       )}
 
       <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onFilePicked} />
-      {showTaskModal && <TaskModal open={showTaskModal} onClose={() => setTaskModal(false)} />}
-      {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
-      {voiceOpen && <VoiceRecorderModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />}
-      {showProvidersModal && <AiProvidersModal open={showProvidersModal} onClose={() => setProvidersModal(false)} />}
-      {showProfileModal && <ProfileModal open={showProfileModal} onClose={() => setProfileModal(false)} />}
-      {showGuideModal && <GuideModal open={showGuideModal} onClose={() => setGuideModal(false)} />}
-      {updateModalOpen && (
-        <UpdateModal
-          open={updateModalOpen}
-          onClose={() => {
-            setUpdateModalOpen(false);
-            setUpdateAutoStart(false);
-          }}
-          initialUpdateHandle={updateInfo?.handle}
-          initialVersion={updateInfo?.version}
-          initialBody={updateInfo?.body}
-          autoStart={updateAutoStart}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showTaskModal && <TaskModal open={showTaskModal} onClose={() => setTaskModal(false)} />}
+        {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
+        {voiceOpen && <VoiceRecorderModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />}
+        {showProvidersModal && <AiProvidersModal open={showProvidersModal} onClose={() => setProvidersModal(false)} />}
+        {showProfileModal && <ProfileModal open={showProfileModal} onClose={() => setProfileModal(false)} />}
+        {showGuideModal && <GuideModal open={showGuideModal} onClose={() => setGuideModal(false)} />}
+        {gitModalOpen && (
+          <GitInspectorModal
+            open={gitModalOpen}
+            onClose={() => {
+              setGitModalOpen(false);
+              refreshGit();
+            }}
+          />
+        )}
+        {updateModalOpen && (
+          <UpdateModal
+            open={updateModalOpen}
+            onClose={() => {
+              setUpdateModalOpen(false);
+              setUpdateAutoStart(false);
+            }}
+            initialUpdateHandle={updateInfo?.handle}
+            initialVersion={updateInfo?.version}
+            initialBody={updateInfo?.body}
+            autoStart={updateAutoStart}
+          />
+        )}
+      </Suspense>
     </>
   );
 }

@@ -26,6 +26,7 @@ import { callAi } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 import type { ActiveProject, TaskPriority } from '../lib/types';
 import FormattedAiText from './FormattedAiText';
+import GitInspectorModal from './GitInspectorModal';
 
 const COLOR_OPTIONS = [
   { name: 'Ko‘k (Blue)', value: '#3b82f6' },
@@ -120,6 +121,8 @@ export default function ProjectsWorkspace() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<ActiveProject | null>(null);
   const [aiDecomposingProject, setAiDecomposingProject] = useState<ActiveProject | null>(null);
+  const [showGitModal, setShowGitModal] = useState(false);
+  const [gitModalPath, setGitModalPath] = useState<string | undefined>(undefined);
 
   // Form states for Create / Edit
   const [formTitle, setFormTitle] = useState('');
@@ -445,6 +448,17 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
               </div>
             )}
           </div>
+
+          <button
+            onClick={() => {
+              setGitModalPath(undefined);
+              setShowGitModal(true);
+            }}
+            className="flex items-center gap-1.5 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-1.5 text-[12px] font-medium text-orange-300 hover:bg-orange-500/20 transition"
+          >
+            <FolderGit2 size={13} className="text-orange-400" />
+            <span>Git Repozitoriy</span>
+          </button>
 
           <button
             onClick={handleOpenCreate}
@@ -779,13 +793,25 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
                         <span>Bog‘langan vazifalar ({relatedTasks.length})</span>
                       </button>
 
-                      <button
-                        onClick={() => handleOpenAiDecompose(p)}
-                        className="flex items-center gap-1 rounded-lg bg-purple-500/10 px-2 py-1 text-[10.5px] font-semibold text-purple-300 border border-purple-500/20 hover:bg-purple-500/20 transition"
-                        title="AI orqali vazifalar rejasini tuzish"
-                      >
-                        <Sparkles size={11} /> AI Reja
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setGitModalPath(p.github_url || undefined);
+                            setShowGitModal(true);
+                          }}
+                          className="flex items-center gap-1 rounded-lg bg-orange-500/10 px-2 py-1 text-[10.5px] font-semibold text-orange-300 border border-orange-500/20 hover:bg-orange-500/20 transition"
+                          title="Git holatini ko'rish"
+                        >
+                          <FolderGit2 size={11} /> Git
+                        </button>
+                        <button
+                          onClick={() => handleOpenAiDecompose(p)}
+                          className="flex items-center gap-1 rounded-lg bg-purple-500/10 px-2 py-1 text-[10.5px] font-semibold text-purple-300 border border-purple-500/20 hover:bg-purple-500/20 transition"
+                          title="AI orqali vazifalar rejasini tuzish"
+                        >
+                          <Sparkles size={11} /> AI Reja
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1091,6 +1117,15 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── GIT INSPECTOR MODAL ── */}
+      {showGitModal && (
+        <GitInspectorModal
+          open={showGitModal}
+          onClose={() => setShowGitModal(false)}
+          initialPath={gitModalPath}
+        />
       )}
     </div>
   );
