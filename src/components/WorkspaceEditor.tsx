@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Check, FileText, MessagesSquare, Plus, Trash2, ChevronDown, Copy, Mic, Sparkles, X, Tag } from 'lucide-react';
 import { useSynapse } from '../lib/store';
+import { useFocusStore } from '../lib/focusStore';
 
 /** Minimal markdown renderer: headings, code fences, inline code, bold, quote. */
 export function MiniMarkdown({ source }: { source: string }) {
@@ -304,6 +305,19 @@ export default function WorkspaceEditor() {
                       <span>Ovozli yozish</span>
                     </>
                   )}
+                </button>
+
+                {/* 🍅 Fokus Rejimiga Olish */}
+                <button
+                  onClick={() => {
+                    useFocusStore.getState().startFocus(25, task.id, task.title);
+                    useFocusStore.getState().setShowModal(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11.5px] font-medium text-rose-300 hover:bg-rose-500/20 transition"
+                  title="Ushbu vazifani 25 minutlik Pomodoro fokus rejimiga olish"
+                >
+                  <span className="text-xs">🍅</span>
+                  <span>Fokus</span>
                 </button>
               </div>
 

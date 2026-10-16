@@ -23,6 +23,8 @@ const AiAssistantDrawer = lazy(() => import('./components/AiAssistantDrawer'));
 const StandupModal = lazy(() => import('./components/StandupModal'));
 const WeeklyCoachModal = lazy(() => import('./components/WeeklyCoachModal'));
 const CommandPalette = lazy(() => import('./components/CommandPalette'));
+const FocusModal = lazy(() => import('./components/FocusModal'));
+import { useFocusStore } from './lib/focusStore';
 
 export default function App() {
   const {
@@ -51,6 +53,15 @@ export default function App() {
         if (!typing) {
           e.preventDefault();
           toggleAiDrawer();
+        }
+      }
+      // ⌘P → Toggle Pomodoro & Deep Work Focus Modal
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+        if (!typing) {
+          e.preventDefault();
+          useFocusStore.getState().setShowModal(!useFocusStore.getState().showModal);
         }
       }
       // macOS standard: ⌘N → new task (not while typing)
@@ -151,6 +162,7 @@ export default function App() {
       <Suspense fallback={null}>
         <StandupModal />
         <WeeklyCoachModal />
+        <FocusModal />
         {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
       </Suspense>
     </div>

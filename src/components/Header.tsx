@@ -33,6 +33,8 @@ import { rubaiStatus } from '../lib/stt';
 import { enabledProviders } from '../lib/providers';
 import { checkAppUpdate } from '../lib/updater';
 import { fetchGitRepoInfo } from '../lib/git';
+import FocusTimerPill from './FocusTimerPill';
+import { useFocusStore } from '../lib/focusStore';
 
 // Lazy-loaded dialogs & modals on-demand:
 const TaskModal = lazy(() => import('./TaskModal'));
@@ -341,9 +343,23 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <FolderGit2 size={14} className="text-orange-400" />
                   <span>Git Repozitoriy</span>
                 </button>
+                <button
+                  onClick={() => {
+                    useFocusStore.getState().setShowModal(true);
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <span className="text-sm">🍅</span>
+                  <span>Focus Sprint</span>
+                  <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">{formatShortcut('P')}</kbd>
+                </button>
               </div>
             )}
           </div>
+
+          {/* 🍅 Pomodoro & Deep Work Focus Pill */}
+          <FocusTimerPill />
 
           {/* 🌿 Git Branch & Status Pill */}
           <button
