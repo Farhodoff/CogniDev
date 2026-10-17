@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import {
   Plus,
   Trash2,
@@ -60,15 +60,19 @@ export default function NotionNotesWorkspace() {
     [notesDocs, selectedNoteId],
   );
 
+  // Deferred values for large-document and list typing responsiveness
+  const deferredSearch = useDeferredValue(searchQuery);
+  const deferredContent = useDeferredValue(currentNote?.content || '');
+
   // Cross-Workspace: Bog'langan uchrashuv
   const linkedMeeting = useMemo(() => {
     if (!currentNote) return null;
     return meetings.find((m) => m.note_id === currentNote.id) ?? null;
   }, [meetings, currentNote]);
 
-  // Filtered notes
+  // Filtered notes with deferred search to avoid main thread stutters
   const filteredNotes = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     if (!q) return notesDocs;
     return notesDocs.filter(
       (n) =>
@@ -76,7 +80,7 @@ export default function NotionNotesWorkspace() {
         n.content.toLowerCase().includes(q) ||
         n.tags.some((t) => t.toLowerCase().includes(q)),
     );
-  }, [notesDocs, searchQuery]);
+  }, [notesDocs, deferredSearch]);
 
   // Insert Notion-style block into editor
   const insertBlock = (template: string) => {
@@ -558,7 +562,7 @@ export default function NotionNotesWorkspace() {
                 {/* Rich Notion-style Preview */}
                 {(viewMode === 'preview' || viewMode === 'split') && (
                   <div className="rounded-2xl border border-white/[0.05] bg-white/[0.015] p-6 leading-relaxed">
-                    <NotionRenderedContent content={currentNote.content} />
+                    <NotionRenderedContent content={deferredContent} />
                   </div>
                 )}
               </div>
@@ -593,8 +597,8 @@ export default function NotionNotesWorkspace() {
   );
 }
 
-/** Rich Notion-like formatted renderer with syntax highlighting and callouts */
-function NotionRenderedContent({ content }: { content: string }) {
+/** Rich Notion-like formatted renderer with syntax highlighting and callouts (memoized for high-performance large docs) */
+const NotionRenderedContent = React.memo(function NotionRenderedContent({ content }: { content: string }) {
   const blocks = useMemo(() => {
     const lines = content.split('\n');
     const out: React.ReactNode[] = [];
@@ -737,4 +741,4 @@ function NotionRenderedContent({ content }: { content: string }) {
   }, [content]);
 
   return <div className="space-y-1">{blocks}</div>;
-}
+});

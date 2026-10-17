@@ -1,14 +1,17 @@
 {
   "name": "cognidev",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint src",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:universal": "tauri build --target universal-apple-darwin",
+    "build:arm64": "tauri build --target aarch64-apple-darwin",
+    "build:x86": "tauri build --target x86_64-apple-darwin"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

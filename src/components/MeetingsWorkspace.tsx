@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';
 import {
   Mic,
   Play,
@@ -103,12 +103,6 @@ export default function MeetingsWorkspace() {
   const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Audio Playback State for active meeting
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
   // TTS State
   const [isSpeaking, setIsSpeaking] = useState(false);
   const ttsControllerRef = useRef<{ stop: () => void } | null>(null);
@@ -126,13 +120,16 @@ export default function MeetingsWorkspace() {
   // AI Re-analysis status
   const [isReanalyzing, setIsReanalyzing] = useState(false);
 
+  // Deferred Search for fast non-blocking filtering of meetings
+  const deferredSearch = useDeferredValue(search);
+
   // Filtered Meetings list
   const filteredMeetings = useMemo(() => {
     return meetings.filter((m) => {
       if (filterMode === 'analyzed' && m.mode !== 'analyzed') return false;
       if (filterMode === 'audio_only' && m.mode !== 'audio_only') return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
+      if (deferredSearch.trim()) {
+        const q = deferredSearch.toLowerCase();
         const matchTitle = m.title.toLowerCase().includes(q);
         const matchTranscript = m.transcript.toLowerCase().includes(q);
         const matchSummary = (m.summary || '').toLowerCase().includes(q);
@@ -141,54 +138,7 @@ export default function MeetingsWorkspace() {
       }
       return true;
     });
-  }, [meetings, filterMode, search]);
-
-  // Stop current audio when switching meetings
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-      setIsPlayingAudio(false);
-      setAudioCurrentTime(0);
-    }
-  }, [selectedMeetingId]);
-
-  // Handle Play/Pause Audio with disk and IndexedDB resolution
-  const togglePlayAudio = async (url?: string) => {
-    let playUrl = url;
-    if (!playUrl && selectedMeeting) {
-      playUrl = (await resolveMeetingAudioUrl(selectedMeeting)) ?? undefined;
-    }
-    if (!playUrl && selectedMeeting?.audio_url) {
-      playUrl = selectedMeeting.audio_url;
-    }
-
-    if (!audioRef.current && playUrl) {
-      audioRef.current = new Audio(playUrl);
-      audioRef.current.onended = () => setIsPlayingAudio(false);
-      audioRef.current.ontimeupdate = () => {
-        if (audioRef.current) setAudioCurrentTime(audioRef.current.currentTime);
-      };
-    }
-
-    if (!audioRef.current) return;
-
-    if (isPlayingAudio) {
-      audioRef.current.pause();
-      setIsPlayingAudio(false);
-    } else {
-      audioRef.current.playbackRate = playbackSpeed;
-      audioRef.current.play().catch(() => {});
-      setIsPlayingAudio(true);
-    }
-  };
-
-  const changePlaybackSpeed = (speed: number) => {
-    setPlaybackSpeed(speed);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = speed;
-    }
-  };
+  }, [meetings, filterMode, deferredSearch]);
 
   // Handle TTS
   const handleToggleTts = () => {
@@ -720,56 +670,14 @@ export default function MeetingsWorkspace() {
                 </div>
               </div>
 
-              {/* Mini Audio Player Bar (if audio available) */}
+              {/* Mini Audio Player Bar (isolated from parent renders for maximum playback performance) */}
               {(selectedMeeting.audio_url || selectedMeeting.audio_path) && (
-                <div className="mt-3.5 p-2.5 rounded-xl bg-black/40 border border-white/[0.06] flex items-center gap-3">
-                  <button
-                    onClick={() => togglePlayAudio(selectedMeeting.audio_url)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition shadow-md"
-                  >
-                    {isPlayingAudio ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
-                  </button>
-
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono mb-1">
-                      <span>{Math.floor(audioCurrentTime / 60)}:{Math.floor(audioCurrentTime % 60).toString().padStart(2, '0')}</span>
-                      <span>{Math.floor(selectedMeeting.duration / 60)}:{(selectedMeeting.duration % 60).toString().padStart(2, '0')}</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-100"
-                        style={{
-                          width: `${selectedMeeting.duration ? (audioCurrentTime / selectedMeeting.duration) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Playback speed pills & Download */}
-                  <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-lg text-[10.5px] font-mono">
-                    {[1, 1.25, 1.5, 2].map((sp) => (
-                      <button
-                        key={sp}
-                        onClick={() => changePlaybackSpeed(sp)}
-                        className={`px-1.5 py-0.5 rounded ${
-                          playbackSpeed === sp ? 'bg-purple-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        {sp}x
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => {
-                        downloadAudioFile(selectedMeeting.audio_url!, selectedMeeting.title);
-                        setHud(`"${selectedMeeting.title}.wav" audio yuklab olindi ✓`);
-                      }}
-                      title="Audioni yuklab olish (.wav)"
-                      className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition ml-0.5"
-                    >
-                      <Download size={12} />
-                    </button>
-                  </div>
-                </div>
+                <MeetingAudioPlayer
+                  meeting={selectedMeeting}
+                  onDownload={() => {
+                    setHud(`"${selectedMeeting.title}.wav" audio yuklab olindi ✓`);
+                  }}
+                />
               )}
 
               {/* Workspace Navigation Tabs */}
@@ -983,26 +891,13 @@ export default function MeetingsWorkspace() {
               )}
 
               {activeTab === 'transcript' && (
-                <div className="max-w-4xl mx-auto space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[12px] text-zinc-400">
-                      Uchrashuv davomida yozib olingan asl nutq transkripsiya matni:
-                    </p>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(selectedMeeting.transcript);
-                        setHud("Transkript matni ko‘chirildi ✓");
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-zinc-300 hover:text-white text-[11px] border border-white/10"
-                    >
-                      <Copy size={12} /> Nusxa olish
-                    </button>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-5 font-mono text-[13px] text-zinc-200 leading-relaxed whitespace-pre-wrap selection:bg-purple-500/30">
-                    {selectedMeeting.transcript}
-                  </div>
-                </div>
+                <OptimizedTranscriptViewer
+                  transcript={selectedMeeting.transcript}
+                  onCopyAll={() => {
+                    navigator.clipboard.writeText(selectedMeeting.transcript);
+                    setHud("Transkript matni ko‘chirildi ✓");
+                  }}
+                />
               )}
 
               {activeTab === 'chat' && (
@@ -1768,3 +1663,343 @@ function MeetingSettingsModal({ onClose }: { open?: boolean; onClose: () => void
     </div>
   );
 }
+
+// ── High-Performance Isolated Meeting Audio Player ─────────────────────────
+interface MeetingAudioPlayerProps {
+  meeting: MeetingItem;
+  onDownload: () => void;
+}
+
+const MeetingAudioPlayer = React.memo(function MeetingAudioPlayer({ meeting, onDownload }: MeetingAudioPlayerProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [speed, setSpeed] = useState(1);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+  }, [meeting.id]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleTogglePlay = async () => {
+    if (!audioRef.current) {
+      let playUrl = meeting.audio_url;
+      if (!playUrl || playUrl.startsWith('blob:null')) {
+        playUrl = (await resolveMeetingAudioUrl(meeting)) ?? undefined;
+      }
+      if (!playUrl) return;
+
+      const audio = new Audio(playUrl);
+      audio.playbackRate = speed;
+      audio.onended = () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      };
+      audio.ontimeupdate = () => {
+        setCurrentTime(audio.currentTime);
+      };
+      audioRef.current = audio;
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.playbackRate = speed;
+      audioRef.current.play().catch((err) => console.warn('Audio play error:', err));
+      setIsPlaying(true);
+    }
+  };
+
+  const handleChangeSpeed = (newSpeed: number) => {
+    setSpeed(newSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = newSpeed;
+    }
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !meeting.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, clickX / rect.width));
+    const targetTime = pct * meeting.duration;
+    audioRef.current.currentTime = targetTime;
+    setCurrentTime(targetTime);
+  };
+
+  const handleDownloadClick = async () => {
+    let playUrl = meeting.audio_url;
+    if (!playUrl || playUrl.startsWith('blob:null')) {
+      playUrl = (await resolveMeetingAudioUrl(meeting)) ?? undefined;
+    }
+    if (playUrl) {
+      downloadAudioFile(playUrl, meeting.title);
+      onDownload();
+    }
+  };
+
+  const progressPct = meeting.duration ? Math.min(100, (currentTime / meeting.duration) * 100) : 0;
+
+  return (
+    <div className="mt-3.5 p-2.5 rounded-xl bg-black/40 border border-white/[0.06] flex items-center gap-3">
+      <button
+        onClick={handleTogglePlay}
+        className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition shadow-md shrink-0"
+      >
+        {isPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono mb-1">
+          <span>{Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}</span>
+          <span>{Math.floor((meeting.duration || 0) / 60)}:{((meeting.duration || 0) % 60).toString().padStart(2, '0')}</span>
+        </div>
+        <div
+          onClick={handleSeek}
+          className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden cursor-pointer hover:h-2 transition-all"
+        >
+          <div
+            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-75"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-lg text-[10.5px] font-mono shrink-0">
+        {[1, 1.25, 1.5, 2].map((sp) => (
+          <button
+            key={sp}
+            onClick={() => handleChangeSpeed(sp)}
+            className={`px-1.5 py-0.5 rounded ${
+              speed === sp ? 'bg-purple-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            {sp}x
+          </button>
+        ))}
+        <button
+          onClick={handleDownloadClick}
+          title="Audioni yuklab olish (.wav)"
+          className="p-1 rounded text-zinc-400 hover:text-emerald-300 hover:bg-white/10 transition ml-0.5"
+        >
+          <Download size={12} />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+// ── High-Performance Optimized Transcript Viewer (Chunking + Windowing) ──
+interface OptimizedTranscriptViewerProps {
+  transcript: string;
+  onCopyAll: () => void;
+}
+
+const OptimizedTranscriptViewer = React.memo(function OptimizedTranscriptViewer({
+  transcript,
+  onCopyAll,
+}: OptimizedTranscriptViewerProps) {
+  const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'raw'>('cards');
+  const [visibleLimit, setVisibleLimit] = useState(50);
+  const deferredSearch = useDeferredValue(search);
+
+  // Compute stats
+  const stats = useMemo(() => {
+    const trimmed = transcript.trim();
+    if (!trimmed) return { words: 0, chars: 0, readTimeMinutes: 0 };
+    const words = trimmed.split(/\s+/).length;
+    const chars = trimmed.length;
+    const readTimeMinutes = Math.max(1, Math.round(words / 180));
+    return { words, chars, readTimeMinutes };
+  }, [transcript]);
+
+  // Split transcript into logical readable paragraphs
+  const rawParagraphs = useMemo(() => {
+    if (!transcript) return [];
+    const rawBlocks = transcript.split(/\n\s*\n/).flatMap((b) => b.split('\n'));
+    const result: string[] = [];
+    for (const b of rawBlocks) {
+      const trimmed = b.trim();
+      if (!trimmed) continue;
+      if (trimmed.length > 500) {
+        const sentences = trimmed.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g);
+        if (sentences && sentences.length > 1) {
+          let chunk = '';
+          for (const s of sentences) {
+            chunk += s;
+            if (chunk.length > 250) {
+              result.push(chunk.trim());
+              chunk = '';
+            }
+          }
+          if (chunk.trim()) result.push(chunk.trim());
+        } else {
+          result.push(trimmed);
+        }
+      } else {
+        result.push(trimmed);
+      }
+    }
+    return result;
+  }, [transcript]);
+
+  // Filtered by search
+  const filteredParagraphs = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    if (!q) return rawParagraphs;
+    return rawParagraphs.filter((p) => p.toLowerCase().includes(q));
+  }, [rawParagraphs, deferredSearch]);
+
+  const displayedParagraphs = useMemo(() => {
+    return filteredParagraphs.slice(0, visibleLimit);
+  }, [filteredParagraphs, visibleLimit]);
+
+  const hasMore = filteredParagraphs.length > visibleLimit;
+
+  // Highlight matches
+  const renderHighlighted = (text: string) => {
+    const q = deferredSearch.trim();
+    if (!q) return text;
+    const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return parts.map((part, i) =>
+      regex.test(part) ? (
+        <mark key={i} className="bg-purple-500/40 text-purple-100 rounded px-1 py-0.5">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-4">
+      {/* Header controls bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-2.5 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Transkript ichidan qidirish..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-xl border border-white/10 bg-black/40 pl-8 pr-3 py-1.5 text-[12px] text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none w-56 transition"
+            />
+          </div>
+          {search.trim() && (
+            <span className="text-[11px] font-mono text-purple-300">
+              {filteredParagraphs.length} ta mos keldi
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+          <span className="font-mono bg-white/5 border border-white/10 rounded-lg px-2 py-1">
+            {stats.words.toLocaleString()} so‘z · ~{stats.readTimeMinutes} daq o‘qish
+          </span>
+
+          <div className="flex items-center rounded-lg border border-white/10 bg-black/30 p-0.5">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-2.5 py-0.5 rounded text-[11px] transition ${
+                viewMode === 'cards' ? 'bg-purple-600 text-white font-medium' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Abzaslar
+            </button>
+            <button
+              onClick={() => setViewMode('raw')}
+              className={`px-2.5 py-0.5 rounded text-[11px] transition ${
+                viewMode === 'raw' ? 'bg-purple-600 text-white font-medium' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Asl Matn
+            </button>
+          </div>
+
+          <button
+            onClick={onCopyAll}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-zinc-300 hover:text-white text-[11px] border border-white/10 transition"
+          >
+            <Copy size={12} /> Barchasini olish
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {viewMode === 'raw' ? (
+        <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-5 font-mono text-[13px] text-zinc-200 leading-relaxed whitespace-pre-wrap selection:bg-purple-500/30 max-h-[600px] overflow-y-auto">
+          {transcript}
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {displayedParagraphs.map((paragraph, idx) => (
+            <div
+              key={idx}
+              className="group relative rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.035] p-3.5 text-[13px] text-zinc-200 leading-relaxed transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 font-sans whitespace-pre-wrap">
+                  {renderHighlighted(paragraph)}
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                  <button
+                    onClick={() => navigator.clipboard.writeText(paragraph)}
+                    title="Ushbu abzasdan nusxa olish"
+                    className="p-1 rounded-lg text-zinc-500 hover:text-white hover:bg-white/10 transition"
+                  >
+                    <Copy size={11} />
+                  </button>
+                  <span className="font-mono text-[10px] text-zinc-600 select-none">
+                    #{idx + 1}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {hasMore && (
+            <div className="pt-2 flex items-center justify-between text-[11.5px] text-zinc-400 border-t border-white/[0.06]">
+              <span>
+                Ko‘rsatilmoqda: {displayedParagraphs.length} / {filteredParagraphs.length} ta abzas
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setVisibleLimit((v) => v + 50)}
+                  className="px-3 py-1 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 text-[11px] font-medium transition"
+                >
+                  +50 ta ko‘rsatish
+                </button>
+                <button
+                  onClick={() => setVisibleLimit(filteredParagraphs.length)}
+                  className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:text-white text-[11px] transition"
+                >
+                  Barchasini ko‘rsatish
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
