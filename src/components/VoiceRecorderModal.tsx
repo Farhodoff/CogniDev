@@ -5,7 +5,7 @@ import { insertTask, upsertResolution } from '../lib/db';
 import { formatVoiceWithOllama } from '../lib/voice';
 import { analyzeVoiceIntent } from '../lib/ai';
 import { SOURCE_LABELS } from '../lib/providers';
-import { blobToWav16k, pickAudioMime, rubaiStatus, transcribeRubai, type SttStatus } from '../lib/stt';
+import { blobToWav16k, pickAudioMime, rubaiStatus, transcribeRubai, requestMicrophoneStream, openMicSettings, resetMicPermission, type SttStatus } from '../lib/stt';
 import { parseNaturalTimeToIso } from '../lib/notifications';
 import type { Task, VoiceIntentResult } from '../lib/types';
 
@@ -111,7 +111,19 @@ export default function VoiceRecorderModal({
 
   useEffect(() => {
     if (open) {
-      rubaiStatus().then(setStt).catch(() => setStt(null));
+      rubaiStatus()
+        .then((s) => {
+          setStt(s);
+          if (s?.ready) {
+            setEngine('rubai');
+          } else {
+            setEngine('web');
+          }
+        })
+        .catch(() => {
+          setStt(null);
+          setEngine('web');
+        });
       setAiAnalysis(null);
       setError(null);
     }
@@ -147,9 +159,7 @@ export default function VoiceRecorderModal({
     setError(null);
     setAiAnalysis(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
-      });
+      const stream = await requestMicrophoneStream();
       const mime = pickAudioMime();
       const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
@@ -715,16 +725,34 @@ export default function VoiceRecorderModal({
                   <li>Chap ustundan <strong className="text-zinc-200">Privacy & Security (Maxfiylik va Xavfsizlik) ➔ Microphone (Mikrofon)</strong>ni bosing.</li>
                   <li>Ro‘yxatdagi <strong className="text-zinc-200">CogniDev</strong> yonidagi tugmani yoqing.</li>
                 </ol>
-                <div className="pt-1.5 flex items-center gap-2 border-t border-white/5">
+                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => openMicSettings()}
+                    className="rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 transition shadow-sm flex items-center gap-1.5"
+                  >
+                    <span>⚙️ Tizim sozlamalarini ochish</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setError(null);
+                      await resetMicPermission();
+                      setTimeout(() => startRecording(), 400);
+                    }}
+                    className="rounded-lg bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 transition shadow-sm flex items-center gap-1.5"
+                  >
+                    <span>🔄 Ruxsatni tiklash & Qayta so‘rash</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
                       setError(null);
                       startRecording();
                     }}
-                    className="rounded-lg bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 transition shadow-sm"
+                    className="rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10 transition"
                   >
-                    🔄 Qayta urinib ko‘rish
+                    Urinib ko‘rish
                   </button>
                   <button
                     type="button"

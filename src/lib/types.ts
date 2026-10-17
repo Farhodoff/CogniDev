@@ -101,7 +101,50 @@ export type MainView =
   | 'inbox'
   | 'habits'
   | 'projects'
-  | 'space';
+  | 'space'
+  | 'meetings';
+
+export interface MeetingActionItem {
+  id: string;
+  text: string;
+  assignee?: string;
+  priority?: TaskPriority;
+  due_date?: string;
+  added_to_tasks?: boolean;
+}
+
+export interface MeetingItem {
+  id: string;
+  title: string;
+  date: string;
+  duration: number; // in seconds
+  audio_url?: string;
+  transcript: string;
+  language: string;
+  mode: 'audio_only' | 'analyzed';
+  summary?: string;
+  decisions?: string[];
+  action_items?: MeetingActionItem[];
+  key_takeaways?: string[];
+  tags: string[];
+  space_id?: string | null;
+  project_id?: string | null;
+  ai_provider?: string;
+  ai_model?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MeetingAiConfig {
+  useDedicatedKey: boolean;
+  provider: 'gemini' | 'openai' | 'groq' | 'deepseek' | 'claude' | 'openrouter' | 'llama' | 'muse' | 'ollama';
+  apiKey: string;
+  model: string;
+  sttEngine: 'rubai' | 'web';
+  noiseSuppression: boolean;
+  autoGainControl: boolean;
+  echoCancellation: boolean;
+}
 
 export interface HabitItem {
   id: string;

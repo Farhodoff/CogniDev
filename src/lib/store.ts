@@ -23,7 +23,9 @@ import type {
   SpaceItem,
   ScheduledReminder,
   HabitItem,
+  MeetingItem,
 } from './types';
+import { INITIAL_MEETINGS } from './meetings';
 import {
   DEFAULT_CHECKLISTS,
   DEFAULT_GROUPS,
@@ -226,6 +228,12 @@ interface SynapseState {
   addHabit: (habit: Omit<HabitItem, 'id' | 'streak' | 'best_streak' | 'history' | 'created_at'>) => void;
   updateHabit: (id: string, patch: Partial<HabitItem>) => void;
   deleteHabit: (id: string) => void;
+
+  // Meetings & Audio Intelligence
+  meetings: MeetingItem[];
+  addMeeting: (meeting: MeetingItem) => void;
+  updateMeeting: (id: string, patch: Partial<MeetingItem>) => void;
+  deleteMeeting: (id: string) => void;
 
   // Goals
   goals: GoalItem[];
@@ -766,7 +774,10 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     if (id) {
       set({ activeSpaceId: id, mainView: 'space' });
     } else {
-      set({ activeSpaceId: null, mainView: 'dashboard' });
+      set((state) => ({
+        activeSpaceId: null,
+        mainView: state.mainView === 'space' ? 'dashboard' : state.mainView,
+      }));
     }
   },
   addSpace: (space) =>
@@ -883,6 +894,49 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         localStorage.setItem('cognidev_habits', JSON.stringify(next));
       } catch {}
       return { habits: next };
+    });
+  },
+
+  // Meetings state
+  meetings: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_meetings');
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((m: any) => m.id !== 'meet-1' && m.id !== 'meet-2');
+        }
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  })(),
+  addMeeting: (meeting) => {
+    set((state) => {
+      const next = [meeting, ...state.meetings];
+      try {
+        localStorage.setItem('cognidev_meetings', JSON.stringify(next));
+      } catch {}
+      return { meetings: next };
+    });
+  },
+  updateMeeting: (id, patch) => {
+    set((state) => {
+      const next = state.meetings.map((m) => (m.id === id ? { ...m, ...patch } : m));
+      try {
+        localStorage.setItem('cognidev_meetings', JSON.stringify(next));
+      } catch {}
+      return { meetings: next };
+    });
+  },
+  deleteMeeting: (id) => {
+    set((state) => {
+      const next = state.meetings.filter((m) => m.id !== id);
+      try {
+        localStorage.setItem('cognidev_meetings', JSON.stringify(next));
+      } catch {}
+      return { meetings: next };
     });
   },
 

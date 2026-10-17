@@ -19,6 +19,7 @@ const CalendarWorkspace = lazy(() => import('./components/CalendarWorkspace'));
 const ProjectsWorkspace = lazy(() => import('./components/ProjectsWorkspace'));
 const HabitTrackerWorkspace = lazy(() => import('./components/HabitTrackerWorkspace'));
 const SpaceHubWorkspace = lazy(() => import('./components/SpaceHubWorkspace'));
+const MeetingsWorkspace = lazy(() => import('./components/MeetingsWorkspace'));
 
 // Drawers & Modals lazy loaded on demand:
 const AiAssistantDrawer = lazy(() => import('./components/AiAssistantDrawer'));
@@ -138,6 +139,8 @@ export default function App() {
       title = 'CogniDev — Odatlar & Consistency (Habit Tracker)';
     } else if (mainView === 'space') {
       title = 'CogniDev — Space Hub & Maxsus Muhit';
+    } else if (mainView === 'meetings') {
+      title = 'CogniDev — AI Meetings & Ovozli Uchrashuvlar';
     } else if (mainView === 'retro') {
       title = 'CogniDev — Haftalik Tahlil & Muammolar Yechimi';
     }
@@ -169,6 +172,7 @@ export default function App() {
           {mainView === 'ideas' && <IdeasWorkspace />}
           {mainView === 'habits' && <HabitTrackerWorkspace />}
           {mainView === 'space' && <SpaceHubWorkspace />}
+          {mainView === 'meetings' && <MeetingsWorkspace />}
           {mainView === 'retro' && <RetroWorkspace />}
         </Suspense>
         <Suspense fallback={null}>

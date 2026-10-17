@@ -26,6 +26,17 @@ fn whisper_bin() -> String {
         if cfg!(target_os = "windows") {
             format!("{}/.local/bin/whisper-cli.exe", home)
         } else {
+            let candidates = [
+                format!("{}/.local/bin/whisper-cli", home),
+                format!("{}/Downloads/app/uzbek-dictation-main/whisper.cpp/build-cli/bin/whisper-cli", home),
+                "/opt/homebrew/bin/whisper-cli".to_string(),
+                "/usr/local/bin/whisper-cli".to_string(),
+            ];
+            for c in candidates {
+                if std::path::Path::new(&c).is_file() {
+                    return c;
+                }
+            }
             format!("{}/.local/bin/whisper-cli", home)
         }
     })
@@ -34,6 +45,16 @@ fn whisper_bin() -> String {
 fn rubai_model_path() -> String {
     std::env::var("RUBAI_MODEL").unwrap_or_else(|_| {
         let home = home_dir();
+        let candidates = [
+            format!("{}/rubai-stt/models/ggml-rubaistt.bin", home),
+            format!("{}/Downloads/app/uzbek-dictation-main/whisper.cpp/models/ggml-rubaistt.bin", home),
+            format!("{}/.cognidev/models/ggml-rubaistt.bin", home),
+        ];
+        for c in candidates {
+            if std::path::Path::new(&c).is_file() {
+                return c;
+            }
+        }
         format!("{}/rubai-stt/models/ggml-rubaistt.bin", home)
     })
 }
@@ -47,6 +68,51 @@ fn stt_status() -> SttStatus {
         model_ok: std::path::Path::new(&model_path).is_file(),
         bin_path,
         model_path,
+    }
+}
+
+#[tauri::command]
+fn open_mic_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+            .spawn()
+            .map_err(|e| format!("Sozlamalarni ochishda xatolik: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "ms-settings:privacy-microphone"])
+            .spawn()
+            .map_err(|e| format!("Sozlamalarni ochishda xatolik: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("pavucontrol")
+            .spawn()
+            .map_err(|e| format!("Sozlamalarni ochishda xatolik: {e}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn reset_mic_permission() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("tccutil")
+            .args(["reset", "Microphone", "com.cognidev.desktop"])
+            .output()
+            .map_err(|e| format!("tccutil xatosi: {e}"))?;
+        if output.status.success() {
+            Ok("Ruxsat holati muvaffaqiyatli tiklandi".to_string())
+        } else {
+            Err(String::from_utf8_lossy(&output.stderr).to_string())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok("Qayta so'rov yuborildi".to_string())
     }
 }
 
@@ -423,6 +489,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             stt_status,
             transcribe_audio,
+            open_mic_settings,
+            reset_mic_permission,
             get_git_repo_info,
             git_commit_changes,
             get_gh_cli_auth

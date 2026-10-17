@@ -102,3 +102,50 @@ export async function transcribeRubai(wav: Uint8Array, lang = 'uz'): Promise<str
   const text = await invoke<string>('transcribe_audio', { audioB64: toBase64(wav), lang });
   return (text || '').trim();
 }
+
+/** Safely request microphone stream with fallback for WebKit / Safari compatibility */
+export async function requestMicrophoneStream(constraints?: MediaTrackConstraints): Promise<MediaStream> {
+  if (!navigator?.mediaDevices?.getUserMedia) {
+    throw new Error('Qurilmangizda ovoz yozib olish (getUserMedia) qo‘llab-quvvatlanmaydi.');
+  }
+
+  // Attempt 1: Requested constraints with echoCancellation & noiseSuppression (no explicit sampleRate constraint, which breaks Safari/WebKit)
+  try {
+    const audioOptions: MediaTrackConstraints = constraints ?? {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    };
+    return await navigator.mediaDevices.getUserMedia({ audio: audioOptions });
+  } catch (err: any) {
+    console.warn('[requestMicrophoneStream] specific constraints failed, attempting fallback to { audio: true }', err);
+    // Attempt 2: Minimal fallback without audio options
+    return await navigator.mediaDevices.getUserMedia({ audio: true });
+  }
+}
+
+/** Open macOS / Windows system microphone security settings */
+export async function openMicSettings(): Promise<void> {
+  if (isTauri) {
+    try {
+      await invoke('open_mic_settings');
+      return;
+    } catch (e) {
+      console.warn('open_mic_settings failed:', e);
+    }
+  }
+}
+
+/** Reset macOS TCC microphone permission approval so the prompt will reappear */
+export async function resetMicPermission(): Promise<string | null> {
+  if (isTauri) {
+    try {
+      return await invoke<string>('reset_mic_permission');
+    } catch (e: any) {
+      console.warn('reset_mic_permission failed:', e);
+      return null;
+    }
+  }
+  return null;
+}
+

@@ -9,6 +9,7 @@ import {
   Lightbulb,
   GraduationCap,
   Flame,
+  Mic,
   BarChart3,
   Paperclip,
   Plus,
@@ -77,6 +78,7 @@ export default function Sidebar() {
     roadmaps,
     projectIdeas,
     activeProjects,
+    meetings,
     tasks,
     setHud,
     setFilter,
@@ -204,6 +206,19 @@ export default function Sidebar() {
       },
     },
     {
+      id: 'meetings',
+      label: 'Meetings',
+      icon: Mic,
+      count: meetings.length,
+      view: 'meetings' as const,
+      onClick: () => {
+        selectSpace(null);
+        setMainView('meetings');
+        setFilter(null);
+        setHud("AI Meetings & Ovozli Uchrashuvlar (Transkript, Konspekt & Topshiriqlar)");
+      },
+    },
+    {
       id: 'ideas',
       label: 'Ideas',
       icon: Lightbulb,
@@ -216,8 +231,8 @@ export default function Sidebar() {
       icon: GraduationCap,
       count: roadmaps.length,
       onClick: () => {
-        setMainView('roadmap');
         selectSpace(null);
+        setMainView('roadmap');
       },
     },
     {
@@ -226,8 +241,8 @@ export default function Sidebar() {
       icon: Flame,
       view: 'habits' as const,
       onClick: () => {
-        setMainView('habits');
         selectSpace(null);
+        setMainView('habits');
         setFilter(null);
         setHud("Kunlik odatlar & consistency kuzatuvi (Habit Tracker)");
       },
@@ -237,8 +252,8 @@ export default function Sidebar() {
       label: 'Reports',
       icon: BarChart3,
       onClick: () => {
-        setMainView('retro');
         selectSpace(null);
+        setMainView('retro');
       },
     },
     {
@@ -269,6 +284,7 @@ export default function Sidebar() {
             (item.id === 'learning' && mainView === 'roadmap') ||
             (item.id === 'ideas' && mainView === 'ideas') ||
             (item.id === 'habits' && mainView === 'habits') ||
+            (item.id === 'meetings' && mainView === 'meetings') ||
             (item.id === 'reports' && mainView === 'retro');
 
           return (
