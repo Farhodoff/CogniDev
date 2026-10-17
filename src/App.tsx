@@ -31,6 +31,7 @@ export default function App() {
     init,
     setSearch,
     setTaskModal,
+    setGitHubModal,
     selectedTaskId,
     tasks,
     mainView,
@@ -64,6 +65,15 @@ export default function App() {
           useFocusStore.getState().setShowModal(!useFocusStore.getState().showModal);
         }
       }
+      // ⌘G → Toggle GitHub Hub & AI Task Synthesizer
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+        if (!typing) {
+          e.preventDefault();
+          setGitHubModal(true);
+        }
+      }
       // macOS standard: ⌘N → new task (not while typing)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
         const el = e.target as HTMLElement | null;
@@ -90,7 +100,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [init, setTaskModal, setMainView, toggleAiDrawer]);
+  }, [init, setTaskModal, setGitHubModal, setMainView, toggleAiDrawer]);
 
   // Escape clears the header search when the palette is closed.
   useEffect(() => {

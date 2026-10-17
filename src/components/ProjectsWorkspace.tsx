@@ -21,6 +21,7 @@ import {
   FileCode,
   FileText,
 } from 'lucide-react';
+import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
@@ -109,6 +110,8 @@ export default function ProjectsWorkspace() {
     addTask,
     setMainView,
     setHud,
+    setGitHubModal,
+    setGitHubTargetRepoUrl,
   } = useSynapse();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -461,6 +464,18 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
           </button>
 
           <button
+            onClick={() => {
+              setGitHubTargetRepoUrl(null);
+              setGitHubModal(true);
+            }}
+            className="flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[12px] font-medium text-indigo-300 hover:bg-indigo-500/20 transition shadow-sm shadow-indigo-500/10"
+            title="GitHub repozitoriyalari commitlari va AI vazifalar dvigateli"
+          >
+            <GithubIcon size={13} className="text-indigo-400" />
+            <span>GitHub Hub & AI</span>
+          </button>
+
+          <button
             onClick={handleOpenCreate}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-lg shadow-blue-500/20 hover:from-blue-500 hover:to-sky-500 transition"
           >
@@ -794,6 +809,18 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
                       </button>
 
                       <div className="flex items-center gap-1.5">
+                        {p.github_url && (
+                          <button
+                            onClick={() => {
+                              setGitHubTargetRepoUrl(p.github_url || null);
+                              setGitHubModal(true);
+                            }}
+                            className="flex items-center gap-1 rounded-lg bg-indigo-500/15 px-2 py-1 text-[10.5px] font-semibold text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition"
+                            title="GitHub commitlar va AI vazifalar generatori"
+                          >
+                            <GithubIcon size={11} /> GitHub AI
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setGitModalPath(p.github_url || undefined);

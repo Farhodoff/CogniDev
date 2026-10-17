@@ -154,6 +154,10 @@ interface SynapseState {
   showTaskModal: boolean;
   showChatModal: boolean;
   showProvidersModal: boolean;
+  showGitHubModal: boolean;
+  setGitHubModal: (open: boolean) => void;
+  gitHubTargetRepoUrl: string | null;
+  setGitHubTargetRepoUrl: (url: string | null) => void;
   weeklyCoach: WeeklyCoachInsight | null;
   showWeeklyCoachModal: boolean;
 
@@ -389,6 +393,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showTaskModal: false,
   showChatModal: false,
   showProvidersModal: false,
+  showGitHubModal: false,
+  gitHubTargetRepoUrl: null,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
 
@@ -1392,6 +1398,8 @@ Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, 
   setTaskModal: (showTaskModal) => set({ showTaskModal }),
   setChatModal: (showChatModal) => set({ showChatModal }),
   setProvidersModal: (showProvidersModal) => set({ showProvidersModal }),
+  setGitHubModal: (showGitHubModal) => set({ showGitHubModal }),
+  setGitHubTargetRepoUrl: (gitHubTargetRepoUrl) => set({ gitHubTargetRepoUrl }),
   setWeeklyCoachModal: (showWeeklyCoachModal) => set({ showWeeklyCoachModal }),
 
   triggerWeeklyCoach: async () => {

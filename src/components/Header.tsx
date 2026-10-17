@@ -25,6 +25,7 @@ import {
   GitBranch,
   FolderGit2,
 } from 'lucide-react';
+import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
 import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
 import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
@@ -45,6 +46,7 @@ const ProfileModal = lazy(() => import('./ProfileModal'));
 const GuideModal = lazy(() => import('./GuideModal'));
 const UpdateModal = lazy(() => import('./UpdateModal'));
 const GitInspectorModal = lazy(() => import('./GitInspectorModal'));
+const GitHubSyncModal = lazy(() => import('./GitHubSyncModal'));
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -68,6 +70,9 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setGuideModal,
     showProvidersModal,
     setProvidersModal,
+    showGitHubModal,
+    setGitHubModal,
+    gitHubTargetRepoUrl,
     toggleAiDrawer,
     userProfile,
     createNote,
@@ -345,6 +350,17 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 </button>
                 <button
                   onClick={() => {
+                    setGitHubModal(true);
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <GithubIcon size={14} className="text-indigo-400" />
+                  <span>GitHub AI Tasks</span>
+                  <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">{formatShortcut('G')}</kbd>
+                </button>
+                <button
+                  onClick={() => {
                     useFocusStore.getState().setShowModal(true);
                     setQuickAddOpen(false);
                   }}
@@ -374,6 +390,16 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 {gitChangesCount}
               </span>
             )}
+          </button>
+
+          {/* 🐙 GitHub Hub & AI Task Synthesizer Pill */}
+          <button
+            onClick={() => setGitHubModal(true)}
+            title={`GitHub Repositories & AI Task Engine (${formatShortcut('G')})`}
+            className="flex items-center gap-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 px-2.5 py-1 text-[11.5px] font-mono text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition shadow-sm shadow-indigo-500/10"
+          >
+            <GithubIcon size={12} className="text-indigo-400" />
+            <span className="hidden sm:inline">GitHub AI</span>
           </button>
 
           {/* ✨ AI Assistant Button */}
@@ -595,6 +621,13 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
               setGitModalOpen(false);
               refreshGit();
             }}
+          />
+        )}
+        {showGitHubModal && (
+          <GitHubSyncModal
+            open={showGitHubModal}
+            onClose={() => setGitHubModal(false)}
+            initialRepoUrl={gitHubTargetRepoUrl || undefined}
           />
         )}
         {updateModalOpen && (

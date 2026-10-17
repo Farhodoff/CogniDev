@@ -1,0 +1,383 @@
+import { isTauri } from './platform';
+import { callAi } from './ai';
+import type { CloudProviderId } from './providers';
+
+export interface GhCliAuthStatus {
+  is_installed: boolean;
+  is_authenticated: boolean;
+  username: string;
+  token: string;
+}
+
+export interface GitHubUser {
+  login: string;
+  name: string | null;
+  avatar_url: string;
+  html_url: string;
+  bio: string | null;
+  public_repos: number;
+  total_private_repos?: number;
+}
+
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  is_private: boolean;
+  pushed_at: string;
+  language: string | null;
+  stargazers_count: number;
+  open_issues_count: number;
+  default_branch: string;
+  topics?: string[];
+}
+
+export interface GitHubCommitItem {
+  sha: string;
+  short_sha: string;
+  author_name: string;
+  author_login?: string;
+  author_avatar?: string;
+  date: string;
+  time_ago: string;
+  message: string;
+  html_url: string;
+}
+
+export interface AiTaskSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'P0 Blocker' | 'High Priority' | 'Normal';
+  branch: string;
+  tags: string[];
+  agent_prompt: string;
+}
+
+export interface GitHubAiReport {
+  standup_digest: string;
+  accomplishments: string[];
+  suggested_tasks: AiTaskSuggestion[];
+  analyzed_repo: string;
+  analyzed_commits_count: number;
+}
+
+const STORAGE_KEY_TOKEN = 'cognidev_gh_token';
+const STORAGE_KEY_USERNAME = 'cognidev_gh_username';
+
+export function getStoredGitHubToken(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY_TOKEN) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredGitHubToken(token: string | null, username?: string | null) {
+  try {
+    if (token) {
+      localStorage.setItem(STORAGE_KEY_TOKEN, token.trim());
+    } else {
+      localStorage.removeItem(STORAGE_KEY_TOKEN);
+    }
+    if (username) {
+      localStorage.setItem(STORAGE_KEY_USERNAME, username.trim());
+    } else if (username === null) {
+      localStorage.removeItem(STORAGE_KEY_USERNAME);
+    }
+  } catch (err) {
+    console.warn('LocalStorage error setting GH token:', err);
+  }
+}
+
+/**
+ * Check if the macOS/Linux/Windows system has `gh` CLI authenticated
+ */
+export async function detectGhCliAuth(): Promise<GhCliAuthStatus | null> {
+  if (!isTauri) return null;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const res = await invoke<GhCliAuthStatus>('get_gh_cli_auth');
+    return res;
+  } catch (err) {
+    console.warn('Tauri get_gh_cli_auth error:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch authenticated GitHub user details
+ */
+export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
+  const res = await fetch('https://api.github.com/user', {
+    headers: {
+      Accept: 'application/vnd.github.v3+json',
+      Authorization: `Bearer ${token.trim()}`,
+      'User-Agent': 'CogniDev-Desktop',
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub foydalanuvchisini olishda xatolik (${res.status}): ${text || res.statusText}`);
+  }
+
+  const data = await res.json();
+  return {
+    login: data.login,
+    name: data.name,
+    avatar_url: data.avatar_url,
+    html_url: data.html_url,
+    bio: data.bio,
+    public_repos: data.public_repos || 0,
+    total_private_repos: data.total_private_repos,
+  };
+}
+
+/**
+ * Fetch repositories owned or contributed by the user, sorted by last pushed date
+ */
+export async function fetchUserRepos(token: string): Promise<GitHubRepo[]> {
+  const url = 'https://api.github.com/user/repos?sort=pushed&per_page=50&direction=desc';
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github.v3+json',
+      Authorization: `Bearer ${token.trim()}`,
+      'User-Agent': 'CogniDev-Desktop',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Repozitoriylarni yuklashda xatolik (${res.status}): ${res.statusText}`);
+  }
+
+  const raw = await res.json();
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    full_name: r.full_name,
+    description: r.description,
+    html_url: r.html_url,
+    is_private: Boolean(r.private),
+    pushed_at: r.pushed_at,
+    language: r.language,
+    stargazers_count: r.stargazers_count || 0,
+    open_issues_count: r.open_issues_count || 0,
+    default_branch: r.default_branch || 'main',
+    topics: r.topics || [],
+  }));
+}
+
+/**
+ * Format relative time (e.g. "30 daqiqa oldin", "2 soat oldin", "Kecha")
+ */
+function formatTimeAgo(dateString: string): string {
+  const then = new Date(dateString).getTime();
+  const diffSec = Math.floor((Date.now() - then) / 1000);
+
+  if (diffSec < 60) return 'Hozirgina';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} daqiqa oldin`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} soat oldin`;
+  if (diffSec < 172800) return 'Kecha';
+  const days = Math.floor(diffSec / 86400);
+  if (days < 30) return `${days} kun oldin`;
+  return new Date(dateString).toLocaleDateString();
+}
+
+/**
+ * Fetch recent commits for a given repository
+ */
+export async function fetchRepoCommits(
+  token: string,
+  owner: string,
+  repo: string,
+  limit: number = 15
+): Promise<GitHubCommitItem[]> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?per_page=${limit}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github.v3+json',
+      Authorization: `Bearer ${token.trim()}`,
+      'User-Agent': 'CogniDev-Desktop',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Commitlarni yuklashda xatolik (${res.status}): ${res.statusText}`);
+  }
+
+  const raw = await res.json();
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((c: any) => {
+    const msg = c.commit?.message || '';
+    const firstLine = msg.split('\n')[0] || 'Commit';
+    return {
+      sha: c.sha,
+      short_sha: c.sha.substring(0, 7),
+      author_name: c.commit?.author?.name || c.author?.login || 'Dasturchi',
+      author_login: c.author?.login,
+      author_avatar: c.author?.avatar_url,
+      date: c.commit?.author?.date || new Date().toISOString(),
+      time_ago: formatTimeAgo(c.commit?.author?.date || new Date().toISOString()),
+      message: firstLine,
+      html_url: c.html_url,
+    };
+  });
+}
+
+/**
+ * Build a structured coding agent prompt for tools like Google Antigravity, Cline, Zed, and OpenCode
+ */
+export function formatAgentPrompt(
+  task: { title: string; description: string; branch: string },
+  repoName: string,
+  lastCommitMessage?: string
+): string {
+  return `### 🎯 TASK OBJECTIVE: ${task.title}
+**Target Repository:** \`${repoName}\`
+**Suggested Git Branch:** \`${task.branch}\`
+${lastCommitMessage ? `**Previous Work Context:** \`${lastCommitMessage}\`\n` : ''}
+#### 📋 Implementation Requirements:
+${task.description}
+
+#### ⚡ Acceptance Criteria:
+1. Create and switch to branch \`${task.branch}\`
+2. Implement the required logic cleanly with zero regression
+3. Run local build and type checks to confirm 0 errors
+4. Commit changes following Conventional Commits (e.g. \`${task.branch.replace('/', '(')}): ${task.title}\`)
+5. Provide a concise summary of modified files and verification steps.`;
+}
+
+/**
+ * AI-powered Task & Standup Synthesizer based on GitHub commit activity
+ */
+export async function generateAiTasksFromGitHub(
+  repo: GitHubRepo,
+  commits: GitHubCommitItem[],
+  customGoal?: string,
+  preferredProvider?: CloudProviderId
+): Promise<GitHubAiReport> {
+  const commitSummary = commits
+    .slice(0, 12)
+    .map((c, i) => `${i + 1}. [${c.short_sha}] ${c.message} (${c.time_ago} by ${c.author_name})`)
+    .join('\n');
+
+  const system = `Siz tajribali Senior Software Architect va Tech Lead'siz.
+GitHub repozitoriyasining so'nggi commitlar tarixi va dasturchining faoliyatini tahlil qilib:
+1. Qilingan ishlar bo'yicha qisqa Standup xulosasi (Changelog digest).
+2. Qilingan 2-3 ta asosiy yutuqlar (accomplishments).
+3. Mantiqan keyingi qadam sifatida bajarilishi shart bo'lgan 3-4 ta aniq, amaliy texnik vazifalar (Suggested Tasks).
+
+Vazifalarning har biri:
+- Aniq harakatga undovchi sarlavha
+- Texnik tavsif va qabul qilish mezoni
+- Git branch nomi (masalan: feat/user-auth-tests yoki fix/memory-leak)
+- Muhimlik darajasi (P0 Blocker, High Priority, Normal)
+- Antigravity / Cline / Zed agenti uchun qisqa ko'rsatma (agent_prompt)
+
+Javobni FAQAT toza JSON formatida bering (hech qanday markdown \`\`\`json belgilarsiz):
+{
+  "standup_digest": "Qisqa o'zbek tilida standup xulosasi...",
+  "accomplishments": ["Yutuq 1", "Yutuq 2"],
+  "suggested_tasks": [
+    {
+      "title": "Vazifa sarlavhasi",
+      "description": "Nimalar qilinishi kerakligi...",
+      "priority": "High Priority",
+      "branch": "feat/api-optimizations",
+      "tags": ["backend", "api"]
+    }
+  ]
+}`;
+
+  const prompt = `Repozitoriya: ${repo.full_name} (${repo.language || 'Dasturiy ta\'minot'})
+Tavsifi: ${repo.description || "Ko'rsatilmagan"}
+Standart branch: ${repo.default_branch}
+Ochiq issuylar soni: ${repo.open_issues_count}
+
+So'nggi commitlar (oxirgi pushlar):
+${commitSummary}
+
+${customGoal ? `Foydalanuvchi maqsadi/istagi: "${customGoal}"\n` : ''}
+Iltimos, ushbu loyihaning keyingi muvaffaqiyatli qadamlari bo'yicha JSON tahlilini qaytaring.`;
+
+  try {
+    const res = await callAi(prompt, system, preferredProvider);
+    const cleaned = res.text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    const safeTasks: AiTaskSuggestion[] = (parsed.suggested_tasks || []).map((t: any, index: number) => {
+      const branch = t.branch || `feat/${repo.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-task-${index + 1}`;
+      const title = t.title || `Keyingi vazifa #${index + 1}`;
+      const description = t.description || 'Tahlil asosida shakllantirilgan vazifa.';
+      return {
+        id: `gh-task-${Date.now()}-${index}`,
+        title,
+        description,
+        priority: t.priority === 'P0 Blocker' ? 'P0 Blocker' : t.priority === 'Normal' ? 'Normal' : 'High Priority',
+        branch,
+        tags: Array.isArray(t.tags) ? t.tags : ['github', repo.name.toLowerCase()],
+        agent_prompt: formatAgentPrompt({ title, description, branch }, repo.name, commits[0]?.message),
+      };
+    });
+
+    return {
+      standup_digest: parsed.standup_digest || `${repo.name} repozitoriyasida so'nggi pushlar muvaffaqiyatli tahlil qilindi.`,
+      accomplishments: Array.isArray(parsed.accomplishments) ? parsed.accomplishments : ['Oxirgi commitlar tekshirildi'],
+      suggested_tasks: safeTasks,
+      analyzed_repo: repo.full_name,
+      analyzed_commits_count: commits.length,
+    };
+  } catch (err) {
+    console.warn('AI GitHub Task generation JSON parse fallback:', err);
+    // Fallback heuristic if LLM output was slightly imperfect
+    const topCommit = commits[0]?.message || 'oxirgi yangilanishlar';
+    return {
+      standup_digest: `So'nggi commitlar (${commits.length} ta) tahlil qilindi: "${topCommit}". Loyihada barqarorlik va keyingi testlarni yo'lga qo'yish tavsiya etiladi.`,
+      accomplishments: commits.slice(0, 3).map((c) => c.message),
+      suggested_tasks: [
+        {
+          id: `gh-task-${Date.now()}-1`,
+          title: `[${repo.name}] Testlar va sifat nazoratini joriy etish`,
+          description: `So'nggi o'zgarishlar (${topCommit}) bo'yicha integratsion testlarni tekshirish va xatoliklarni bartaraf qilish.`,
+          priority: 'High Priority',
+          branch: `feat/${repo.name.toLowerCase()}-tests`,
+          tags: ['tests', 'qa', repo.name.toLowerCase()],
+          agent_prompt: formatAgentPrompt(
+            {
+              title: `[${repo.name}] Testlar va sifat nazorati`,
+              description: 'Barcha yangi modullar uchun unit testlar va type tekshiruvlarini o‘tkazish.',
+              branch: `feat/${repo.name.toLowerCase()}-tests`,
+            },
+            repo.name,
+            topCommit
+          ),
+        },
+        {
+          id: `gh-task-${Date.now()}-2`,
+          title: `[${repo.name}] Hujjatlashtirish va README'ni yangilash`,
+          description: 'Loyiha arxitekturasi va yangi kiritilgan imkoniyatlarni hujjatlashtirish.',
+          priority: 'Normal',
+          branch: `docs/${repo.name.toLowerCase()}-update`,
+          tags: ['docs', repo.name.toLowerCase()],
+          agent_prompt: formatAgentPrompt(
+            {
+              title: `[${repo.name}] Hujjatlashtirish`,
+              description: 'README.md va API dokumentatsiyasini so‘nggi commitlarga moslash.',
+              branch: `docs/${repo.name.toLowerCase()}-update`,
+            },
+            repo.name,
+            topCommit
+          ),
+        },
+      ],
+      analyzed_repo: repo.full_name,
+      analyzed_commits_count: commits.length,
+    };
+  }
+}

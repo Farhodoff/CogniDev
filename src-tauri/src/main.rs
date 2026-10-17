@@ -288,6 +288,94 @@ fn git_commit_changes(repo_path: Option<String>, message: String) -> Result<Stri
     Ok(out)
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GhCliAuthStatus {
+    pub is_installed: bool,
+    pub is_authenticated: bool,
+    pub username: String,
+    pub token: String,
+}
+
+fn find_gh_bin() -> Option<String> {
+    let candidates = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh"];
+    for p in candidates {
+        if std::path::Path::new(p).is_file() {
+            return Some(p.to_string());
+        }
+    }
+    let which_cmd = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
+    if let Ok(out) = std::process::Command::new(which_cmd).arg("gh").output() {
+        if out.status.success() {
+            let p = String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if !p.is_empty() && std::path::Path::new(&p).is_file() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn get_gh_cli_auth() -> GhCliAuthStatus {
+    let mut status = GhCliAuthStatus {
+        is_installed: false,
+        is_authenticated: false,
+        username: String::new(),
+        token: String::new(),
+    };
+
+    let gh_path = match find_gh_bin() {
+        Some(p) => {
+            status.is_installed = true;
+            p
+        }
+        None => return status,
+    };
+
+    let mut token_cmd = std::process::Command::new(&gh_path);
+    token_cmd.args(["auth", "token"]);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        token_cmd.creation_flags(0x0800_0000);
+    }
+
+    if let Ok(output) = token_cmd.output() {
+        if output.status.success() {
+            let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !token.is_empty() {
+                status.is_authenticated = true;
+                status.token = token;
+
+                let mut user_cmd = std::process::Command::new(&gh_path);
+                user_cmd.args(["api", "user", "--jq", ".login"]);
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    user_cmd.creation_flags(0x0800_0000);
+                }
+                if let Ok(user_out) = user_cmd.output() {
+                    if user_out.status.success() {
+                        status.username =
+                            String::from_utf8_lossy(&user_out.stdout).trim().to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    status
+}
+
 fn main() {
     let migrations = vec![
         Migration {
@@ -336,7 +424,8 @@ fn main() {
             stt_status,
             transcribe_audio,
             get_git_repo_info,
-            git_commit_changes
+            git_commit_changes,
+            get_gh_cli_auth
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
