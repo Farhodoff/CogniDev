@@ -28,7 +28,10 @@ fn whisper_bin() -> String {
         } else {
             let candidates = [
                 format!("{}/.local/bin/whisper-cli", home),
-                format!("{}/Downloads/app/uzbek-dictation-main/whisper.cpp/build-cli/bin/whisper-cli", home),
+                format!(
+                    "{}/Downloads/app/uzbek-dictation-main/whisper.cpp/build-cli/bin/whisper-cli",
+                    home
+                ),
                 "/opt/homebrew/bin/whisper-cli".to_string(),
                 "/usr/local/bin/whisper-cli".to_string(),
             ];
@@ -47,7 +50,10 @@ fn rubai_model_path() -> String {
         let home = home_dir();
         let candidates = [
             format!("{}/rubai-stt/models/ggml-rubaistt.bin", home),
-            format!("{}/Downloads/app/uzbek-dictation-main/whisper.cpp/models/ggml-rubaistt.bin", home),
+            format!(
+                "{}/Downloads/app/uzbek-dictation-main/whisper.cpp/models/ggml-rubaistt.bin",
+                home
+            ),
             format!("{}/.cognidev/models/ggml-rubaistt.bin", home),
         ];
         for c in candidates {
