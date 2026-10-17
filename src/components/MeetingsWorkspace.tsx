@@ -57,20 +57,33 @@ import {
 export default function MeetingsWorkspace() {
   const {
     meetings,
+    selectedMeetingId,
+    setSelectedMeetingId,
     addMeeting,
     updateMeeting,
     deleteMeeting,
+    toggleMeetingActionDone,
     addTask,
+    selectTask,
+    selectNote,
     createNote,
     updateNoteDoc,
     setHud,
     tasks,
+    setMainView,
+    addScheduleBlock,
+    scheduleBlocks,
   } = useSynapse();
 
-  // Selected meeting
-  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(meetings[0]?.id ?? null);
+  // Sync selected meeting with store
+  useEffect(() => {
+    if (!selectedMeetingId && meetings.length > 0) {
+      setSelectedMeetingId(meetings[0].id);
+    }
+  }, [selectedMeetingId, meetings, setSelectedMeetingId]);
+
   const selectedMeeting = useMemo(
-    () => meetings.find((m) => m.id === selectedMeetingId) ?? null,
+    () => meetings.find((m) => m.id === selectedMeetingId) ?? meetings[0] ?? null,
     [meetings, selectedMeetingId]
   );
 
@@ -170,7 +183,7 @@ export default function MeetingsWorkspace() {
     }
   };
 
-  // Convert Action Item to CogniDev Task
+  // Convert Action Item to CogniDev Task with bidirectional sync
   const handleAddActionItemToTasks = (action: MeetingActionItem) => {
     if (!selectedMeeting) return;
     const newId = nextTaskId(tasks);
@@ -179,7 +192,7 @@ export default function MeetingsWorkspace() {
       workspace_id: 'default',
       space_id: selectedMeeting.space_id ?? null,
       title: action.text,
-      status: 'active',
+      status: action.completed ? 'completed' : 'active',
       priority: action.priority ?? 'High Priority',
       git_branch: null,
       pr_url: null,
@@ -195,21 +208,54 @@ export default function MeetingsWorkspace() {
       updated_at: new Date().toISOString(),
     });
 
-    // Mark as added in meeting
+    // Mark as added in meeting with bidirectional link
     const updatedActionItems = (selectedMeeting.action_items || []).map((a) =>
-      a.id === action.id ? { ...a, added_to_tasks: true } : a
+      a.id === action.id ? { ...a, added_to_tasks: true, task_id: newId, completed: !!a.completed } : a
     );
     updateMeeting(selectedMeeting.id, { action_items: updatedActionItems });
-    setHud(`Vazifa Tasks doskasiga qo‘shildi: ${newId} ✓`);
+    setHud(`Vazifa Tasks doskasiga ulandi: #${newId} ✓`);
   };
 
-  // Export to Notion Notes
+  // Export to Notion Notes with bidirectional link
   const handleExportToNotes = async () => {
     if (!selectedMeeting) return;
     const md = exportMeetingToMarkdown(selectedMeeting);
     const newNoteId = await createNote(selectedMeeting.title);
     await updateNoteDoc(newNoteId, { content: md });
+    updateMeeting(selectedMeeting.id, { note_id: newNoteId });
     setHud(`"${selectedMeeting.title}" qaydlar (Notes) bo‘limiga saqlandi ✓`);
+  };
+
+  // Open linked note in Notion Notes
+  const handleOpenLinkedNote = (noteId: string) => {
+    selectNote(noteId);
+    setMainView('notes');
+  };
+
+  // Calendar sync
+  const isScheduledInCalendar = useMemo(() => {
+    if (!selectedMeeting) return false;
+    return scheduleBlocks.some((b) => b.meeting_id === selectedMeeting.id) || !!selectedMeeting.calendar_block_id;
+  }, [scheduleBlocks, selectedMeeting]);
+
+  const handleAddToCalendar = () => {
+    if (!selectedMeeting) return;
+    const now = new Date();
+    const startH = String(now.getHours()).padStart(2, '0');
+    const endH = String(Math.min(23, now.getHours() + 1)).padStart(2, '0');
+    const timeRange = `${startH}:00 - ${endH}:00`;
+    const newBlockId = 'sch-' + Date.now();
+    addScheduleBlock({
+      title: `🎙️ ${selectedMeeting.title}`,
+      time_range: timeRange,
+      category: 'work',
+      tag: '#Meeting',
+      color: '#8b5cf6',
+      done: false,
+      meeting_id: selectedMeeting.id,
+    });
+    updateMeeting(selectedMeeting.id, { calendar_block_id: newBlockId });
+    setHud(`"${selectedMeeting.title}" taqvim jadvaliga biriktirildi ✓`);
   };
 
   // Copy Markdown
@@ -592,14 +638,47 @@ export default function MeetingsWorkspace() {
                     <span>Qayta Tahlil</span>
                   </button>
 
-                  <button
-                    onClick={handleExportToNotes}
-                    title="Notion Notes bo'limiga hujjat sifatida saqlash"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 hover:text-white transition"
-                  >
-                    <FolderPlus size={13} />
-                    <span>Notes'ga Saqlash</span>
-                  </button>
+                  {/* Notes Integratsiyasi */}
+                  {selectedMeeting.note_id ? (
+                    <button
+                      onClick={() => handleOpenLinkedNote(selectedMeeting.note_id!)}
+                      title="Bog‘langan Notion qaydini ochish"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition"
+                    >
+                      <FolderPlus size={13} className="text-emerald-400" />
+                      <span>Qaydni Ochish ↗</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleExportToNotes}
+                      title="Notion Notes bo'limiga hujjat sifatida saqlash"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 hover:text-white transition"
+                    >
+                      <FolderPlus size={13} />
+                      <span>Notes'ga Saqlash</span>
+                    </button>
+                  )}
+
+                  {/* Calendar Integratsiyasi */}
+                  {isScheduledInCalendar ? (
+                    <button
+                      onClick={() => setMainView('calendar')}
+                      title="Taqvim jadvalida ochish"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 transition"
+                    >
+                      <Calendar size={13} className="text-purple-400" />
+                      <span>Taqvimda Ko‘rish ↗</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleAddToCalendar}
+                      title="Uchrashuvni taqvimga voqea sifatida biriktirish"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 hover:text-white transition"
+                    >
+                      <Calendar size={13} />
+                      <span>Taqvimga Biriktirish</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={handleCopyMarkdown}
@@ -760,13 +839,36 @@ export default function MeetingsWorkspace() {
                         {selectedMeeting.action_items.map((act) => (
                           <div
                             key={act.id}
-                            className="flex items-center justify-between gap-3 p-3 rounded-xl border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04] transition"
+                            className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition ${
+                              act.completed
+                                ? 'border-emerald-500/20 bg-emerald-950/10'
+                                : 'border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04]'
+                            }`}
                           >
-                            <div className="flex items-start gap-3">
-                              <span className="h-2 w-2 rounded-full bg-sky-400 mt-2 shrink-0" />
-                              <div>
-                                <p className="text-[13px] font-medium text-white">{act.text}</p>
-                                <div className="flex items-center gap-2 mt-1 text-[11px] text-zinc-400 font-mono">
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              {/* Holat Checkbox (ikki tomonlama sinxronizatsiya) */}
+                              <button
+                                type="button"
+                                onClick={() => toggleMeetingActionDone(selectedMeeting.id, act.id)}
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border transition mt-0.5 ${
+                                  act.completed
+                                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
+                                    : 'border-white/20 hover:border-sky-400 bg-white/5'
+                                }`}
+                                title={act.completed ? "Bajarildi (holatni o'zgartirish)" : "Bajarildi deb belgilash"}
+                              >
+                                {act.completed ? <Check size={12} className="stroke-[3]" /> : null}
+                              </button>
+
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`text-[13px] font-medium transition ${
+                                    act.completed ? 'line-through text-zinc-500' : 'text-white'
+                                  }`}
+                                >
+                                  {act.text}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-zinc-400 font-mono">
                                   {act.assignee && (
                                     <span className="text-zinc-300">👤 {act.assignee}</span>
                                   )}
@@ -782,22 +884,45 @@ export default function MeetingsWorkspace() {
                                       <span className="text-rose-400">{act.priority}</span>
                                     </>
                                   )}
+                                  {act.task_id && (
+                                    <>
+                                      <span>·</span>
+                                      <span className={act.completed ? 'text-emerald-400' : 'text-sky-400'}>
+                                        Sinxron: {act.completed ? 'Bajarildi ✓' : 'Faol'}
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleAddActionItemToTasks(act)}
-                              disabled={act.added_to_tasks}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold transition ${
-                                act.added_to_tasks
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white hover:brightness-110 active:scale-95 shadow-md'
-                              }`}
-                            >
-                              {act.added_to_tasks ? <Check size={12} /> : <Plus size={12} />}
-                              <span>{act.added_to_tasks ? 'Qo‘shilgan' : 'Tasks’ga qo‘shish'}</span>
-                            </button>
+                            {/* Tugma: Tasks doskasidagi bog'lanma yoki yangi qo'shish */}
+                            <div className="shrink-0 flex items-center gap-2">
+                              {act.added_to_tasks && act.task_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMainView('stream');
+                                    selectTask(act.task_id!);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-mono hover:bg-sky-500/25 transition active:scale-95"
+                                  title="Tasks doskasida ushbu vazifani ochish"
+                                >
+                                  <Check size={12} className="text-emerald-400" />
+                                  <span>#{act.task_id}</span>
+                                  <span className="text-[10px] text-zinc-400">↗</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleAddActionItemToTasks(act)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold bg-gradient-to-r from-sky-500 to-blue-600 text-white hover:brightness-110 active:scale-95 shadow-md transition"
+                                  title="Ushbu topshiriqni Tasks doskasiga yangi vazifa qilib kiritish"
+                                >
+                                  <Plus size={12} />
+                                  <span>Tasks’ga qo‘shish</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

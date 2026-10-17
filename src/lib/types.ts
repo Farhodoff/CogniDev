@@ -111,6 +111,8 @@ export interface MeetingActionItem {
   priority?: TaskPriority;
   due_date?: string;
   added_to_tasks?: boolean;
+  task_id?: string;
+  completed?: boolean;
 }
 
 export interface MeetingItem {
@@ -129,6 +131,8 @@ export interface MeetingItem {
   tags: string[];
   space_id?: string | null;
   project_id?: string | null;
+  note_id?: string | null;
+  calendar_block_id?: string | null;
   ai_provider?: string;
   ai_model?: string;
   created_at: string;
@@ -198,6 +202,8 @@ export interface ScheduleBlock {
   tag: string;
   color: string;
   done: boolean;
+  meeting_id?: string | null;
+  date?: string;
 }
 
 export interface AiDrawerMessage {

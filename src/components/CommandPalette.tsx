@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Hash, MessagesSquare, Search } from 'lucide-react';
+import { FileText, Hash, MessagesSquare, Search, Radio } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { fetchAllPrompts } from '../lib/db';
 import type { PromptEntry } from '../lib/types';
@@ -7,10 +7,11 @@ import type { PromptEntry } from '../lib/types';
 type Hit =
   | { kind: 'vazifa'; id: string; title: string; sub: string }
   | { kind: 'qayd'; id: string; title: string; sub: string }
-  | { kind: 'prompt'; id: string; title: string; sub: string };
+  | { kind: 'prompt'; id: string; title: string; sub: string }
+  | { kind: 'uchrashuv'; id: string; title: string; sub: string };
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tasks, notes, prompts, selectTask, setTab, setSearch, setMainView, dbMode } = useSynapse();
+  const { tasks, notes, prompts, meetings, selectTask, setSelectedMeetingId, setTab, setSearch, setMainView, dbMode } = useSynapse();
   const [q, setQ] = useState('');
   const [allPrompts, setAllPrompts] = useState<PromptEntry[]>(() => (dbMode === 'sqlite' ? [] : prompts));
   const [cursor, setCursor] = useState(0);
@@ -25,33 +26,92 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
   const hits: Hit[] = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return tasks.slice(0, 6).map((t) => ({ kind: 'vazifa' as const, id: t.id, title: `${t.id} — ${t.title}`, sub: `${t.status} · ${t.priority}` }));
+    if (!needle) {
+      const defaultTasks: Hit[] = tasks.slice(0, 5).map((t) => ({
+        kind: 'vazifa' as const,
+        id: t.id,
+        title: `${t.id} — ${t.title}`,
+        sub: `${t.status} · ${t.priority}`,
+      }));
+      const defaultMeetings: Hit[] = (meetings || []).slice(0, 3).map((m) => ({
+        kind: 'uchrashuv' as const,
+        id: m.id,
+        title: `🎙️ ${m.title}`,
+        sub: `${m.duration ? Math.floor(m.duration / 60) + ' daqiqa · ' : ''}${m.summary?.slice(0, 60) || 'Audio uchrashuv'}`,
+      }));
+      return [...defaultTasks, ...defaultMeetings];
+    }
+
     const out: Hit[] = [];
+
+    // 1. Search in Tasks
     for (const t of tasks) {
       if (t.id.toLowerCase().includes(needle) || t.title.toLowerCase().includes(needle)) {
         out.push({ kind: 'vazifa', id: t.id, title: `${t.id} — ${t.title}`, sub: `${t.status} · ${t.priority}` });
       }
-      if (out.length >= 6) break;
+      if (out.length >= 5) break;
     }
+
+    // 2. Search in Meetings (title, summary, action items, and full transcript sentences)
+    for (const m of (meetings || [])) {
+      const matchTitle = m.title.toLowerCase().includes(needle);
+      const matchSummary = m.summary?.toLowerCase().includes(needle);
+      const matchTranscript = m.transcript.toLowerCase().includes(needle);
+      const matchAction = m.action_items?.some((a) => a.text.toLowerCase().includes(needle));
+
+      if (matchTitle || matchSummary || matchTranscript || matchAction) {
+        let subText = m.summary?.slice(0, 80) || '';
+        if (matchTranscript) {
+          const sentences = m.transcript.split(/(?<=[.!?\n])\s+/);
+          const foundSent = sentences.find((s) => s.toLowerCase().includes(needle));
+          if (foundSent) {
+            subText = `Transkript: "${foundSent.trim().slice(0, 80)}..."`;
+          }
+        } else if (matchAction) {
+          const foundAct = m.action_items?.find((a) => a.text.toLowerCase().includes(needle));
+          if (foundAct) {
+            subText = `Vazifa: ${foundAct.text.slice(0, 80)}`;
+          }
+        }
+        out.push({
+          kind: 'uchrashuv',
+          id: m.id,
+          title: `🎙️ ${m.title}`,
+          sub: `${m.language ? m.language.toUpperCase() + ' · ' : ''}${subText || 'Uchrashuv konspekti'}`,
+        });
+      }
+      if (out.length >= 10) break;
+    }
+
+    // 3. Search in Notes
     for (const [taskId, md] of Object.entries(notes)) {
-      if (md.toLowerCase().includes(needle) && out.length < 10) {
+      if (md.toLowerCase().includes(needle) && out.length < 13) {
         const line = md.split('\n').find((l) => l.toLowerCase().includes(needle))?.slice(0, 80) ?? '';
         out.push({ kind: 'qayd', id: taskId, title: `Qayd · ${taskId}`, sub: line });
       }
     }
+
+    // 4. Search in Prompts
     for (const p of allPrompts) {
-      if ((p.raw_prompt.toLowerCase().includes(needle) || (p.prompt_hash ?? '').toLowerCase().includes(needle)) && out.length < 14) {
+      if ((p.raw_prompt.toLowerCase().includes(needle) || (p.prompt_hash ?? '').toLowerCase().includes(needle)) && out.length < 16) {
         out.push({ kind: 'prompt', id: p.task_id, title: `Prompt ${p.prompt_hash ?? ''} · ${p.task_id}`, sub: p.raw_prompt.slice(0, 80) });
       }
     }
     return out;
-  }, [q, tasks, notes, allPrompts]);
+  }, [q, tasks, notes, allPrompts, meetings]);
 
   const activeCursor = hits.length === 0 ? 0 : Math.min(cursor, hits.length - 1);
 
   if (!open) return null;
 
   async function go(h: Hit) {
+    if (h.kind === 'uchrashuv') {
+      setSelectedMeetingId(h.id);
+      setMainView('meetings');
+      setSearch('');
+      onClose();
+      return;
+    }
     setMainView('stream');
     await selectTask(h.id);
     setTab(h.kind === 'prompt' ? 'thread' : 'note');
@@ -76,7 +136,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Vazifalar, texnik qaydlar, AI promptlarni qidirish…"
+            placeholder="Vazifalar, qaydlar, uchrashuv transkriptlarini izlash… (Cmd+K)"
             className="w-full bg-transparent text-[14px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
           />
           <kbd className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">esc</kbd>
@@ -90,13 +150,23 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${i === activeCursor ? 'bg-sky-500/15' : 'hover:bg-white/5'}`}
             >
               <span className="text-zinc-500">
-                {h.kind === 'vazifa' ? <Hash size={14} /> : h.kind === 'qayd' ? <FileText size={14} /> : <MessagesSquare size={14} />}
+                {h.kind === 'vazifa' ? (
+                  <Hash size={14} />
+                ) : h.kind === 'qayd' ? (
+                  <FileText size={14} />
+                ) : h.kind === 'uchrashuv' ? (
+                  <Radio size={14} className="text-purple-400" />
+                ) : (
+                  <MessagesSquare size={14} />
+                )}
               </span>
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-medium text-zinc-100">{h.title}</span>
                 <span className="block truncate font-mono text-[11px] text-zinc-500">{h.sub}</span>
               </span>
-              <span className="ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-600">{h.kind === 'vazifa' ? 'Vazifa' : h.kind === 'qayd' ? 'Qayd' : 'Prompt'}</span>
+              <span className="ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+                {h.kind === 'vazifa' ? 'Vazifa' : h.kind === 'qayd' ? 'Qayd' : h.kind === 'uchrashuv' ? 'Uchrashuv' : 'Prompt'}
+              </span>
             </button>
           ))}
           {hits.length === 0 && (

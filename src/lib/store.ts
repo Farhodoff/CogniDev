@@ -230,9 +230,12 @@ interface SynapseState {
 
   // Meetings & Audio Intelligence
   meetings: MeetingItem[];
+  selectedMeetingId: string | null;
+  setSelectedMeetingId: (id: string | null) => void;
   addMeeting: (meeting: MeetingItem) => void;
   updateMeeting: (id: string, patch: Partial<MeetingItem>) => void;
   deleteMeeting: (id: string) => void;
+  toggleMeetingActionDone: (meetingId: string, actionId: string) => void;
 
   // Goals
   goals: GoalItem[];
@@ -911,13 +914,15 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       return [];
     }
   })(),
+  selectedMeetingId: null,
+  setSelectedMeetingId: (id) => set({ selectedMeetingId: id }),
   addMeeting: (meeting) => {
     set((state) => {
       const next = [meeting, ...state.meetings];
       try {
         localStorage.setItem('cognidev_meetings', JSON.stringify(next));
       } catch {}
-      return { meetings: next };
+      return { meetings: next, selectedMeetingId: meeting.id };
     });
   },
   updateMeeting: (id, patch) => {
@@ -935,7 +940,47 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       try {
         localStorage.setItem('cognidev_meetings', JSON.stringify(next));
       } catch {}
-      return { meetings: next };
+      return { meetings: next, selectedMeetingId: state.selectedMeetingId === id ? (next[0]?.id ?? null) : state.selectedMeetingId };
+    });
+  },
+  toggleMeetingActionDone: (meetingId, actionId) => {
+    set((state) => {
+      let linkedTaskId: string | undefined;
+      let nextDone = false;
+
+      const updatedMeetings = state.meetings.map((m) => {
+        if (m.id !== meetingId || !m.action_items) return m;
+        return {
+          ...m,
+          action_items: m.action_items.map((a) => {
+            if (a.id === actionId) {
+              nextDone = !a.completed;
+              linkedTaskId = a.task_id;
+              return { ...a, completed: nextDone };
+            }
+            return a;
+          }),
+        };
+      });
+
+      try {
+        localStorage.setItem('cognidev_meetings', JSON.stringify(updatedMeetings));
+      } catch {}
+
+      // Cross-workspace sync: update Task on Tasks board if linked
+      let updatedTasks = state.tasks;
+      if (linkedTaskId) {
+        const newStatus = nextDone ? 'completed' : 'active';
+        updatedTasks = state.tasks.map((t) =>
+          t.id === linkedTaskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+        );
+      }
+
+      return {
+        meetings: updatedMeetings,
+        tasks: updatedTasks,
+        hudMessage: `Topshiriq holati: ${nextDone ? 'Bajarildi ✓' : 'Faol'}`,
+      };
     });
   },
 
@@ -1761,10 +1806,29 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
 
   updateTaskStatus: (id, status) => {
     const stamp = new Date().toISOString();
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, status, updated_at: stamp } : t)),
-      hudMessage: `${id} holati o'zgartirildi: ${status}`,
-    }));
+    set((s) => {
+      const isDone = status === 'completed' || (status as string) === 'done';
+      const updatedMeetings = s.meetings.map((m) => {
+        if (!m.action_items?.some((a) => a.task_id === id)) return m;
+        return {
+          ...m,
+          action_items: m.action_items.map((a) =>
+            a.task_id === id ? { ...a, completed: isDone } : a
+          ),
+          updated_at: stamp,
+        };
+      });
+
+      try {
+        localStorage.setItem('cognidev_meetings', JSON.stringify(updatedMeetings));
+      } catch {}
+
+      return {
+        tasks: s.tasks.map((t) => (t.id === id ? { ...t, status, updated_at: stamp } : t)),
+        meetings: updatedMeetings,
+        hudMessage: `${id} holati o'zgartirildi: ${status}`,
+      };
+    });
     const t = get().tasks.find((task) => task.id === id);
     if (get().dbMode === 'sqlite' && t) {
       updateTaskMeta(id, status, t.priority).catch(() => {});

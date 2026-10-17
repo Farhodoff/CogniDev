@@ -17,6 +17,7 @@ import {
   Quote,
   Minus,
   Mic,
+  Radio,
 } from 'lucide-react';
 import VoiceRecorderModal from './VoiceRecorderModal';
 import { useSynapse } from '../lib/store';
@@ -37,6 +38,9 @@ export default function NotionNotesWorkspace() {
     addTask,
     activeWorkspaceId,
     userProfile,
+    meetings,
+    setSelectedMeetingId,
+    setMainView,
   } = useSynapse();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,6 +59,12 @@ export default function NotionNotesWorkspace() {
     () => notesDocs.find((n) => n.id === selectedNoteId) ?? notesDocs[0] ?? null,
     [notesDocs, selectedNoteId],
   );
+
+  // Cross-Workspace: Bog'langan uchrashuv
+  const linkedMeeting = useMemo(() => {
+    if (!currentNote) return null;
+    return meetings.find((m) => m.note_id === currentNote.id) ?? null;
+  }, [meetings, currentNote]);
 
   // Filtered notes
   const filteredNotes = useMemo(() => {
@@ -503,6 +513,27 @@ export default function NotionNotesWorkspace() {
                     />
                   </form>
                 </div>
+
+                {/* Cross-Workspace: Bog'langan Uchrashuv Banneri */}
+                {linkedMeeting && (
+                  <div className="mt-3 flex items-center justify-between rounded-xl border border-purple-500/25 bg-gradient-to-r from-purple-950/30 to-indigo-950/20 px-3.5 py-2">
+                    <div className="flex items-center gap-2 text-[12px] text-purple-200">
+                      <Radio size={13} className="text-purple-400 shrink-0" />
+                      <span>Ushbu qayd <strong>"{linkedMeeting.title}"</strong> uchrashuviga biriktirilgan</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMeetingId(linkedMeeting.id);
+                        setMainView('meetings');
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg bg-purple-500/20 border border-purple-500/30 px-2.5 py-1 text-[11px] font-semibold text-purple-200 hover:bg-purple-500/30 transition shrink-0 active:scale-95"
+                    >
+                      <span>Uchrashuv konspektiga o‘tish</span>
+                      <ArrowRight size={11} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Editor / Preview Grid */}

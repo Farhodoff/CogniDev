@@ -14,6 +14,7 @@ import {
   CalendarDays,
   X,
   Bell,
+  Radio,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 
@@ -34,6 +35,7 @@ export default function CalendarWorkspace() {
     deleteReminder,
     tasks,
     setMainView,
+    setSelectedMeetingId,
     setFilter,
     setHud,
     setTaskModal,
@@ -441,6 +443,21 @@ export default function CalendarWorkspace() {
                                 {block.tag}
                               </span>
                             )}
+                            {block.meeting_id && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedMeetingId(block.meeting_id!);
+                                  setMainView('meetings');
+                                }}
+                                className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.2 text-[9.5px] font-semibold text-purple-300 hover:bg-purple-500/25 transition"
+                                title="Biriktirilgan uchrashuv yozuvi va AI konspektini ochish"
+                              >
+                                <Radio size={10} className="text-purple-400" />
+                                <span>Uchrashuv ↗</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -685,7 +702,23 @@ export default function CalendarWorkspace() {
                         <p className="text-[11px] font-mono text-zinc-400">{b.time_range} · {b.tag}</p>
                       </div>
                     </div>
-                    <span className="text-[11px] text-zinc-500 uppercase font-mono">{b.category}</span>
+                    <div className="flex items-center gap-2">
+                      {b.meeting_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMeetingId(b.meeting_id!);
+                            setMainView('meetings');
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 text-[9.5px] font-semibold text-purple-300 hover:bg-purple-500/25 transition"
+                          title="Uchrashuv konspektini ochish"
+                        >
+                          <Radio size={10} className="text-purple-400" />
+                          <span>Uchrashuv ↗</span>
+                        </button>
+                      )}
+                      <span className="text-[11px] text-zinc-500 uppercase font-mono">{b.category}</span>
+                    </div>
                   </div>
                 ))}
               </div>
