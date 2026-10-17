@@ -551,14 +551,14 @@ export default function Sidebar() {
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold text-white shadow-sm ring-1 ring-white/10"
             style={{ backgroundColor: userProfile.avatar_color || '#3b82f6' }}
           >
-            {userProfile.avatar_initials || 'F'}
+            {userProfile.avatar_initials || (userProfile.full_name ? userProfile.full_name.charAt(0).toUpperCase() : 'D')}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[12px] font-semibold text-zinc-200 group-hover:text-white transition">
-              {userProfile.full_name || 'Farhod'}
+              {userProfile.full_name || 'Dasturchi'}
             </p>
             <p className="truncate text-[10px] text-zinc-500 font-mono">
-              {userProfile.title || 'Backend Developer'}
+              {userProfile.title || 'Dasturchi'}
             </p>
           </div>
         </button>

@@ -108,16 +108,22 @@ export async function detectGhCliAuth(): Promise<GhCliAuthStatus | null> {
 }
 
 /**
- * Fetch authenticated GitHub user details
+ * Fetch GitHub user details (authenticated via token OR public via username)
  */
-export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
-  const res = await fetch('https://api.github.com/user', {
-    headers: {
-      Accept: 'application/vnd.github.v3+json',
-      Authorization: `Bearer ${token.trim()}`,
-      'User-Agent': 'CogniDev-Desktop',
-    },
-  });
+export async function fetchGitHubUser(tokenOrUsername: string, isToken: boolean = true): Promise<GitHubUser> {
+  const url = isToken
+    ? 'https://api.github.com/user'
+    : `https://api.github.com/users/${encodeURIComponent(tokenOrUsername.trim())}`;
+
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'CogniDev-Desktop',
+  };
+  if (isToken && tokenOrUsername.trim()) {
+    headers['Authorization'] = `Bearer ${tokenOrUsername.trim()}`;
+  }
+
+  const res = await fetch(url, { headers });
 
   if (!res.ok) {
     const text = await res.text();
@@ -139,15 +145,20 @@ export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
 /**
  * Fetch repositories owned or contributed by the user, sorted by last pushed date
  */
-export async function fetchUserRepos(token: string): Promise<GitHubRepo[]> {
-  const url = 'https://api.github.com/user/repos?sort=pushed&per_page=50&direction=desc';
-  const res = await fetch(url, {
-    headers: {
-      Accept: 'application/vnd.github.v3+json',
-      Authorization: `Bearer ${token.trim()}`,
-      'User-Agent': 'CogniDev-Desktop',
-    },
-  });
+export async function fetchUserRepos(token: string | null, publicUsername?: string): Promise<GitHubRepo[]> {
+  const url = token
+    ? 'https://api.github.com/user/repos?sort=pushed&per_page=50&direction=desc'
+    : `https://api.github.com/users/${encodeURIComponent(publicUsername || '')}/repos?sort=pushed&per_page=50&direction=desc`;
+
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'CogniDev-Desktop',
+  };
+  if (token && token.trim()) {
+    headers['Authorization'] = `Bearer ${token.trim()}`;
+  }
+
+  const res = await fetch(url, { headers });
 
   if (!res.ok) {
     throw new Error(`Repozitoriylarni yuklashda xatolik (${res.status}): ${res.statusText}`);
@@ -192,19 +203,21 @@ function formatTimeAgo(dateString: string): string {
  * Fetch recent commits for a given repository
  */
 export async function fetchRepoCommits(
-  token: string,
+  token: string | null,
   owner: string,
   repo: string,
   limit: number = 15
 ): Promise<GitHubCommitItem[]> {
   const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?per_page=${limit}`;
-  const res = await fetch(url, {
-    headers: {
-      Accept: 'application/vnd.github.v3+json',
-      Authorization: `Bearer ${token.trim()}`,
-      'User-Agent': 'CogniDev-Desktop',
-    },
-  });
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'CogniDev-Desktop',
+  };
+  if (token && token.trim()) {
+    headers['Authorization'] = `Bearer ${token.trim()}`;
+  }
+
+  const res = await fetch(url, { headers });
 
   if (!res.ok) {
     throw new Error(`Commitlarni yuklashda xatolik (${res.status}): ${res.statusText}`);

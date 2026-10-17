@@ -112,6 +112,7 @@ export default function ProjectsWorkspace() {
     setHud,
     setGitHubModal,
     setGitHubTargetRepoUrl,
+    userProfile,
   } = useSynapse();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -356,8 +357,8 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
         git_branch: t.git_branch || null,
         pr_url: null,
         ai_source: 'gemini',
-        assignee_name: 'Farhod',
-        assignee_avatar: 'FS',
+        assignee_name: userProfile?.full_name || 'Dasturchi',
+        assignee_avatar: (userProfile?.full_name || 'D').slice(0, 2).toUpperCase(),
         assignee_name2: null,
         assignee_avatar2: null,
         tags: ['project', aiDecomposingProject.title.toLowerCase().replace(/\s+/g, '-')],
@@ -967,7 +968,7 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
                   type="url"
                   value={formGithubUrl}
                   onChange={(e) => setFormGithubUrl(e.target.value)}
-                  placeholder="https://github.com/Farhodoff/CogniDev"
+                  placeholder="https://github.com/username/project"
                   className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-[12px] text-white placeholder:text-zinc-600 focus:border-blue-500/50 focus:outline-none"
                 />
               </div>

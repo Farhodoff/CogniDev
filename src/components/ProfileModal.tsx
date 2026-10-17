@@ -87,7 +87,7 @@ function ProfileDialog({ onClose }: { onClose: () => void }) {
                 </span>
               </div>
               <p className="text-[12px] text-zinc-400">
-                @{username || 'farhodoff'} · {title || 'Software Engineer'}
+                @{username || 'developer'} · {title || 'Software Engineer'}
               </p>
             </div>
           </div>
@@ -234,7 +234,7 @@ function ProfileDialog({ onClose }: { onClose: () => void }) {
                 type="text"
                 value={github}
                 onChange={(e) => setGithub(e.target.value)}
-                placeholder="Farhodoff"
+                placeholder="username"
                 className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
               />
             </div>

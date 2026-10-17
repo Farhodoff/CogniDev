@@ -975,7 +975,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       {
         id: 'welcome',
         role: 'assistant',
-        content: "Salom, Farhod! 👏 Men sizning shaxsiy AI yordamchingizman.\n\nSizning vazifalaringiz, loyihalaringiz va o'rganish yo'l xaritangizni tahlil qilib, maksimal samaradorlikka erishishingizga yordam beraman. Quyidagi tezkor tugmalardan birini tanlashingiz yoki o'z savolingizni yozishingiz mumkin!",
+        content: "Salom! 👏 Men sizning shaxsiy AI yordamchingizman.\n\nSizning vazifalaringiz, loyihalaringiz va o'rganish yo'l xaritangizni tahlil qilib, maksimal samaradorlikka erishishingizga yordam beraman. Quyidagi tezkor tugmalardan birini tanlashingiz yoki o'z savolingizni yozishingiz mumkin!",
         timestamp: 'Hozir',
       },
     ];
@@ -1002,9 +1002,12 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
       const activeTasks = tasks.filter((t) => t.status === 'active');
 
+      const { userProfile } = get();
+      const currentUserName = userProfile?.full_name || 'Dasturchi';
+      const currentUserTitle = userProfile?.title || 'Software Engineer';
       const currentDate = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
-      const systemPrompt = `Siz MySpace ilovasida Farhodning shaxsiy, aqlli va professional AI yordamchisisiz.
-Foydalanuvchi: Farhod (Software / Backend Engineer).
+      const systemPrompt = `Siz CogniDev ilovasida ${currentUserName}ning shaxsiy, aqlli va professional AI yordamchisisiz.
+Foydalanuvchi: ${currentUserName} (${currentUserTitle}).
 Bugungi sana: ${currentDate}.
 Haqiqiy ma'lumotlar:
 - Faol vazifalar (${activeTasks.length}): ${activeTasks.slice(0, 8).map((t) => t.title).join('; ') || "Hozircha yo'q"}
@@ -1050,12 +1053,13 @@ MUHIM QOIDALAR:
     try {
       localStorage.removeItem('cognidev_drawer_messages');
     } catch {}
+    const currentUserName = get().userProfile?.full_name || 'Dasturchi';
     set({
       aiDrawerMessages: [
         {
           id: 'welcome',
           role: 'assistant',
-          content: "Salom, Farhod! 👏 Tarix tozalandi. Bugun qanday muhandislik masalasida yordam bera olaman?",
+          content: `Salom, ${currentUserName}! 👏 Tarix tozalandi. Bugun qanday muhandislik masalasida yordam bera olaman?`,
           timestamp: 'Hozir',
         },
       ],
@@ -1066,10 +1070,10 @@ MUHIM QOIDALAR:
     try {
       return (
         localStorage.getItem('cognidev_today_ai_summary') ||
-        "Bugun siz Zoovita loyihasi bo'yicha backend serverini muvaffaqiyatli ishga tushirdingiz va PostgreSQL indekslari bo'yicha yangi bilimlarni amalda qo'lladingiz. Hozir 3 ta muhim vazifa qolgan. Davom eting! 💪"
+        "Bugun siz loyihalaringiz va vazifalaringiz bo'yicha muhim rejalarni bajardingiz. Hozir faol vazifalarni davom ettiring va diqqatni jamlang! 💪"
       );
     } catch {
-      return "Bugungi backend rejalaringizni davom ettiring!";
+      return "Bugungi rejalaringizni davom ettiring!";
     }
   })(),
   isGeneratingTodayAiSummary: false,
@@ -1082,6 +1086,8 @@ MUHIM QOIDALAR:
       const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
       const activeTasks = tasks.filter((t) => t.status === 'active');
 
+      const currentUserName = get().userProfile?.full_name || 'Dasturchi';
+      const currentUserTitle = get().userProfile?.title || 'Software Engineer';
       const contextPrompt = `Dasturchi holati tahlili:
 - Jami vazifalar: ${tasks.length} ta (Bajarilgan: ${completedTasks.length}, Faol: ${activeTasks.length}, To'siqlar: ${blockers.length})
 - Eng so'nggi bajarilgan ishlar: ${completedTasks.slice(0, 3).map((t) => t.title).join(', ') || "Hali tasklar boshlanmagan"}
@@ -1090,9 +1096,9 @@ MUHIM QOIDALAR:
 - Yo‘l xaritalari: ${roadmaps.map((r) => r.title).join('; ')}
 - Qaydlar: ${notesDocs.length} ta Notion qayd mavjud.
 
-Iltimos, Farhod (Junior Backend / Software Engineer) uchun bugungi kungi qisqa, professional va ruhlantiruvchi muhandislik xulosasini 2-3 jumlada o'zbek tilida yozib bering. Nimaga erishilgani va keyingi diqqat markazini qisqa ayting.`;
+Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, professional va ruhlantiruvchi muhandislik xulosasini 2-3 jumlada o'zbek tilida yozib bering. Nimaga erishilgani va keyingi diqqat markazini qisqa ayting.`;
 
-      const res = await callAi(contextPrompt, "Siz Farhodning shaxsiy dev-cockpit AI yordamchisisiz. Qisqa, aniq va texnik ruhda javob bering.");
+      const res = await callAi(contextPrompt, `Siz ${currentUserName}ning shaxsiy dev-cockpit AI yordamchisisiz. Qisqa, aniq va texnik ruhda javob bering.`);
       const cleanText = res.text.trim();
       set({ todayAiSummary: cleanText, isGeneratingTodayAiSummary: false });
       try {
@@ -1720,6 +1726,7 @@ export function filteredTasks(
   sortOrder: SortOrder = 'newest',
   activeGroupId?: string | null,
   activeTag?: string | null,
+  userName?: string,
 ): Task[] {
   let out = tasks.filter((t) => t.workspace_id === workspaceId);
   if (activeGroupId) {
@@ -1728,7 +1735,15 @@ export function filteredTasks(
   if (activeTag) {
     out = out.filter((t) => (t.tags ?? []).includes(activeTag));
   }
-  if (f === 'mine') out = out.filter((t) => t.assignee_name === 'Farhod');
+  if (f === 'mine') {
+    const target = (userName || '').trim().toLowerCase();
+    out = out.filter((t) => {
+      const a = (t.assignee_name || '').trim().toLowerCase();
+      if (!a) return false;
+      if (target && a === target) return true;
+      return a === 'men' || a === 'o\'zim' || a === 'me';
+    });
+  }
   if (f === 'high') out = out.filter((t) => t.priority === 'P0 Blocker' || t.priority === 'Critical');
   if (f === 'claude') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('claude'));
   if (f === 'gemini') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('gemini'));

@@ -30,13 +30,14 @@ export default function TaskStream() {
     setActiveGroup,
     activeTag,
     setActiveTag,
+    userProfile,
   } = useSynapse();
 
   const [sortOpen, setSortOpen] = useState(false);
   const [quickInput, setQuickInput] = useState('');
 
   const workspaceTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
-  const visible = filteredTasks(tasks, quickFilter, search, activeWorkspaceId, sortOrder, activeGroupId, activeTag);
+  const visible = filteredTasks(tasks, quickFilter, search, activeWorkspaceId, sortOrder, activeGroupId, activeTag, userProfile?.full_name);
   const activeCount = workspaceTasks.filter(
     (t) => t.status === 'active' || t.status === 'blocker' || t.status === 'in_review',
   ).length;

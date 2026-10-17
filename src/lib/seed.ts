@@ -13,7 +13,7 @@ import type {
   SpaceItem,
 } from './types';
 
-/** Default initial workspace for Farhod's MySpace Hub */
+/** Default initial workspace for CogniDev */
 export const DEFAULT_PERSONAL_WORKSPACE: Workspace = {
   id: 'ws-personal',
   name: 'Personal Dev Hub',
@@ -25,13 +25,13 @@ export const DEFAULT_GROUPS: TeamGroup[] = [];
 
 export const DEFAULT_SPACES: SpaceItem[] = [
   { id: 'sp-personal', name: 'Personal', icon: 'User', color: '#ef4444' },
-  { id: 'sp-uni', name: 'University (JDU)', icon: 'GraduationCap', color: '#3b82f6' },
+  { id: 'sp-uni', name: 'Education & Study', icon: 'GraduationCap', color: '#3b82f6' },
   { id: 'sp-work', name: 'Work / Backend', icon: 'Briefcase', color: '#f59e0b' },
-  { id: 'sp-japan', name: 'Japanese (JLPT)', icon: 'Languages', color: '#f43f5e' },
+  { id: 'sp-japan', name: 'Languages', icon: 'Languages', color: '#f43f5e' },
   { id: 'sp-ai', name: 'AI & ML', icon: 'Brain', color: '#8b5cf6' },
   { id: 'sp-health', name: 'Health & Sport', icon: 'Activity', color: '#10b981' },
   { id: 'sp-finance', name: 'Finance', icon: 'TrendingUp', color: '#eab308' },
-  { id: 'sp-travel', name: 'Travel / Japan', icon: 'Plane', color: '#06b6d4' },
+  { id: 'sp-travel', name: 'Travel & Lifestyle', icon: 'Plane', color: '#06b6d4' },
   { id: 'sp-archive', name: 'Archive', icon: 'Archive', color: '#71717a' },
 ];
 
@@ -51,24 +51,24 @@ export const DEFAULT_ACTIVE_PROJECTS: ActiveProject[] = [
   },
   {
     id: 'proj-nihongo',
-    title: 'Nihongo Talk',
-    subtitle: 'Japanese Interactive Conversational & Shadowing App',
+    title: 'Language Learning App',
+    subtitle: 'Interactive conversational shadowing and spaced-repetition platform',
     progress: 65,
     category: 'Fullstack Web',
     color: '#ec4899',
     status: 'in_progress',
-    github_url: 'https://github.com/Farhodoff/nihongo-talk',
+    github_url: '',
     tags: ['Next.js', 'TypeScript', 'WebAudio'],
   },
   {
     id: 'proj-portfolio',
-    title: 'Portfolio & Tech Blog',
+    title: 'Developer Portfolio',
     subtitle: 'Modern software engineer portfolio with live project showcases',
     progress: 90,
     category: 'Frontend & Portfolio',
     color: '#10b981',
     status: 'active',
-    github_url: 'https://github.com/Farhodoff/portfolioo',
+    github_url: '',
     tags: ['React', 'Vite', 'TailwindCSS'],
   },
   {
@@ -79,7 +79,7 @@ export const DEFAULT_ACTIVE_PROJECTS: ActiveProject[] = [
     category: 'Systems & Networking',
     color: '#8b5cf6',
     status: 'in_progress',
-    github_url: 'https://github.com/Farhodoff/tunnel',
+    github_url: '',
     tags: ['Go', 'Networking', 'CLI', 'Docker'],
   },
 ];

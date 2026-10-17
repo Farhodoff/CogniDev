@@ -50,9 +50,9 @@ export async function fetchGitRepoInfo(repoPath?: string): Promise<GitRepoInfo> 
   // Fallback mock info for browser development mode
   return {
     is_repo: true,
-    repo_root: '/Users/farhod/Desktop/CogniDev',
+    repo_root: '/Users/developer/project',
     branch: 'main',
-    remote_url: 'https://github.com/Farhodoff/CogniDev.git',
+    remote_url: 'https://github.com/developer/project.git',
     modified_count: 2,
     untracked_count: 1,
     staged_count: 0,
@@ -64,13 +64,13 @@ export async function fetchGitRepoInfo(repoPath?: string): Promise<GitRepoInfo> 
     recent_commits: [
       {
         hash: '21be962',
-        author: 'farhod-io',
+        author: 'developer',
         time_ago: '1 day ago',
         message: 'feat: scheduled reminder cron engine and macOS entitlements (v0.1.6)',
       },
       {
         hash: 'cac7043',
-        author: 'Farhodoff',
+        author: 'developer',
         time_ago: '2 days ago',
         message: 'feat(projects): add portfolio export and tech stack filtering (#29)',
       },

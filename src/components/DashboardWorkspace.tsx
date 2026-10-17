@@ -197,15 +197,17 @@ export default function DashboardWorkspace() {
     }
 
     // 4. Boshqa barcha savollar uchun LLM ga aniq va qisqa javob berish bo'yicha ko'rsatma:
+    const currentUserName = userProfile.full_name || 'Dasturchi';
+    const currentUserTitle = userProfile.title || 'Software Engineer';
     const realContext = `
-Foydalanuvchi: Farhod (Software / Backend Engineer)
+Foydalanuvchi: ${currentUserName} (${currentUserTitle})
 Bugungi sana: ${todayDateStr}
 Haqiqiy faol vazifalar (${tasks.length} ta): ${tasks.slice(0, 8).map((t) => t.title).join('; ') || "Hozircha yo'q"}
 Haqiqiy faol loyihalar: ${activeProjects.map((p) => p.title).join('; ') || "Hozircha yo'q"}
 Haqiqiy maqsadlar: ${goals.map((g) => `${g.title} (${g.progress}%)`).join('; ') || "Hozircha yo'q"}
 `.trim();
 
-    const systemPrompt = `Siz Farhodning MySpace ilovasidagi shaxsiy, do'stona va professional AI yordamchisisiz.
+    const systemPrompt = `Siz ${currentUserName}ning CogniDev ilovasidagi shaxsiy, do'stona va professional AI yordamchisisiz.
 QAT'IY QOIDALAR:
 1. Javobingiz QISQA, ANIQ VA SAMIMIY bo'lsin (maksimal 2-4 ta gap yoki ixcham punktlar).
 2. HECH QACHON keraksiz katta jadvallar, soxta SQL/kodlar, o'tmishdagi (masalan 2023) sanalarni yoki g'alati/soxta so'zlarni to'qimang.
@@ -297,7 +299,7 @@ ${realContext}`;
 
               <div className="relative z-10 space-y-1.5 max-w-md">
                 <h1 className="text-2xl font-bold tracking-tight text-white drop-shadow-md">
-                  {greeting}, {userProfile.full_name || 'Farhod'} 👋
+                  {greeting}, {userProfile.full_name || 'Dasturchi'} 👋
                 </h1>
                 <div className="pt-0.5">
                   <p className="text-[17px] font-bold text-amber-300 tracking-wide font-sans drop-shadow">
