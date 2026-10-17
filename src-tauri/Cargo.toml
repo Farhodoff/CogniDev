@@ -1,6 +1,6 @@
 [package]
 name = "cognidev"
-version = "0.1.9"
+version = "0.1.10"
 description = "CogniDev — AI-Powered Developer Command Center & Second Brain"
 authors = ["CogniDev Team"]
 edition = "2021"
