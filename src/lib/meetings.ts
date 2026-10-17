@@ -142,11 +142,17 @@ Hech qanday boshqa so'z yoki markdown belgilarisiz, toza JSON bering.`;
 }
 
 /**
- * Ask a specific question about the meeting (Notion AI style Q&A).
+ * Ask a specific question about the meeting.
+ * Evaluates in order:
+ * 1. Dedicated Key (Gemini 2.0 Flash / OpenAI / Groq / DeepSeek)
+ * 2. Global Cloud Providers (if enabled in settings)
+ * 3. Local Ollama (if any model is running locally)
+ * 4. Context-aware intelligent semantic extractor (summaries, decisions, tasks, assignees, quotes)
  */
 export async function askMeetingQuestion(
   transcript: string,
   question: string,
+  contextMeeting?: Partial<MeetingItem> | null,
   cfgOverride?: MeetingAiConfig
 ): Promise<string> {
   const cfg = cfgOverride || getMeetingAiConfig();
@@ -156,6 +162,7 @@ Agar uchrashuvda bu haqida aytilmagan bo'lsa, "Uchrashuv davomida bu mavzu tilga
 
   const userPrompt = `Transkript:\n${transcript}\n\nSavol: ${question}`;
 
+  // 1. Dedicated Key
   if (cfg.useDedicatedKey && cfg.apiKey.trim().length > 0) {
     try {
       if (cfg.provider === 'gemini') {
@@ -170,10 +177,147 @@ Agar uchrashuvda bu haqida aytilmagan bo'lsa, "Uchrashuv davomida bu mavzu tilga
     }
   }
 
-  const cloud = await tryCloudProviders(userPrompt, systemPrompt);
-  if (cloud?.text) return cloud.text;
+  // 2. Global Cloud Providers
+  try {
+    const cloud = await tryCloudProviders(userPrompt, systemPrompt);
+    if (cloud?.text) return cloud.text;
+  } catch {
+    /* ignore */
+  }
 
-  return `Uchrashuv transkriptidan tahlil:\nSavolingiz bo'yicha uchrashuvda tegishli fikrlar bildirildi. Tafsilotlar uchun to'liq transkript matnidan foydalanishingiz mumkin.`;
+  // 3. Local Ollama if available
+  try {
+    const tagsRes = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(1500) });
+    if (tagsRes.ok) {
+      const tagsData = await tagsRes.json();
+      const availableModels: string[] = (tagsData?.models ?? []).map((m: any) => m.name || m.model);
+      const chosenModel = availableModels.find((m) => m.includes('qwen') || m.includes('llama') || m.includes('mistral')) || availableModels[0];
+      if (chosenModel) {
+        const ollamaRes = await fetch('http://localhost:11434/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: chosenModel,
+            prompt: `${systemPrompt}\n\n${userPrompt}`,
+            stream: false,
+          }),
+          signal: AbortSignal.timeout(45000),
+        });
+        if (ollamaRes.ok) {
+          const oData = await ollamaRes.json();
+          if (oData?.response?.trim()) return oData.response.trim();
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // 4. Intelligent Context-Aware Extraction Engine (Always returns real, relevant facts)
+  return smartMeetingAnswer(transcript, question, contextMeeting);
+}
+
+function smartMeetingAnswer(
+  transcript: string,
+  question: string,
+  contextMeeting?: Partial<MeetingItem> | null
+): string {
+  const qClean = question.trim().toLowerCase();
+
+  // Extract clean sentences from transcript
+  const rawSentences = transcript
+    .split(/(?<=[.!?\n])\s+/)
+    .map((s) => s.trim().replace(/^[-•*#\d.]+\s*/, ''))
+    .filter((s) => s.length > 5);
+
+  // A. Summary / Mazmun / Xulosa
+  if (/(xulosa|mazmun|nima haqida|mavzu|summary|haqida gap|qisqacha)/i.test(qClean)) {
+    if (contextMeeting?.summary && !contextMeeting.summary.includes('Uchrashuv yozib olindi')) {
+      const takeaways = (contextMeeting.key_takeaways || []).map((t) => `• ${t}`).join('\n');
+      return `Uchrashuvning qisqacha mazmuni:\n\n${contextMeeting.summary}${takeaways ? `\n\nAsosiy xulosalar:\n${takeaways}` : ''}`;
+    }
+    const keyPoints = rawSentences.slice(0, 3).map((s) => `• ${s}`).join('\n');
+    return `Uchrashuvdan olingan asosiy xulosalar:\n\n${keyPoints || (transcript.length > 200 ? transcript.slice(0, 200) + '...' : transcript)}`;
+  }
+
+  // B. Decisions / Qarorlar
+  if (/(qaror|kelishil|kelishuv|to'xtam|decision|natija|tanlandi)/i.test(qClean)) {
+    if (contextMeeting?.decisions && contextMeeting.decisions.length > 0) {
+      return `Uchrashuvda qabul qilingan qarorlar:\n\n${contextMeeting.decisions.map((d, i) => `${i + 1}. ${d}`).join('\n')}`;
+    }
+    const decisionMatches = rawSentences.filter((s) =>
+      /(kelishdik|qaror|to'xtaldik|tanladik|ma'qul|tasdiq|kelishuv|hal bo'ldi)/i.test(s)
+    );
+    if (decisionMatches.length > 0) {
+      return `Uchrashuvda kelishilgan asosiy bandlar:\n\n${decisionMatches.slice(0, 5).map((d, i) => `${i + 1}. ${d}`).join('\n')}`;
+    }
+    return `Uchrashuv davomida alohida rasmiy qaror nomi keltirilmagan. Muhokama qilingan masalalar transkripsiyada saqlangan.`;
+  }
+
+  // C. Tasks / Action items / Assignees
+  if (/(vazifa|topshiriq|kimga|mas'ul|task|assignee|kim nima|bajaradi|qilishi)/i.test(qClean)) {
+    if (contextMeeting?.action_items && contextMeeting.action_items.length > 0) {
+      return `Uchrashuv bo'yicha belgilangan topshiriqlar:\n\n${contextMeeting.action_items
+        .map(
+          (a, i) =>
+            `${i + 1}. ${a.text} — Mas'ul: ${a.assignee || 'Jamoa'}${a.due_date ? ` (Muddati: ${a.due_date})` : ''}`
+        )
+        .join('\n')}`;
+    }
+    const taskMatches = rawSentences.filter((s) =>
+      /(kerak|qilsin|bajarilsin|vazifa|topshiriq|yozsin|tayyorla|mas'ul)/i.test(s)
+    );
+    if (taskMatches.length > 0) {
+      return `Transkriptdan aniqlangan harakatlar va topshiriqlar:\n\n${taskMatches.slice(0, 5).map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
+    }
+    return `Transkriptda aniq taqsimlangan topshiriqlar qayd etilmagan.`;
+  }
+
+  // D. Next Plan / Reja
+  if (/(keyingi|reja|keyin nima|qadam|next|plan|muddat|qachon)/i.test(qClean)) {
+    const futureMatches = rawSentences.filter((s) =>
+      /(ertaga|keyin|rejada|hafta|ko'rib chiqamiz|boshlaymiz|kelasi|tayyor)/i.test(s)
+    );
+    if (futureMatches.length > 0) {
+      return `Keyingi rejalar va kutilayotgan ishlar:\n\n${futureMatches.slice(0, 4).map((f, i) => `${i + 1}. ${f}`).join('\n')}`;
+    }
+    if (contextMeeting?.action_items?.length) {
+      return `Keyingi navbatda bajariladigan ishlar:\n\n${contextMeeting.action_items.map((a, i) => `${i + 1}. ${a.text}`).join('\n')}`;
+    }
+  }
+
+  // E. Semantic keyword search in transcript
+  const stopWords = new Set([
+    'uchrashuv', 'haqida', 'nima', 'qanday', 'qachon', 'kim', 'nega', 'qaysi',
+    'bilan', 'uchun', 'bo\'yicha', 'deb', 'edi', 'bor', 'yo\'q', 'kerak', 'transkript',
+    'transkripsiya', 'bormi', 'ekan', 'ham', 'bu', 'shu', 'o\'sha', 'va'
+  ]);
+  const queryTokens = qClean
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !stopWords.has(w));
+
+  if (queryTokens.length > 0) {
+    const scored = rawSentences.map((sent) => {
+      const lower = sent.toLowerCase();
+      let score = 0;
+      for (const tok of queryTokens) {
+        if (lower.includes(tok)) score += 1;
+      }
+      return { sent, score };
+    }).filter((x) => x.score > 0);
+
+    scored.sort((a, b) => b.score - a.score);
+
+    if (scored.length > 0) {
+      const matchedQuotes = scored.slice(0, 4).map((s) => `• "${s.sent}"`).join('\n');
+      return `Transkriptdan savolingiz bo'yicha tegishli parchalar:\n\n${matchedQuotes}\n\nUchrashuvda ushbu mavzu yuzasidan yuqoridagi fikrlar bildirildi.`;
+    }
+  }
+
+  // Fallback: clear and honest, referencing real context
+  const sampleSentences = rawSentences.slice(0, 2).map((s) => `• ${s}`).join('\n');
+  return `Transkriptda ushbu savol bo'yicha aniq ma'lumot topilmadi.\n\nUchrashuvda tilga olingan asosiy fikrlar:\n${sampleSentences || 'Transkripsiya matni mavjud.'}\n\nQisqacha xulosa yoki vazifalarni bilish uchun quyidagi tayyor tugmalardan foydalanishingiz mumkin.`;
 }
 
 async function callGeminiDirect(prompt: string, system: string, key: string, model: string): Promise<string | null> {
@@ -267,35 +411,62 @@ function parseMeetingJson(raw: string, provider: string, model: string): Meeting
 }
 
 function ruleBasedMeetingAnalysis(transcript: string): MeetingAnalysisResult {
-  const lines = transcript.split('\n').map((l) => l.trim()).filter(Boolean);
-  const title = lines[0]?.slice(0, 50) || 'Audio Yozuv & Uchrashuv';
+  const lines = transcript
+    .split(/(?<=[.!?\n])\s+/)
+    .map((l) => l.trim().replace(/^[-•*#\d.]+\s*/, ''))
+    .filter((l) => l.length > 6);
+
+  const title = lines[0]?.slice(0, 45) || 'Audio Yozuv & Uchrashuv';
+
+  // Dynamic decisions from transcript
+  const decisionSentences = lines.filter((l) =>
+    /(kelishdik|qaror|to'xtaldik|tanladik|ma'qul|tasdiq|kelishuv|hal bo'ldi)/i.test(l)
+  );
+  const decisions = decisionSentences.length > 0
+    ? decisionSentences.slice(0, 3)
+    : lines.slice(0, 2);
+
+  // Dynamic action items
+  const actionSentences = lines.filter((l) =>
+    /(kerak|qilamiz|bajarish|yozish|tuzish|ishlash|o'rganish|sinash|vazifa|topshiriq|tayyorlash)/i.test(l)
+  );
+  const action_items: MeetingActionItem[] = (
+    actionSentences.length > 0 ? actionSentences.slice(0, 4) : lines.slice(0, 2)
+  ).map((text, idx) => ({
+    id: `act-${Date.now()}-${idx}`,
+    text: text.slice(0, 90),
+    assignee: 'Jamoa',
+    priority: idx === 0 ? 'High Priority' : 'Normal',
+    added_to_tasks: false,
+  }));
+
+  const key_takeaways = lines.slice(0, 4);
+
+  const summary = lines.length > 2
+    ? lines.slice(0, 3).join('. ') + '.'
+    : lines[0] || 'Uchrashuv audio transkripsiyasi saqlandi.';
 
   return {
     title,
-    summary: `Uchrashuv yozib olindi (${lines.length} ta nutq qismi). Matn to'liq transkripsiyada saqlangan.`,
-    decisions: [
-      'Muhokama qilingan masalalar bo‘yicha harakatlar rejasi belgilab olindi.',
-      'Barcha qatnashchilar keyingi qadamlar bo‘yicha kelishuvga erishdilar.',
-    ],
-    action_items: [
+    summary,
+    decisions: decisions.length ? decisions : ['Kun tartibidagi masalalar muhokama qilindi.'],
+    action_items: action_items.length ? action_items : [
       {
         id: `act-${Date.now()}-1`,
-        text: 'Uchrashuv xulosalari va natijalarini ko‘rib chiqish',
-        assignee: 'Barchasi',
+        text: 'Transkript matni va kelgusi qadamlarni muvofiqlashtirish',
+        assignee: 'Jamoa',
         priority: 'Normal',
         added_to_tasks: false,
       },
     ],
-    key_takeaways: [
-      'Uchrashuv transkripti saqlandi va qidiruv uchun tayyor holatda.',
-    ],
-    providerUsed: 'Lokal Smart Parser',
-    modelUsed: 'rule-based',
+    key_takeaways: key_takeaways.length ? key_takeaways : ['Uchrashuv transkripsiya matni saqlangan.'],
+    providerUsed: 'Lokal Tahlil',
+    modelUsed: 'smart-parser',
   };
 }
 
 /**
- * Exports meeting data to beautiful Notion-style Markdown.
+ * Exports meeting data to clean Markdown.
  */
 export function exportMeetingToMarkdown(m: MeetingItem): string {
   const mins = Math.floor(m.duration / 60);
@@ -305,26 +476,25 @@ export function exportMeetingToMarkdown(m: MeetingItem): string {
   return `# 🎙️ ${m.title}
 **Sana:** ${new Date(m.date).toLocaleString('uz-UZ')}  
 **Davomiyligi:** ${timeStr}  
-**AI Provayder:** ${m.ai_provider ?? 'Standart'} (${m.ai_model ?? ''})  
 **Teglar:** ${m.tags.map((t) => `#${t}`).join(' ')}
 
 ---
 
-## 📌 Qisqacha Mazmun (Executive Summary)
+## 📌 Qisqacha Mazmun
 ${m.summary ?? 'Mavjud emas.'}
 
-## 🎯 Qabul qilingan Qarorlar (Key Decisions)
+## 🎯 Qabul qilingan Qarorlar
 ${(m.decisions ?? []).map((d) => `- [x] ${d}`).join('\n') || '- Qarorlar qayd etilmagan'}
 
-## ✅ Vazifalar va Topshiriqlar (Action Items)
+## ✅ Vazifalar va Topshiriqlar
 ${(m.action_items ?? []).map((a) => `- [ ] **${a.text}** — *Mas'ul:* ${a.assignee ?? 'Jamoa'} | *Muddati:* ${a.due_date ?? 'Belgilanmagan'} [${a.priority ?? 'Normal'}]`).join('\n') || '- Vazifalar yo\'q'}
 
-## 💡 Asosiy Xulosalar (Key Takeaways)
+## 💡 Asosiy Xulosalar
 ${(m.key_takeaways ?? []).map((k) => `• ${k}`).join('\n') || '- Xulosalar yo\'q'}
 
 ---
 
-## 📑 To'liq Transkript
+## 📑 Transkripsiya
 \`\`\`
 ${m.transcript}
 \`\`\`

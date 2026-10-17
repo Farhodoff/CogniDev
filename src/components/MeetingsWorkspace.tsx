@@ -242,7 +242,7 @@ export default function MeetingsWorkspace() {
     setIsChatLoading(true);
 
     try {
-      const ans = await askMeetingQuestion(selectedMeeting.transcript, question);
+      const ans = await askMeetingQuestion(selectedMeeting.transcript, question, selectedMeeting);
       setChatMessages((prev) => [...prev, { role: 'assistant', text: ans }]);
     } catch {
       setChatMessages((prev) => [
@@ -328,11 +328,8 @@ export default function MeetingsWorkspace() {
                 <Radio size={16} className="animate-pulse" />
               </div>
               <div>
-                <h1 className="text-[14px] font-bold text-white tracking-wide flex items-center gap-1.5">
+                <h1 className="text-[14px] font-bold text-white tracking-wide">
                   AI Meetings
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono border border-purple-500/30">
-                    Pro
-                  </span>
                 </h1>
                 <p className="text-[11px] text-zinc-400">Audio, Transkript & Konspekt</p>
               </div>
@@ -525,15 +522,6 @@ export default function MeetingsWorkspace() {
                       <Clock size={12} className="text-zinc-500" />
                       {Math.floor(selectedMeeting.duration / 60)} daqiqa {selectedMeeting.duration % 60} soniya
                     </span>
-                    {selectedMeeting.ai_model && (
-                      <>
-                        <span>·</span>
-                        <span className="flex items-center gap-1 text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full font-mono text-[10.5px]">
-                          <Sparkles size={10} />
-                          {selectedMeeting.ai_provider} ({selectedMeeting.ai_model})
-                        </span>
-                      </>
-                    )}
                   </div>
                 </div>
 
@@ -634,7 +622,7 @@ export default function MeetingsWorkspace() {
                   }`}
                 >
                   <Sparkles size={14} className={activeTab === 'summary' ? 'text-purple-400' : ''} />
-                  <span>AI Konspekt & Vazifalar</span>
+                  <span>Konspekt & Vazifalar</span>
                   {selectedMeeting.action_items?.length ? (
                     <span className="rounded-full bg-purple-500/20 px-2 py-0.2 text-[10.5px] text-purple-300 font-mono">
                       {selectedMeeting.action_items.length}
@@ -651,7 +639,7 @@ export default function MeetingsWorkspace() {
                   }`}
                 >
                   <FileText size={14} className={activeTab === 'transcript' ? 'text-purple-400' : ''} />
-                  <span>To‘liq Transkript</span>
+                  <span>Transkripsiya</span>
                 </button>
 
                 <button
@@ -663,10 +651,7 @@ export default function MeetingsWorkspace() {
                   }`}
                 >
                   <MessageSquare size={14} className={activeTab === 'chat' ? 'text-purple-400' : ''} />
-                  <span>AI bilan Savol-Javob</span>
-                  <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[10px] text-emerald-300">
-                    Notion AI
-                  </span>
+                  <span>AI Chat</span>
                 </button>
               </div>
             </div>
@@ -1172,7 +1157,7 @@ function RecordingStudioModal({
             </div>
             <div>
               <h2 className="text-[15px] font-bold text-white">Uchrashuv Yozish Studiyasi</h2>
-              <p className="text-[11px] text-zinc-400">Notion AI kabi jonli yozuv & aqlli filtrlash</p>
+              <p className="text-[11px] text-zinc-400">Jonli audio yozuv & avtomatik tahlil</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-white transition">
