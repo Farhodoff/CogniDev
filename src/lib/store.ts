@@ -25,7 +25,6 @@ import type {
   HabitItem,
   MeetingItem,
 } from './types';
-import { INITIAL_MEETINGS } from './meetings';
 import {
   DEFAULT_CHECKLISTS,
   DEFAULT_GROUPS,
