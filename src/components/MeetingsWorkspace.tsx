@@ -29,6 +29,8 @@ import {
   Radio,
   FileAudio,
   AlertCircle,
+  Download,
+  Globe,
 } from 'lucide-react';
 import { useSynapse, nextTaskId } from '../lib/store';
 import type { MeetingItem, MeetingActionItem, MeetingAiConfig } from '../lib/types';
@@ -40,7 +42,17 @@ import {
   exportMeetingToMarkdown,
   speakText,
 } from '../lib/meetings';
-import { blobToWav16k, pickAudioMime, transcribeRubai, requestMicrophoneStream, openMicSettings, resetMicPermission } from '../lib/stt';
+import {
+  blobToWav16k,
+  pickAudioMime,
+  transcribeAudioDetailed,
+  downloadAudioFile,
+  createLiveSpeechRecognizer,
+  requestMicrophoneStream,
+  openMicSettings,
+  resetMicPermission,
+  type SttLanguage,
+} from '../lib/stt';
 
 export default function MeetingsWorkspace() {
   const {
@@ -277,19 +289,21 @@ export default function MeetingsWorkspace() {
 
     try {
       const wav = await blobToWav16k(file);
-      const text = await transcribeRubai(wav, 'uz');
+      const sttRes = await transcribeAudioDetailed(wav, 'auto');
+      const text = sttRes.text;
       const audioUrl = URL.createObjectURL(file);
+      const detectedLang = sttRes.detectedLang || 'uz';
 
       const newMeeting: MeetingItem = {
         id: `meet-${Date.now()}`,
         title: file.name.replace(/\.[^/.]+$/, ''),
         date: new Date().toISOString(),
         duration: Math.round(file.size / 32000) || 60,
-        language: 'uz',
+        language: detectedLang,
         mode: text ? 'analyzed' : 'audio_only',
         audio_url: audioUrl,
         transcript: text || 'Audio fayldan so‘z aniqlanmadi (yoki fon musiqasi).',
-        tags: ['uploaded', 'audio'],
+        tags: ['uploaded', 'audio', detectedLang],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -307,7 +321,7 @@ export default function MeetingsWorkspace() {
 
       addMeeting(newMeeting);
       setSelectedMeetingId(newMeeting.id);
-      setHud("Audio muvaffaqiyatli yuklandi va tahlil qilindi ✓");
+      setHud(`Audio yuklandi va tahlil qilindi ✓ (${detectedLang.toUpperCase()})`);
     } catch (err: any) {
       alert(`Xatolik: ${err instanceof Error ? err.message : 'Audio yuklashda xatolik yuz berdi'}`);
     } finally {
@@ -478,6 +492,11 @@ export default function MeetingsWorkspace() {
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {m.language && (
+                        <span className="rounded px-1.5 py-0.5 bg-white/5 text-zinc-300 text-[9.5px] font-mono border border-white/5">
+                          {m.language === 'uz' ? '🇺🇿 UZ' : m.language === 'ru' ? '🇷🇺 RU' : m.language === 'en' ? '🇬🇧 EN' : m.language.toUpperCase()}
+                        </span>
+                      )}
                       {m.mode === 'analyzed' ? (
                         <span className="flex items-center gap-1 rounded px-1.5 py-0.5 bg-purple-500/15 text-purple-300 text-[10px] font-sans font-medium">
                           <Sparkles size={9} /> {actionCount} vazifa
@@ -522,11 +541,34 @@ export default function MeetingsWorkspace() {
                       <Clock size={12} className="text-zinc-500" />
                       {Math.floor(selectedMeeting.duration / 60)} daqiqa {selectedMeeting.duration % 60} soniya
                     </span>
+                    {selectedMeeting.language && (
+                      <>
+                        <span>·</span>
+                        <span className="flex items-center gap-1 text-zinc-300 bg-white/5 px-2 py-0.5 rounded-full text-[10.5px]">
+                          <Globe size={11} className="text-sky-400" />
+                          {selectedMeeting.language === 'uz' ? 'O‘zbekcha' : selectedMeeting.language === 'ru' ? 'Русский' : selectedMeeting.language === 'en' ? 'English' : selectedMeeting.language}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Top Action Bar Buttons */}
                 <div className="flex items-center gap-2">
+                  {selectedMeeting.audio_url && (
+                    <button
+                      onClick={() => {
+                        downloadAudioFile(selectedMeeting.audio_url!, selectedMeeting.title);
+                        setHud(`"${selectedMeeting.title}.wav" audio yuklab olindi ✓`);
+                      }}
+                      title="Audioni .wav ko‘rinishida kompyuterga saqlab olish"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 hover:text-white transition"
+                    >
+                      <Download size={13} />
+                      <span>Audioni Yuklash</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={handleToggleTts}
                     title={isSpeaking ? "Ovozni to'xtatish" : "AI xulosasini ovozda o'qish (TTS)"}
@@ -594,7 +636,7 @@ export default function MeetingsWorkspace() {
                     </div>
                   </div>
 
-                  {/* Playback speed pills */}
+                  {/* Playback speed pills & Download */}
                   <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-lg text-[10.5px] font-mono">
                     {[1, 1.25, 1.5, 2].map((sp) => (
                       <button
@@ -607,6 +649,16 @@ export default function MeetingsWorkspace() {
                         {sp}x
                       </button>
                     ))}
+                    <button
+                      onClick={() => {
+                        downloadAudioFile(selectedMeeting.audio_url!, selectedMeeting.title);
+                        setHud(`"${selectedMeeting.title}.wav" audio yuklab olindi ✓`);
+                      }}
+                      title="Audioni yuklab olish (.wav)"
+                      className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition ml-0.5"
+                    >
+                      <Download size={12} />
+                    </button>
                   </div>
                 </div>
               )}
@@ -926,6 +978,10 @@ function RecordingStudioModal({
   const [meetingTitle, setMeetingTitle] = useState(() =>
     `Uchrashuv — ${new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
   );
+  const [selectedLang, setSelectedLang] = useState<SttLanguage>('auto');
+  const [liveText, setLiveText] = useState('');
+  const liveSpeechRef = useRef<ReturnType<typeof createLiveSpeechRecognizer> | null>(null);
+
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
@@ -978,6 +1034,16 @@ function RecordingStudioModal({
       recorder.start(250);
       setRecording(true);
       setSeconds(0);
+      setLiveText('');
+
+      // Start live speech recognizer for live captioning & offline fallback
+      try {
+        const recognizer = createLiveSpeechRecognizer(selectedLang, (text) => setLiveText(text));
+        recognizer.start();
+        liveSpeechRef.current = recognizer;
+      } catch {
+        /* ignore */
+      }
 
       timerRef.current = setInterval(() => {
         setSeconds((s) => s + 1);
@@ -1046,6 +1112,8 @@ function RecordingStudioModal({
     if (timerRef.current) clearInterval(timerRef.current);
     stopWaveform();
 
+    const liveTranscript = liveSpeechRef.current?.stop() || liveText;
+
     const recorder = mediaRecorderRef.current;
     const stream = recorder.stream;
 
@@ -1067,11 +1135,11 @@ function RecordingStudioModal({
         title: meetingTitle.trim() || 'Ovozli Uchrashuv',
         date: new Date().toISOString(),
         duration: finalDuration,
-        language: 'uz',
+        language: selectedLang === 'auto' ? 'uz' : selectedLang,
         mode: 'audio_only',
         audio_url: audioUrl,
-        transcript: 'Ushbu uchrashuv faqat audio sifatida saqlangan (AI sarflanmadi).',
-        tags: ['audio-only'],
+        transcript: liveTranscript || 'Ushbu uchrashuv faqat audio sifatida saqlangan (AI sarflanmadi).',
+        tags: ['audio-only', selectedLang],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -1083,12 +1151,15 @@ function RecordingStudioModal({
     setTranscribing(true);
     try {
       let text = '';
+      let detectedLang = selectedLang === 'auto' ? 'uz' : selectedLang;
       try {
         const wav = await blobToWav16k(blob);
-        text = await transcribeRubai(wav, 'uz');
+        const sttRes = await transcribeAudioDetailed(wav, selectedLang, liveTranscript);
+        text = sttRes.text || liveTranscript;
+        detectedLang = (sttRes.detectedLang as any) || detectedLang;
       } catch (sttErr: any) {
         console.warn('STT transkripsiya xatosi:', sttErr);
-        text = 'Uchrashuv ovozli yozuvi saqlandi. (Lokal RubaiSTT Whisper modeli ulanmoqda).';
+        text = liveTranscript || 'Uchrashuv ovozli yozuvi saqlandi.';
       }
 
       setTranscribing(false);
@@ -1101,7 +1172,7 @@ function RecordingStudioModal({
         title: meetingTitle.trim() || aiRes.title,
         date: new Date().toISOString(),
         duration: finalDuration,
-        language: 'uz',
+        language: detectedLang,
         mode: 'analyzed',
         audio_url: audioUrl,
         transcript: text || 'So‘zlar aniqlanmadi.',
@@ -1111,7 +1182,7 @@ function RecordingStudioModal({
         key_takeaways: aiRes.key_takeaways,
         ai_provider: aiRes.providerUsed,
         ai_model: aiRes.modelUsed,
-        tags: ['ai-meeting'],
+        tags: ['ai-meeting', detectedLang],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -1179,6 +1250,36 @@ function RecordingStudioModal({
           />
         </div>
 
+        {/* Language Selection Row */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+          <div className="flex items-center gap-1.5 text-[11.5px] text-zinc-300 font-medium">
+            <Globe size={13} className="text-purple-400" />
+            <span>Nutq tili:</span>
+          </div>
+          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl text-[11px] font-mono">
+            {[
+              { id: 'auto', label: '🌐 Avto' },
+              { id: 'uz', label: '🇺🇿 UZ' },
+              { id: 'ru', label: '🇷🇺 RU' },
+              { id: 'en', label: '🇬🇧 EN' },
+            ].map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                disabled={recording}
+                onClick={() => setSelectedLang(l.id as SttLanguage)}
+                className={`px-2.5 py-1 rounded-lg transition font-medium ${
+                  selectedLang === l.id
+                    ? 'bg-purple-600 text-white font-bold shadow'
+                    : 'text-zinc-400 hover:text-white disabled:opacity-50'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Live Audio Filters Indicator */}
         <div className="grid grid-cols-3 gap-2 text-[10.5px] font-mono">
           <div className="flex items-center gap-1.5 p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-emerald-400">
@@ -1217,6 +1318,14 @@ function RecordingStudioModal({
             </div>
           )}
         </div>
+
+        {/* Live speech captions preview */}
+        {recording && liveText && (
+          <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 p-2.5 text-[12px] text-zinc-200 max-h-16 overflow-y-auto font-sans leading-relaxed">
+            <span className="text-purple-400 font-mono text-[10px] mr-1.5 font-bold uppercase tracking-wider">Jonli:</span>
+            "{liveText}"
+          </div>
+        )}
 
         {/* Status / Loading indicator */}
         {(transcribing || analyzingAi) && (

@@ -88,6 +88,14 @@ function encodeWav16(samples: Float32Array, sampleRate: number): Uint8Array {
   return out;
 }
 
+export type SttLanguage = 'auto' | 'uz' | 'ru' | 'en';
+
+export interface DetailedTranscriptionResult {
+  text: string;
+  detectedLang: string;
+  source: 'whisper-local' | 'web-speech' | 'offline-fallback';
+}
+
 function toBase64(bytes: Uint8Array): string {
   let bin = '';
   const CHUNK = 0x8000;
@@ -97,10 +105,164 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-/** Full pipeline: WAV bytes → local rubaiSTT model → Uzbek text. */
-export async function transcribeRubai(wav: Uint8Array, lang = 'uz'): Promise<string> {
-  const text = await invoke<string>('transcribe_audio', { audioB64: toBase64(wav), lang });
-  return (text || '').trim();
+/**
+ * High-accuracy multi-language transcription:
+ * 1. Native local whisper.cpp with auto-detect or specific language (uz, ru, en)
+ * 2. Web Speech API live fallback if native binary not available
+ */
+export async function transcribeAudioDetailed(
+  wav: Uint8Array,
+  lang: SttLanguage = 'auto',
+  liveSpeechFallback = ''
+): Promise<DetailedTranscriptionResult> {
+  // 1. Try native whisper-cli via Tauri
+  if (isTauri) {
+    try {
+      const res = await invoke<{ text: string; detected_lang: string }>('transcribe_audio_detailed', {
+        audioB64: toBase64(wav),
+        lang,
+      });
+      if (res?.text && res.text.trim().length > 0) {
+        return {
+          text: res.text.trim(),
+          detectedLang: res.detected_lang || (lang === 'auto' ? 'uz' : lang),
+          source: 'whisper-local',
+        };
+      }
+    } catch (tauriErr) {
+      console.warn('[STT] transcribe_audio_detailed failed, checking fallback:', tauriErr);
+    }
+  }
+
+  // 2. Fallback to live speech recognition transcript captured during recording
+  if (liveSpeechFallback && liveSpeechFallback.trim().length > 0) {
+    return {
+      text: liveSpeechFallback.trim(),
+      detectedLang: lang === 'auto' ? 'uz' : lang,
+      source: 'web-speech',
+    };
+  }
+
+  // 3. Fallback message if completely silent or offline without binaries
+  return {
+    text: '',
+    detectedLang: lang === 'auto' ? 'uz' : lang,
+    source: 'offline-fallback',
+  };
+}
+
+/** Full pipeline: WAV bytes → local rubaiSTT model → text (backward compatible). */
+export async function transcribeRubai(wav: Uint8Array, lang: SttLanguage | string = 'uz'): Promise<string> {
+  const res = await transcribeAudioDetailed(wav, (lang as SttLanguage) || 'uz');
+  return res.text;
+}
+
+/**
+ * Export and download audio file to local computer (.wav or .m4a).
+ */
+export function downloadAudioFile(blobOrUrl: Blob | string, baseName: string): void {
+  const url = typeof blobOrUrl === 'string' ? blobOrUrl : URL.createObjectURL(blobOrUrl);
+  const safeName = baseName
+    .replace(/[^a-zA-Z0-9_\u0400-\u04FF\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '_') || 'audio_yozuv';
+
+  const filename = safeName.endsWith('.wav') || safeName.endsWith('.m4a') ? safeName : `${safeName}.wav`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  if (typeof blobOrUrl !== 'string') {
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  }
+}
+
+/**
+ * Creates live Web Speech Recognition listener (Webkit/Blink) as an instant offline/streaming speech layer.
+ */
+export function createLiveSpeechRecognizer(
+  lang: SttLanguage = 'auto',
+  onPartial?: (text: string) => void
+): { start: () => void; stop: () => string; getTranscript: () => string } {
+  const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (!SpeechRec) {
+    let t = '';
+    return {
+      start: () => {},
+      stop: () => t,
+      getTranscript: () => t,
+    };
+  }
+
+  try {
+    const recognition = new SpeechRec();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    const langMap: Record<string, string> = {
+      uz: 'uz-UZ',
+      ru: 'ru-RU',
+      en: 'en-US',
+      auto: 'uz-UZ',
+    };
+    recognition.lang = langMap[lang] || 'uz-UZ';
+
+    let finalTranscript = '';
+    let isRunning = false;
+
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      const combined = (finalTranscript + interim).trim();
+      onPartial?.(combined);
+    };
+
+    recognition.onerror = (e: any) => {
+      console.warn('[LiveSpeechRecognizer] error:', e);
+    };
+
+    return {
+      start: () => {
+        try {
+          if (!isRunning) {
+            finalTranscript = '';
+            recognition.start();
+            isRunning = true;
+          }
+        } catch {
+          /* ignore */
+        }
+      },
+      stop: () => {
+        try {
+          if (isRunning) {
+            recognition.stop();
+            isRunning = false;
+          }
+        } catch {
+          /* ignore */
+        }
+        return finalTranscript.trim();
+      },
+      getTranscript: () => finalTranscript.trim(),
+    };
+  } catch {
+    let t = '';
+    return {
+      start: () => {},
+      stop: () => t,
+      getTranscript: () => t,
+    };
+  }
 }
 
 /** Safely request microphone stream with fallback for WebKit / Safari compatibility */

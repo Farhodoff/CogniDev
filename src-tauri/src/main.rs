@@ -122,10 +122,16 @@ fn reset_mic_permission() -> Result<String, String> {
     }
 }
 
-/// Transcribe 16kHz mono WAV audio (base64) with the local rubaiSTT model.
-/// Returns plain Uzbek text without timestamps.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DetailedTranscription {
+    pub text: String,
+    pub detected_lang: String,
+}
+
+/// Transcribe 16kHz mono WAV audio (base64) with the local rubaiSTT / whisper.cpp model.
+/// Supports multi-language: 'auto', 'uz', 'ru', 'en'.
 #[tauri::command]
-fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, String> {
+fn transcribe_audio_detailed(audio_b64: String, lang: Option<String>) -> Result<DetailedTranscription, String> {
     use base64::Engine as _;
     let st = stt_status();
     if !st.binary_ok {
@@ -147,13 +153,13 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
     std::fs::write(&wav_path, &bytes).map_err(|e| format!("vaqtinchalik fayl yozilmadi: {e}"))?;
 
     let out_prefix = wav_path.to_string_lossy().replace(".wav", "-out");
-    let lang = lang.unwrap_or_else(|| "uz".to_string());
+    let lang_req = lang.unwrap_or_else(|| "auto".to_string());
     let mut cmd = std::process::Command::new(&st.bin_path);
     cmd.args([
         "-m",
         &st.model_path,
         "-l",
-        &lang,
+        &lang_req,
         "-f",
         &wav_path.to_string_lossy(),
         "-t",
@@ -183,6 +189,18 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
         ));
     }
 
+    let stderr_str = String::from_utf8_lossy(&output.stderr);
+    let mut detected_lang = if lang_req == "auto" { "uz".to_string() } else { lang_req.clone() };
+    for line in stderr_str.lines() {
+        if let Some(idx) = line.find("auto-detected language:") {
+            let part = &line[idx + "auto-detected language:".len()..];
+            if let Some(tok) = part.split_whitespace().next() {
+                detected_lang = tok.trim_matches(|c: char| !c.is_alphabetic()).to_lowercase();
+                break;
+            }
+        }
+    }
+
     let txt_path = format!("{}.txt", out_prefix);
     let text = std::fs::read_to_string(&txt_path).map_err(|e| format!("natija o'qilmadi: {e}"))?;
     let _ = std::fs::remove_file(&txt_path);
@@ -201,7 +219,16 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
         })
         .filter(|l| !l.is_empty())
         .collect();
-    Ok(clean.join(" "))
+
+    Ok(DetailedTranscription {
+        text: clean.join(" "),
+        detected_lang,
+    })
+}
+
+#[tauri::command]
+fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, String> {
+    transcribe_audio_detailed(audio_b64, lang).map(|r| r.text)
 }
 
 // ── Git Local Integration ───────────────────────────────────
@@ -495,6 +522,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             stt_status,
             transcribe_audio,
+            transcribe_audio_detailed,
             open_mic_settings,
             reset_mic_permission,
             get_git_repo_info,
