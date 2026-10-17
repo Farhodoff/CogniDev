@@ -121,6 +121,7 @@ export interface MeetingItem {
   date: string;
   duration: number; // in seconds
   audio_url?: string;
+  audio_path?: string;
   transcript: string;
   language: string;
   mode: 'audio_only' | 'analyzed';

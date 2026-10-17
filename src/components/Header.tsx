@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import {
   ChevronDown,
   Download,
@@ -24,11 +24,11 @@ import {
   Layout,
   GitBranch,
   FolderGit2,
+  HardDrive,
 } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
-import { dumpDatabase, restoreDatabase, type VaultDump } from '../lib/db';
-import { exportVaultFile, isTauri, parseVault, pickVaultFileContents } from '../lib/vault';
+import { isTauri } from '../lib/vault';
 import { isMac, formatShortcut } from '../lib/platform';
 import { rubaiStatus } from '../lib/stt';
 import { enabledProviders } from '../lib/providers';
@@ -47,19 +47,12 @@ const GuideModal = lazy(() => import('./GuideModal'));
 const UpdateModal = lazy(() => import('./UpdateModal'));
 const GitInspectorModal = lazy(() => import('./GitInspectorModal'));
 const GitHubSyncModal = lazy(() => import('./GitHubSyncModal'));
+const BackupModal = lazy(() => import('./BackupModal'));
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
-    workspaces,
     search,
-    tasks,
-    notes,
-    checklists,
-    prompts,
-    refresh,
-    restoreAll,
     dbMode,
-    setHud,
     showTaskModal,
     setTaskModal,
     showChatModal,
@@ -90,11 +83,14 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
   const enabledCount = enabledProviders().length;
   const pendingCount = reminders.filter((r) => r.status === 'pending').length;
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [updateAutoStart, setUpdateAutoStart] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ available: boolean; version?: string; body?: string; handle?: any } | null>(null);
+
+  // Backup & Storage Modal State
+  const [backupModalOpen, setBackupModalOpen] = useState(false);
+  const [backupModalTab, setBackupModalTab] = useState<'status' | 'export' | 'import'>('status');
 
   // Live Git State
   const [gitModalOpen, setGitModalOpen] = useState(false);
@@ -131,82 +127,6 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     const interval = setInterval(runCheck, 15 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  function memoryDump(): VaultDump {
-    return {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      workspaces,
-      tasks,
-      resolutions: tasks.map((t) => ({
-        task_id: t.id,
-        markdown_note: notes[t.id] ?? null,
-        checklist_json: JSON.stringify(checklists[t.id] ?? []),
-      })),
-      prompts,
-      retrospectives: [],
-    };
-  }
-
-  async function doExport() {
-    setSettingsOpen(false);
-    if (busy) return;
-    setBusy(true);
-    try {
-      const dump = dbMode === 'sqlite' ? await dumpDatabase() : memoryDump();
-      const ok = await exportVaultFile(JSON.stringify(dump, null, 2));
-      setHud(ok ? `Ombor eksport qilindi — ${dump.tasks.length} vazifa` : 'Eksport bekor qilindi');
-    } catch {
-      setHud('Eksport qilishda xatolik yuz berdi');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function applyImportText(text: string) {
-    const dump = parseVault(text);
-    if (dbMode === 'sqlite') {
-      await restoreDatabase(dump);
-      await refresh();
-    } else {
-      restoreAll(dump);
-    }
-    setHud(`Ombor yuklandi — ${dump.tasks.length} ta vazifa tiklandi`);
-  }
-
-  async function doImport() {
-    setSettingsOpen(false);
-    if (busy) return;
-    try {
-      if (isTauri) {
-        setBusy(true);
-        const text = await pickVaultFileContents();
-        if (text) await applyImportText(text);
-      } else {
-        fileRef.current?.click();
-      }
-    } catch (e) {
-      setHud(e instanceof Error ? `Import xatosi: ${e.message}` : 'Import xatosi');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
-    setBusy(true);
-    try {
-      await applyImportText(await f.text());
-    } catch (err) {
-      setHud(err instanceof Error ? `Import xatosi: ${err.message}` : 'Import xatosi');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <>
@@ -444,10 +364,38 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                     {dbMode === 'sqlite' ? 'synapse.db · SQLite Lokal' : 'Vaqtinchalik xotira (RAM)'}
                   </span>
                 </div>
-                <button onClick={doExport} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
+                <button
+                  onClick={() => {
+                    setBackupModalTab('status');
+                    setBackupModalOpen(true);
+                    setSettingsOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition"
+                >
+                  <HardDrive size={13} className="text-emerald-400" />
+                  <span>Ma’lumotlar & Zaxira Markazi</span>
+                  <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[9.5px] text-emerald-300">
+                    JSON
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setBackupModalTab('export');
+                    setBackupModalOpen(true);
+                    setSettingsOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition"
+                >
                   <Download size={13} className="text-sky-300" /> Zaxira eksporti (.json)
                 </button>
-                <button onClick={doImport} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
+                <button
+                  onClick={() => {
+                    setBackupModalTab('import');
+                    setBackupModalOpen(true);
+                    setSettingsOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition"
+                >
                   <Upload size={13} className="text-emerald-300" /> Zaxiradan tiklash (.json)
                 </button>
                 <button onClick={() => { setProvidersModal(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
@@ -606,7 +554,6 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
         </div>
       )}
 
-      <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onFilePicked} />
       <Suspense fallback={null}>
         {showTaskModal && <TaskModal open={showTaskModal} onClose={() => setTaskModal(false)} />}
         {showChatModal && <LogChatModal open={showChatModal} onClose={() => setChatModal(false)} />}
@@ -641,6 +588,13 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             initialVersion={updateInfo?.version}
             initialBody={updateInfo?.body}
             autoStart={updateAutoStart}
+          />
+        )}
+        {backupModalOpen && (
+          <BackupModal
+            open={backupModalOpen}
+            onClose={() => setBackupModalOpen(false)}
+            initialTab={backupModalTab}
           />
         )}
       </Suspense>

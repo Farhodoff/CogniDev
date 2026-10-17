@@ -79,8 +79,15 @@ import {
   fetchReminders,
   upsertReminder,
   deleteReminderFromDb,
+  fetchMeetings,
+  upsertMeeting,
+  deleteMeetingFromDb,
+  fetchScheduleBlocks,
+  upsertScheduleBlock,
+  deleteScheduleBlockFromDb,
   type VaultDump,
 } from './db';
+import { deleteMeetingAudio } from './audioDb';
 import { parseRoadmapMarkdown } from './roadmapParser';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
@@ -735,32 +742,52 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }
   })(),
 
-  toggleScheduleBlockDone: (id) =>
+  toggleScheduleBlockDone: (id) => {
+    let targetBlock: ScheduleBlock | undefined;
     set((state) => {
-      const next = state.scheduleBlocks.map((b) => (b.id === id ? { ...b, done: !b.done } : b));
+      const next = state.scheduleBlocks.map((b) => {
+        if (b.id === id) {
+          targetBlock = { ...b, done: !b.done };
+          return targetBlock;
+        }
+        return b;
+      });
       try {
         localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
       } catch {}
       return { scheduleBlocks: next };
-    }),
+    });
+    if (get().dbMode === 'sqlite' && targetBlock) {
+      upsertScheduleBlock(targetBlock).catch(() => {});
+    }
+  },
 
-  addScheduleBlock: (block) =>
+  addScheduleBlock: (block) => {
+    const newBlock = { ...block, id: 'sch-' + Date.now() };
     set((state) => {
-      const next = [...state.scheduleBlocks, { ...block, id: 'sch-' + Date.now() }];
+      const next = [...state.scheduleBlocks, newBlock];
       try {
         localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
       } catch {}
       return { scheduleBlocks: next };
-    }),
+    });
+    if (get().dbMode === 'sqlite') {
+      upsertScheduleBlock(newBlock).catch(() => {});
+    }
+  },
 
-  deleteScheduleBlock: (id) =>
+  deleteScheduleBlock: (id) => {
     set((state) => {
       const next = state.scheduleBlocks.filter((b) => b.id !== id);
       try {
         localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(next));
       } catch {}
       return { scheduleBlocks: next };
-    }),
+    });
+    if (get().dbMode === 'sqlite') {
+      deleteScheduleBlockFromDb(id).catch(() => {});
+    }
+  },
 
   // Spaces state
   spaces: (() => {
@@ -924,33 +951,58 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       } catch {}
       return { meetings: next, selectedMeetingId: meeting.id };
     });
+    if (get().dbMode === 'sqlite') {
+      upsertMeeting(meeting).catch((err) => console.warn('SQLite upsertMeeting error:', err));
+    }
   },
   updateMeeting: (id, patch) => {
+    let updated: MeetingItem | undefined;
     set((state) => {
-      const next = state.meetings.map((m) => (m.id === id ? { ...m, ...patch } : m));
+      const next = state.meetings.map((m) => {
+        if (m.id === id) {
+          updated = { ...m, ...patch };
+          return updated;
+        }
+        return m;
+      });
       try {
         localStorage.setItem('cognidev_meetings', JSON.stringify(next));
       } catch {}
       return { meetings: next };
     });
+    if (get().dbMode === 'sqlite' && updated) {
+      upsertMeeting(updated).catch((err) => console.warn('SQLite upsertMeeting error:', err));
+    }
   },
   deleteMeeting: (id) => {
+    const existing = get().meetings.find((m) => m.id === id);
+    if (existing?.audio_path) {
+      deleteMeetingAudio(existing.audio_path).catch(() => {});
+    }
+    if (get().dbMode === 'sqlite') {
+      deleteMeetingFromDb(id).catch((err) => console.warn('SQLite deleteMeeting error:', err));
+    }
     set((state) => {
       const next = state.meetings.filter((m) => m.id !== id);
       try {
         localStorage.setItem('cognidev_meetings', JSON.stringify(next));
       } catch {}
-      return { meetings: next, selectedMeetingId: state.selectedMeetingId === id ? (next[0]?.id ?? null) : state.selectedMeetingId };
+      return {
+        meetings: next,
+        selectedMeetingId: state.selectedMeetingId === id ? (next[0]?.id ?? null) : state.selectedMeetingId,
+        hudMessage: "Uchrashuv o'chirildi",
+      };
     });
   },
   toggleMeetingActionDone: (meetingId, actionId) => {
+    let changedMeeting: MeetingItem | undefined;
     set((state) => {
       let linkedTaskId: string | undefined;
       let nextDone = false;
 
       const updatedMeetings = state.meetings.map((m) => {
         if (m.id !== meetingId || !m.action_items) return m;
-        return {
+        const updated = {
           ...m,
           action_items: m.action_items.map((a) => {
             if (a.id === actionId) {
@@ -960,7 +1012,10 @@ export const useSynapse = create<SynapseState>((set, get) => ({
             }
             return a;
           }),
+          updated_at: new Date().toISOString(),
         };
+        changedMeeting = updated;
+        return updated;
       });
 
       try {
@@ -982,6 +1037,10 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         hudMessage: `Topshiriq holati: ${nextDone ? 'Bajarildi ✓' : 'Faol'}`,
       };
     });
+
+    if (get().dbMode === 'sqlite' && changedMeeting) {
+      upsertMeeting(changedMeeting).catch((err) => console.warn('SQLite upsertMeeting error:', err));
+    }
   },
 
   // Goals state
@@ -1369,7 +1428,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   },
 
   refresh: async () => {
-    const [ws, rawTasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas, rawReminders] =
+    const [ws, rawTasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas, rawReminders, rawMeetings, rawBlocks] =
       await Promise.all([
         fetchWorkspaces().catch(() => []),
         fetchTasks().catch(() => []),
@@ -1380,6 +1439,8 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
         fetchLearningLogs().catch(() => []),
         fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
         fetchReminders().catch(() => []),
+        fetchMeetings().catch(() => []),
+        fetchScheduleBlocks().catch(() => []),
       ]);
 
     // Seed initial tasks if empty in SQLite
@@ -1425,6 +1486,32 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       }
     }
 
+    // Meetings: if SQLite has meetings, use them; if empty but in memory/localStorage, save them to SQLite
+    let meetings = rawMeetings;
+    if (meetings.length === 0 && get().meetings.length > 0) {
+      meetings = get().meetings;
+      for (const m of meetings) {
+        upsertMeeting(m).catch(() => {});
+      }
+    } else if (meetings.length > 0) {
+      try {
+        localStorage.setItem('cognidev_meetings', JSON.stringify(meetings));
+      } catch {}
+    }
+
+    // Schedule blocks: if SQLite has blocks, use them; if empty but in memory, save them
+    let scheduleBlocks = rawBlocks;
+    if (scheduleBlocks.length === 0 && get().scheduleBlocks.length > 0) {
+      scheduleBlocks = get().scheduleBlocks;
+      for (const b of scheduleBlocks) {
+        upsertScheduleBlock(b).catch(() => {});
+      }
+    } else if (scheduleBlocks.length > 0) {
+      try {
+        localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(scheduleBlocks));
+      } catch {}
+    }
+
     set({
       workspaces: ws.length ? ws : [DEFAULT_PERSONAL_WORKSPACE],
       activeWorkspaceId: activeWs.id,
@@ -1440,6 +1527,9 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       projectIdeas,
       selectedIdeaId: get().selectedIdeaId ?? projectIdeas[0]?.id ?? null,
       reminders: rawReminders.length ? rawReminders : get().reminders,
+      meetings,
+      selectedMeetingId: get().selectedMeetingId ?? meetings[0]?.id ?? null,
+      scheduleBlocks: scheduleBlocks.length ? scheduleBlocks : get().scheduleBlocks,
     });
 
     if (sel) {
@@ -1459,6 +1549,27 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       }
     }
     const sel = d.tasks[0] ?? null;
+
+    // Handle v2 extended backup data
+    const meetings = d.meetings ?? get().meetings;
+    const scheduleBlocks = d.scheduleBlocks ?? get().scheduleBlocks;
+    const notesDocs = d.notesDocs ?? get().notesDocs;
+    const goals = d.goals ?? get().goals;
+    const habits = d.habits ?? get().habits;
+    const roadmaps = d.roadmaps ?? get().roadmaps;
+    const projectIdeas = d.projectIdeas ?? get().projectIdeas;
+    const learningLogs = d.learningLogs ?? get().learningLogs;
+    const reminders = d.scheduledReminders ?? get().reminders;
+    const userProfile = d.userProfile ?? get().userProfile;
+    const groups = d.teamGroups ?? (d as any).groups ?? get().groups;
+
+    try {
+      if (d.meetings) localStorage.setItem('cognidev_meetings', JSON.stringify(d.meetings));
+      if (d.scheduleBlocks) localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(d.scheduleBlocks));
+      if (d.goals) localStorage.setItem('cognidev_goals', JSON.stringify(d.goals));
+      if (d.habits) localStorage.setItem('cognidev_habits', JSON.stringify(d.habits));
+    } catch {}
+
     set({
       workspaces: d.workspaces.length ? d.workspaces : [DEFAULT_PERSONAL_WORKSPACE],
       tasks: d.tasks.map((t) => ({ ...t, tags: Array.isArray(t.tags) ? t.tags : [] })),
@@ -1467,6 +1578,19 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       prompts: d.prompts.filter((p) => p.task_id === sel?.id),
       selectedTaskId: sel?.id ?? null,
       activeTag: null,
+      groups,
+      userProfile,
+      notesDocs,
+      roadmaps,
+      projectIdeas,
+      learningLogs,
+      reminders,
+      meetings,
+      selectedMeetingId: meetings[0]?.id ?? null,
+      scheduleBlocks,
+      goals,
+      habits,
+      hudMessage: "Barcha ma'lumotlar zaxiradan muvaffaqiyatli tiklandi ✓",
     });
   },
 

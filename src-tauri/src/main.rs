@@ -231,6 +231,67 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
     transcribe_audio_detailed(audio_b64, lang).map(|r| r.text)
 }
 
+// ── Meeting Audio Local Disk Storage (~/.cognidev/recordings) ──────
+
+#[tauri::command]
+fn save_meeting_audio(meeting_id: String, audio_b64: String, extension: Option<String>) -> Result<String, String> {
+    use base64::Engine as _;
+    let home = home_dir();
+    let dir = std::path::PathBuf::from(format!("{}/.cognidev/recordings", home));
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        return Err(format!("Papka yaratishda xatolik: {e}"));
+    }
+
+    let ext = extension.unwrap_or_else(|| "wav".to_string());
+    let safe_id = meeting_id.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "");
+    let file_path = dir.join(format!("{}.{}", safe_id, ext));
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(audio_b64.trim())
+        .map_err(|e| format!("Base64 dekodlashda xatolik: {e}"))?;
+
+    std::fs::write(&file_path, bytes)
+        .map_err(|e| format!("Audio faylni diskka yozishda xatolik: {e}"))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn read_meeting_audio(file_path: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let path = std::path::Path::new(&file_path);
+    if !path.is_file() {
+        return Err(format!("Audio fayl topilmadi: {file_path}"));
+    }
+
+    let bytes = std::fs::read(path)
+        .map_err(|e| format!("Faylni o'qishda xatolik: {e}"))?;
+
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    let mime = if file_path.ends_with(".mp3") {
+        "audio/mpeg"
+    } else if file_path.ends_with(".webm") {
+        "audio/webm"
+    } else if file_path.ends_with(".m4a") {
+        "audio/mp4"
+    } else {
+        "audio/wav"
+    };
+
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+#[tauri::command]
+fn delete_meeting_audio(file_path: String) -> Result<bool, String> {
+    let path = std::path::Path::new(&file_path);
+    if path.is_file() {
+        let _ = std::fs::remove_file(path);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 // ── Git Local Integration ───────────────────────────────────
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -523,6 +584,9 @@ fn main() {
             stt_status,
             transcribe_audio,
             transcribe_audio_detailed,
+            save_meeting_audio,
+            read_meeting_audio,
+            delete_meeting_audio,
             open_mic_settings,
             reset_mic_permission,
             get_git_repo_info,

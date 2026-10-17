@@ -53,6 +53,11 @@ import {
   resetMicPermission,
   type SttLanguage,
 } from '../lib/stt';
+import {
+  persistMeetingAudio,
+  resolveMeetingAudioUrl,
+  deleteMeetingAudio,
+} from '../lib/audioDb';
 
 export default function MeetingsWorkspace() {
   const {
@@ -138,10 +143,28 @@ export default function MeetingsWorkspace() {
     });
   }, [meetings, filterMode, search]);
 
-  // Handle Play/Pause Audio
-  const togglePlayAudio = (url?: string) => {
-    if (!audioRef.current && url) {
-      audioRef.current = new Audio(url);
+  // Stop current audio when switching meetings
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setIsPlayingAudio(false);
+      setAudioCurrentTime(0);
+    }
+  }, [selectedMeetingId]);
+
+  // Handle Play/Pause Audio with disk and IndexedDB resolution
+  const togglePlayAudio = async (url?: string) => {
+    let playUrl = url;
+    if (!playUrl && selectedMeeting) {
+      playUrl = (await resolveMeetingAudioUrl(selectedMeeting)) ?? undefined;
+    }
+    if (!playUrl && selectedMeeting?.audio_url) {
+      playUrl = selectedMeeting.audio_url;
+    }
+
+    if (!audioRef.current && playUrl) {
+      audioRef.current = new Audio(playUrl);
       audioRef.current.onended = () => setIsPlayingAudio(false);
       audioRef.current.ontimeupdate = () => {
         if (audioRef.current) setAudioCurrentTime(audioRef.current.currentTime);
@@ -315,6 +338,8 @@ export default function MeetingsWorkspace() {
   // Delete Meeting
   const handleDeleteMeeting = (id: string) => {
     if (confirm("Haqiqatan ham ushbu uchrashuv yozuvini o'chirmoqchimisiz?")) {
+      const target = meetings.find((m) => m.id === id);
+      if (target) deleteMeetingAudio(target);
       deleteMeeting(id);
       if (selectedMeetingId === id) {
         setSelectedMeetingId(meetings.find((m) => m.id !== id)?.id ?? null);
@@ -334,20 +359,22 @@ export default function MeetingsWorkspace() {
     setHud("Audio fayl yuklanmoqda va Rubai STT orqali transkripsiya qilinmoqda...");
 
     try {
+      const meetId = `meet-${Date.now()}`;
+      const { audio_path, audio_url: persistedUrl } = await persistMeetingAudio(meetId, file, 'wav');
       const wav = await blobToWav16k(file);
       const sttRes = await transcribeAudioDetailed(wav, 'auto');
       const text = sttRes.text;
-      const audioUrl = URL.createObjectURL(file);
       const detectedLang = sttRes.detectedLang || 'uz';
 
       const newMeeting: MeetingItem = {
-        id: `meet-${Date.now()}`,
+        id: meetId,
         title: file.name.replace(/\.[^/.]+$/, ''),
         date: new Date().toISOString(),
         duration: Math.round(file.size / 32000) || 60,
         language: detectedLang,
         mode: text ? 'analyzed' : 'audio_only',
-        audio_url: audioUrl,
+        audio_url: persistedUrl,
+        audio_path: audio_path,
         transcript: text || 'Audio fayldan so‘z aniqlanmadi (yoki fon musiqasi).',
         tags: ['uploaded', 'audio', detectedLang],
         created_at: new Date().toISOString(),
@@ -601,11 +628,14 @@ export default function MeetingsWorkspace() {
 
                 {/* Top Action Bar Buttons */}
                 <div className="flex items-center gap-2">
-                  {selectedMeeting.audio_url && (
+                  {(selectedMeeting.audio_url || selectedMeeting.audio_path) && (
                     <button
-                      onClick={() => {
-                        downloadAudioFile(selectedMeeting.audio_url!, selectedMeeting.title);
-                        setHud(`"${selectedMeeting.title}.wav" audio yuklab olindi ✓`);
+                      onClick={async () => {
+                        const url = selectedMeeting.audio_url || (await resolveMeetingAudioUrl(selectedMeeting));
+                        if (url) {
+                          downloadAudioFile(url, selectedMeeting.title);
+                          setHud(`"${selectedMeeting.title}.wav" audio yuklab olindi ✓`);
+                        }
                       }}
                       title="Audioni .wav ko‘rinishida kompyuterga saqlab olish"
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 hover:text-white transition"
@@ -691,7 +721,7 @@ export default function MeetingsWorkspace() {
               </div>
 
               {/* Mini Audio Player Bar (if audio available) */}
-              {selectedMeeting.audio_url && (
+              {(selectedMeeting.audio_url || selectedMeeting.audio_path) && (
                 <div className="mt-3.5 p-2.5 rounded-xl bg-black/40 border border-white/[0.06] flex items-center gap-3">
                   <button
                     onClick={() => togglePlayAudio(selectedMeeting.audio_url)}
@@ -1250,19 +1280,21 @@ function RecordingStudioModal({
     stream.getTracks().forEach((t) => t.stop());
 
     const blob = new Blob(audioChunksRef.current, { type: audioChunksRef.current[0]?.type || 'audio/webm' });
-    const audioUrl = URL.createObjectURL(blob);
+    const meetId = `meet-${Date.now()}`;
+    const { audio_path, audio_url: persistedUrl } = await persistMeetingAudio(meetId, blob, 'wav');
     const finalDuration = seconds || 1;
 
     if (mode === 'audio_only') {
       // Just save audio without AI tokens!
       const meet: MeetingItem = {
-        id: `meet-${Date.now()}`,
+        id: meetId,
         title: meetingTitle.trim() || 'Ovozli Uchrashuv',
         date: new Date().toISOString(),
         duration: finalDuration,
         language: selectedLang === 'auto' ? 'uz' : selectedLang,
         mode: 'audio_only',
-        audio_url: audioUrl,
+        audio_url: persistedUrl,
+        audio_path: audio_path,
         transcript: liveTranscript || 'Ushbu uchrashuv faqat audio sifatida saqlangan (AI sarflanmadi).',
         tags: ['audio-only', selectedLang],
         created_at: new Date().toISOString(),
@@ -1293,13 +1325,14 @@ function RecordingStudioModal({
       const aiRes = await analyzeMeetingWithAi(text || 'Qisqa audio yozuv.');
 
       const meet: MeetingItem = {
-        id: `meet-${Date.now()}`,
+        id: meetId,
         title: meetingTitle.trim() || aiRes.title,
         date: new Date().toISOString(),
         duration: finalDuration,
         language: detectedLang,
         mode: 'analyzed',
-        audio_url: audioUrl,
+        audio_url: persistedUrl,
+        audio_path: audio_path,
         transcript: text || 'So‘zlar aniqlanmadi.',
         summary: aiRes.summary,
         decisions: aiRes.decisions,
