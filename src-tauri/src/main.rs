@@ -131,7 +131,10 @@ pub struct DetailedTranscription {
 /// Transcribe 16kHz mono WAV audio (base64) with the local rubaiSTT / whisper.cpp model.
 /// Supports multi-language: 'auto', 'uz', 'ru', 'en'.
 #[tauri::command]
-fn transcribe_audio_detailed(audio_b64: String, lang: Option<String>) -> Result<DetailedTranscription, String> {
+fn transcribe_audio_detailed(
+    audio_b64: String,
+    lang: Option<String>,
+) -> Result<DetailedTranscription, String> {
     use base64::Engine as _;
     let st = stt_status();
     if !st.binary_ok {
@@ -190,12 +193,18 @@ fn transcribe_audio_detailed(audio_b64: String, lang: Option<String>) -> Result<
     }
 
     let stderr_str = String::from_utf8_lossy(&output.stderr);
-    let mut detected_lang = if lang_req == "auto" { "uz".to_string() } else { lang_req.clone() };
+    let mut detected_lang = if lang_req == "auto" {
+        "uz".to_string()
+    } else {
+        lang_req.clone()
+    };
     for line in stderr_str.lines() {
         if let Some(idx) = line.find("auto-detected language:") {
             let part = &line[idx + "auto-detected language:".len()..];
             if let Some(tok) = part.split_whitespace().next() {
-                detected_lang = tok.trim_matches(|c: char| !c.is_alphabetic()).to_lowercase();
+                detected_lang = tok
+                    .trim_matches(|c: char| !c.is_alphabetic())
+                    .to_lowercase();
                 break;
             }
         }
@@ -234,7 +243,11 @@ fn transcribe_audio(audio_b64: String, lang: Option<String>) -> Result<String, S
 // ── Meeting Audio Local Disk Storage (~/.cognidev/recordings) ──────
 
 #[tauri::command]
-fn save_meeting_audio(meeting_id: String, audio_b64: String, extension: Option<String>) -> Result<String, String> {
+fn save_meeting_audio(
+    meeting_id: String,
+    audio_b64: String,
+    extension: Option<String>,
+) -> Result<String, String> {
     use base64::Engine as _;
     let home = home_dir();
     let dir = std::path::PathBuf::from(format!("{}/.cognidev/recordings", home));
@@ -264,8 +277,7 @@ fn read_meeting_audio(file_path: String) -> Result<String, String> {
         return Err(format!("Audio fayl topilmadi: {file_path}"));
     }
 
-    let bytes = std::fs::read(path)
-        .map_err(|e| format!("Faylni o'qishda xatolik: {e}"))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("Faylni o'qishda xatolik: {e}"))?;
 
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     let mime = if file_path.ends_with(".mp3") {
