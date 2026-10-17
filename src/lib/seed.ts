@@ -11,6 +11,7 @@ import type {
   GoalItem,
   ActiveProject,
   SpaceItem,
+  HabitItem,
 } from './types';
 
 /** Default initial workspace for CogniDev */
@@ -99,3 +100,71 @@ export const DEFAULT_NOTES: Record<string, string> = {};
 export const DEFAULT_CHECKLISTS: Record<string, ChecklistItem[]> = {};
 
 export const DEFAULT_PROMPTS: PromptEntry[] = [];
+
+export const DEFAULT_HABITS: HabitItem[] = [
+  {
+    id: 'h-deepwork',
+    title: 'Deep Work & Kod Yozish (2 soat)',
+    description: 'Chalg‘ituvchi omillarsiz arxitektura va kod ustida diqqatni jamlash',
+    category: 'code',
+    color: '#3b82f6',
+    icon: 'Code',
+    target_days_per_week: 6,
+    streak: 5,
+    best_streak: 14,
+    history: {},
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'h-docs',
+    title: 'Texnik Kitob / Hujjat O‘qish (30 daqiqa)',
+    description: 'Tizim dizayni, yangi til yoki dasturlash arxitekturasi tahlili',
+    category: 'study',
+    color: '#8b5cf6',
+    icon: 'BookOpen',
+    target_days_per_week: 5,
+    streak: 4,
+    best_streak: 10,
+    history: {},
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'h-sport',
+    title: 'Sport & Jismoniy Mashq (45 daqiqa)',
+    description: 'Sog‘lom tana va tetik aql uchun kardio yoki sport zali',
+    category: 'health',
+    color: '#10b981',
+    icon: 'Activity',
+    target_days_per_week: 4,
+    streak: 3,
+    best_streak: 8,
+    history: {},
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'h-plan',
+    title: 'Kunlik Standup & Rejani Belash',
+    description: 'Vazifalar, bloklar va maqsadlarni taqvimda ertalab belgilab olish',
+    category: 'productivity',
+    color: '#f59e0b',
+    icon: 'CheckSquare',
+    target_days_per_week: 7,
+    streak: 7,
+    best_streak: 21,
+    history: {},
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'h-lang',
+    title: 'Chet Tili / Lug‘at Mashqi (20 daqiqa)',
+    description: 'Xorijiy til lug‘ati, listening yoki speaking shadowing',
+    category: 'study',
+    color: '#ec4899',
+    icon: 'Languages',
+    target_days_per_week: 5,
+    streak: 2,
+    best_streak: 9,
+    history: {},
+    created_at: new Date().toISOString(),
+  },
+];

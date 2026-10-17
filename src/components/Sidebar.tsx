@@ -7,9 +7,7 @@ import {
   FileText,
   Briefcase,
   Lightbulb,
-  MessageSquare,
   GraduationCap,
-  Target,
   Flame,
   BarChart3,
   Paperclip,
@@ -75,7 +73,6 @@ export default function Sidebar() {
     addSpace,
     updateSpace,
     deleteSpace,
-    toggleAiDrawer,
     notesDocs,
     roadmaps,
     projectIdeas,
@@ -214,43 +211,35 @@ export default function Sidebar() {
       onClick: () => setMainView('ideas'),
     },
     {
-      id: 'ai-chat',
-      label: 'AI Chat History',
-      icon: MessageSquare,
-      onClick: () => toggleAiDrawer(),
-    },
-    {
       id: 'learning',
       label: 'Learning',
       icon: GraduationCap,
       count: roadmaps.length,
-      onClick: () => setMainView('roadmap'),
-    },
-    {
-      id: 'goals',
-      label: 'Goals',
-      icon: Target,
       onClick: () => {
-        setMainView('dashboard');
-        setHud("Maqsadlar ko'rsatkichi");
-        const el = document.getElementById('myspace-goals-card');
-        el?.scrollIntoView({ behavior: 'smooth' });
+        setMainView('roadmap');
+        selectSpace(null);
       },
     },
     {
       id: 'habits',
       label: 'Habit Tracker',
       icon: Flame,
+      view: 'habits' as const,
       onClick: () => {
-        setMainView('dashboard');
-        setHud("Kunlik odatlar & sport");
+        setMainView('habits');
+        selectSpace(null);
+        setFilter(null);
+        setHud("Kunlik odatlar & consistency kuzatuvi (Habit Tracker)");
       },
     },
     {
       id: 'reports',
       label: 'Reports',
       icon: BarChart3,
-      onClick: () => setMainView('retro'),
+      onClick: () => {
+        setMainView('retro');
+        selectSpace(null);
+      },
     },
     {
       id: 'files',
@@ -258,6 +247,7 @@ export default function Sidebar() {
       icon: Paperclip,
       onClick: () => {
         setMainView('notes');
+        selectSpace(null);
         setHud("Hujjatlar & havolalar");
       },
     },
@@ -278,6 +268,7 @@ export default function Sidebar() {
             (item.id === 'tasks' && mainView === 'stream') ||
             (item.id === 'learning' && mainView === 'roadmap') ||
             (item.id === 'ideas' && mainView === 'ideas') ||
+            (item.id === 'habits' && mainView === 'habits') ||
             (item.id === 'reports' && mainView === 'retro');
 
           return (

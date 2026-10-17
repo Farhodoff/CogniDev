@@ -37,6 +37,7 @@ export interface Task {
   id: string;
   workspace_id: string;
   group_id?: string | null;
+  space_id?: string | null;
   title: string;
   status: TaskStatus;
   priority: TaskPriority;
@@ -88,7 +89,34 @@ export interface Retrospective {
   created_at: string;
 }
 
-export type MainView = 'dashboard' | 'stream' | 'notes' | 'roadmap' | 'ideas' | 'retro' | 'calendar' | 'goals' | 'inbox' | 'habits' | 'projects';
+export type MainView =
+  | 'dashboard'
+  | 'stream'
+  | 'notes'
+  | 'roadmap'
+  | 'ideas'
+  | 'retro'
+  | 'calendar'
+  | 'goals'
+  | 'inbox'
+  | 'habits'
+  | 'projects'
+  | 'space';
+
+export interface HabitItem {
+  id: string;
+  title: string;
+  description?: string;
+  category: 'code' | 'study' | 'health' | 'productivity' | 'life';
+  color: string;
+  icon: string;
+  target_days_per_week: number;
+  streak: number;
+  best_streak: number;
+  /** ISO date keys "YYYY-MM-DD" mapped to boolean */
+  history: Record<string, boolean>;
+  created_at: string;
+}
 
 export interface GoalItem {
   id: string;

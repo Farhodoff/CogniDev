@@ -22,6 +22,7 @@ import type {
   ActiveProject,
   SpaceItem,
   ScheduledReminder,
+  HabitItem,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -37,6 +38,7 @@ import {
   DEFAULT_SPACES,
   DEFAULT_GOALS,
   DEFAULT_ACTIVE_PROJECTS,
+  DEFAULT_HABITS,
 } from './seed';
 import {
   deleteTaskFromDb,
@@ -217,6 +219,13 @@ interface SynapseState {
   addSpace: (space: Omit<SpaceItem, 'id'>) => void;
   updateSpace: (id: string, patch: Partial<Omit<SpaceItem, 'id'>>) => void;
   deleteSpace: (id: string) => void;
+
+  // Habit Tracker
+  habits: HabitItem[];
+  toggleHabitDay: (habitId: string, dateKey?: string) => void;
+  addHabit: (habit: Omit<HabitItem, 'id' | 'streak' | 'best_streak' | 'history' | 'created_at'>) => void;
+  updateHabit: (id: string, patch: Partial<HabitItem>) => void;
+  deleteHabit: (id: string) => void;
 
   // Goals
   goals: GoalItem[];
@@ -753,7 +762,13 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     }
   })(),
   activeSpaceId: null,
-  selectSpace: (id) => set({ activeSpaceId: id }),
+  selectSpace: (id) => {
+    if (id) {
+      set({ activeSpaceId: id, mainView: 'space' });
+    } else {
+      set({ activeSpaceId: null, mainView: 'dashboard' });
+    }
+  },
   addSpace: (space) =>
     set((state) => {
       const newSpace: SpaceItem = { ...space, id: 'sp-' + Date.now() };
@@ -778,8 +793,98 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         localStorage.setItem('cognidev_spaces', JSON.stringify(next));
       } catch {}
       const nextActive = state.activeSpaceId === id ? null : state.activeSpaceId;
-      return { spaces: next, activeSpaceId: nextActive };
+      const nextView = state.activeSpaceId === id ? 'dashboard' : state.mainView;
+      return { spaces: next, activeSpaceId: nextActive, mainView: nextView };
     }),
+
+  // Habit Tracker State
+  habits: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_habits');
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+      return DEFAULT_HABITS;
+    } catch {
+      return DEFAULT_HABITS;
+    }
+  })(),
+  toggleHabitDay: (habitId, dateKey) => {
+    const targetDate = dateKey || new Date().toISOString().split('T')[0];
+    set((state) => {
+      const nextHabits = state.habits.map((h) => {
+        if (h.id !== habitId) return h;
+        const nextHist = { ...h.history };
+        const isDone = !nextHist[targetDate];
+        if (isDone) {
+          nextHist[targetDate] = true;
+        } else {
+          delete nextHist[targetDate];
+        }
+
+        // calculate consecutive streak backwards from today
+        let streak = 0;
+        const d = new Date();
+        while (true) {
+          const key = d.toISOString().split('T')[0];
+          if (nextHist[key]) {
+            streak++;
+            d.setDate(d.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+        const best = Math.max(h.best_streak || 0, streak);
+        return {
+          ...h,
+          history: nextHist,
+          streak,
+          best_streak: best,
+        };
+      });
+
+      try {
+        localStorage.setItem('cognidev_habits', JSON.stringify(nextHabits));
+      } catch {}
+      return { habits: nextHabits };
+    });
+  },
+  addHabit: (habitData) => {
+    set((state) => {
+      const newHabit: HabitItem = {
+        ...habitData,
+        id: 'h-' + Date.now(),
+        streak: 0,
+        best_streak: 0,
+        history: {},
+        created_at: new Date().toISOString(),
+      };
+      const next = [newHabit, ...state.habits];
+      try {
+        localStorage.setItem('cognidev_habits', JSON.stringify(next));
+      } catch {}
+      return { habits: next };
+    });
+  },
+  updateHabit: (id, patch) => {
+    set((state) => {
+      const next = state.habits.map((h) => (h.id === id ? { ...h, ...patch } : h));
+      try {
+        localStorage.setItem('cognidev_habits', JSON.stringify(next));
+      } catch {}
+      return { habits: next };
+    });
+  },
+  deleteHabit: (id) => {
+    set((state) => {
+      const next = state.habits.filter((h) => h.id !== id);
+      try {
+        localStorage.setItem('cognidev_habits', JSON.stringify(next));
+      } catch {}
+      return { habits: next };
+    });
+  },
 
   // Goals state
   goals: (() => {
