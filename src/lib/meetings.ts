@@ -36,6 +36,80 @@ export function saveMeetingAiConfig(cfg: MeetingAiConfig): void {
 
 export const INITIAL_MEETINGS: MeetingItem[] = [];
 
+export type MeetingTemplateId = 'general' | 'standup' | 'one_on_one' | 'tech_review' | 'retro_planning';
+
+export interface MeetingTemplateOption {
+  id: MeetingTemplateId;
+  label: string;
+  icon: string;
+  badge: string;
+  description: string;
+  systemPromptAddition: string;
+}
+
+export const MEETING_TEMPLATES: MeetingTemplateOption[] = [
+  {
+    id: 'general',
+    label: 'Umumiy Uchrashuv',
+    icon: '🌐',
+    badge: 'General',
+    description: 'Biznes va umumiy jamoa uchrashuvlari, strategik kelishuvlar',
+    systemPromptAddition: `Umumiy yig'ilish uslubida tahlil qiling: asosiy muhokama mavzulari, strategik xulosalar va umumiy topshiriqlarni belgilang.`,
+  },
+  {
+    id: 'standup',
+    label: 'Daily Standup / Scrum',
+    icon: '⚡',
+    badge: 'Standup',
+    description: 'Kecha nima qilindi, bugun nima rejalashtirildi va to‘siqlar (Blockers)',
+    systemPromptAddition: `Daily Standup / Scrum formati:
+- Summary qismida har bir ishtirokchining bugungi rejasi va to'siqlari (blockers) haqida umumiy hisobot bering.
+- decisions ga qabul qilingan reja yoki konsensuslarni yozing.
+- action_items ga aynan bugun qilinadigan ishlar va to'siqlarni yechish topshiriqlarini 'P0 Blocker' yoki 'High Priority' bilan kiriting.
+- key_takeaways ga eng muhim to'siqlar va e'tibor qaratilishi kerak bo'lgan masalalarni yozing.`,
+  },
+  {
+    id: 'one_on_one',
+    label: '1-on-1 Suhbat',
+    icon: '👥',
+    badge: '1-on-1',
+    description: 'Xodim holati, motivatsiya, o‘zaro fikr-mulohaza (feedback) va rivojlanish',
+    systemPromptAddition: `1-on-1 yakkama-yakka suhbat formati:
+- Summary qismida xodimning kayfiyati, joriy ishlardan qoniqishi, duch kelayotgan qiyinchiliklari va maqsadlarini ifodalang.
+- decisions ga ikkala tomon kelishib olgan tamoyillar va kelgusi rejani yozing.
+- action_items ga xodim va rahbar bajarishi kerak bo'lgan shaxsiy va professional rivojlanish qadamlarini qo'shing.
+- key_takeaways ga xodim motivatsiyasi, unga kerakli yordam va berilgan fikr-mulohazalarni (feedback) yozing.`,
+  },
+  {
+    id: 'tech_review',
+    label: 'Texnik / Architecture Review',
+    icon: '🏗️',
+    badge: 'Tech / ADR',
+    description: 'Arxitektura qarorlari (ADR), kod tahlili, texnik qarz va tizim xavflari',
+    systemPromptAddition: `Texnik arxitektura va Code Review formati (ADR uslubida):
+- Summary qismida texnik muammo va tavsiya etilgan yechimlar haqida aniq muhandislik tahlilini bering.
+- decisions ga qabul qilingan texnik arxitektura qarorini (Architectural Decision Record - nima sababdan tanlandi, qanday alternativalar rad etildi) yozing.
+- action_items ga refaktoring, kod yozish, testlash yoki DevOps bo'yicha texnik topshiriqlarni aniq yozing.
+- key_takeaways ga tizim barqarorligi, xavfsizlik, miqyoslanish (scalability) va texnik qarz xavflarini kiriting.`,
+  },
+  {
+    id: 'retro_planning',
+    label: 'Sprint Rejalashtirish & Retro',
+    icon: '🎯',
+    badge: 'Sprint / Retro',
+    description: 'Nimalar yaxshi bo‘ldi, nimani yaxshilash kerak va keyingi sprint maqsadlari',
+    systemPromptAddition: `Sprint Rejalashtirish va Retrospektiva formati:
+- Summary qismida sprint natijalari, yakunlangan vazifalar va umumiy sur'at (velocity) haqida xulosa bering.
+- decisions ga jamoa nimani boshlaydi (Start), nimani to'xtatadi (Stop) va nimani davom ettiradi (Continue) kabi kelishuvlarni yozing.
+- action_items ga keyingi sprintga kiritiladigan ustuvor backlog vazifalarini yozing.
+- key_takeaways ga retrospektivaning asosiy saboqlari va jarayonni yaxshilash g'oyalarini yozing.`,
+  },
+];
+
+export function getMeetingTemplate(id?: string): MeetingTemplateOption {
+  return MEETING_TEMPLATES.find((t) => t.id === id) || MEETING_TEMPLATES[0];
+}
+
 export interface MeetingAnalysisResult {
   title: string;
   summary: string;
@@ -44,6 +118,7 @@ export interface MeetingAnalysisResult {
   key_takeaways: string[];
   providerUsed: string;
   modelUsed: string;
+  templateUsed?: MeetingTemplateId;
 }
 
 /**
@@ -51,11 +126,19 @@ export interface MeetingAnalysisResult {
  */
 export async function analyzeMeetingWithAi(
   transcript: string,
-  cfgOverride?: MeetingAiConfig
+  cfgOverride?: MeetingAiConfig,
+  templateId: MeetingTemplateId = 'general',
+  liveNotes?: string
 ): Promise<MeetingAnalysisResult> {
   const cfg = cfgOverride || getMeetingAiConfig();
+  const template = getMeetingTemplate(templateId);
 
   const systemPrompt = `Siz professional AI Meeting Assistant va kotibsiz (Notion AI uslubida).
+Uchrashuv formati: ${template.label} (${template.badge}).
+Maxsus ko'rsatma:
+${template.systemPromptAddition}
+${liveNotes?.trim() ? "\nEslatma: Foydalanuvchi uchrashuv davomida muhim kun tartibi va shaxsiy qaydlarni yozib borgan. Ushbu qaydlarni tahlilda alohida inobatga oling va vazifalar/xulosalarga qo'shing." : ""}
+
 Quyidagi uchrashuv / yig'ilish transkriptini chuqur tahlil qiling va natijani FAQAT quyidagi JSON formatida qaytaring:
 
 {
@@ -81,7 +164,10 @@ Quyidagi uchrashuv / yig'ilish transkriptini chuqur tahlil qiling va natijani FA
 
 Hech qanday boshqa so'z yoki markdown belgilarisiz, toza JSON bering.`;
 
-  const userPrompt = `Uchrashuv transkripti:\n\n${transcript}`;
+  let userPrompt = `Uchrashuv transkripti:\n\n${transcript}`;
+  if (liveNotes?.trim()) {
+    userPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━\nUchrashuv davomida yozilgan jonli qaydlar va kun tartibi:\n${liveNotes.trim()}`;
+  }
 
   // 1. Try dedicated provider if enabled
   if (cfg.useDedicatedKey && cfg.apiKey.trim().length > 0) {
@@ -320,6 +406,90 @@ function smartMeetingAnswer(
   return `Transkriptda ushbu savol bo'yicha aniq ma'lumot topilmadi.\n\nUchrashuvda tilga olingan asosiy fikrlar:\n${sampleSentences || 'Transkripsiya matni mavjud.'}\n\nQisqacha xulosa yoki vazifalarni bilish uchun quyidagi tayyor tugmalardan foydalanishingiz mumkin.`;
 }
 
+/**
+ * Uses AI to identify speaker turns and format the transcript with speaker tags.
+ */
+export async function diarizeTranscriptWithAi(
+  transcript: string,
+  cfgOverride?: MeetingAiConfig
+): Promise<string> {
+  const cfg = cfgOverride || getMeetingAiConfig();
+
+  const systemPrompt = `Siz professional audio kotib va nutq tahlilchisi (Speech Diarization AI) mutaxassisiz.
+Quyidagi uchrashuv transkriptini diqqat bilan o'rganing va gapiruvchi turli shaxslarni (spikerlarni) mantiqiy dialog ko'rinishida ajrating.
+Har bir yangi spiker uchun aniq quyidagi formatda yangi qatordan yozing:
+[Spiker 1]: Matn...
+[Spiker 2]: Javob matni...
+[Spiker 1]: Keyingi fikr...
+
+Agar matnda gapiruvchilarning ismlari aytilgan bo'lsa (masalan: "Farhod", "Sardor", "Lola"), [Farhod], [Sardor] kabi aniq ismlardan foydalaning.
+Faqat spikerlarga ajratilgan toza transkript matnini qaytaring, boshqa hech qanday izoh yoki kirish so'zi qo'shmang.`;
+
+  const userPrompt = `Uchrashuv transkripti:\n\n${transcript}`;
+
+  // 1. Dedicated provider if enabled
+  if (cfg.useDedicatedKey && cfg.apiKey.trim().length > 0) {
+    try {
+      if (cfg.provider === 'gemini') {
+        const res = await callGeminiDirect(userPrompt, systemPrompt, cfg.apiKey.trim(), cfg.model.trim() || 'gemini-2.0-flash');
+        if (res?.trim()) return res.trim();
+      } else if (cfg.provider === 'openai' || cfg.provider === 'deepseek' || cfg.provider === 'groq') {
+        const res = await callOpenAiCompatible(cfg.provider, userPrompt, systemPrompt, cfg.apiKey.trim(), cfg.model.trim());
+        if (res?.trim()) return res.trim();
+      }
+    } catch (err) {
+      console.warn('[diarizeTranscriptWithAi] dedicated call failed:', err);
+    }
+  }
+
+  // 2. Cloud provider fallback
+  try {
+    const cloudHit = await tryCloudProviders(userPrompt, systemPrompt);
+    if (cloudHit?.text?.trim()) return cloudHit.text.trim();
+  } catch (err) {
+    console.warn('[diarizeTranscriptWithAi] cloud provider fallback failed:', err);
+  }
+
+  // 3. Fallback heuristic: alternate every 2-3 sentences between Spiker 1 and Spiker 2
+  const sentences = transcript.split(/(?<=[.!?\n])\s+/).filter((s) => s.trim().length > 0);
+  if (sentences.length <= 1) return `[Spiker 1]: ${transcript}`;
+
+  let out = '';
+  let currentSpeaker = 1;
+  let countInTurn = 0;
+
+  for (let i = 0; i < sentences.length; i++) {
+    if (countInTurn === 0) {
+      out += (out ? '\n\n' : '') + `[Spiker ${currentSpeaker}]: ${sentences[i]}`;
+    } else {
+      out += ' ' + sentences[i];
+    }
+    countInTurn++;
+    if (countInTurn >= 2) {
+      currentSpeaker = currentSpeaker === 1 ? 2 : 1;
+      countInTurn = 0;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Renames a speaker tag across the entire transcript (e.g. "[Spiker 1]" -> "[Farhod]").
+ */
+export function renameSpeakerInTranscript(
+  transcript: string,
+  oldName: string,
+  newName: string
+): string {
+  if (!oldName.trim() || !newName.trim()) return transcript;
+  const cleanOld = oldName.replace(/^\[+|\]+$/g, '').trim();
+  const cleanNew = newName.replace(/^\[+|\]+$/g, '').trim();
+  const escaped = cleanOld.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`\\[${escaped}\\]`, 'gi');
+  return transcript.replace(regex, `[${cleanNew}]`);
+}
+
 async function callGeminiDirect(prompt: string, system: string, key: string, model: string): Promise<string | null> {
   const text = system ? `${system}\n\n${prompt}` : prompt;
   const res = await fetch(
@@ -499,6 +669,179 @@ ${(m.key_takeaways ?? []).map((k) => `• ${k}`).join('\n') || '- Xulosalar yo\'
 ${m.transcript}
 \`\`\`
 `;
+}
+
+/**
+ * Exports meeting data to Telegram Markdown format.
+ */
+export function exportMeetingToTelegram(m: MeetingItem): string {
+  const mins = Math.floor((m.duration || 0) / 60);
+  const secs = (m.duration || 0) % 60;
+  const timeStr = `${mins > 0 ? `${mins} daq ` : ''}${secs} soniya`;
+  const dateStr = new Date(m.date).toLocaleString('uz-UZ', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  let out = `🎙 *${m.title}*\n`;
+  out += `📅 ${dateStr} | ⏱ ${timeStr}\n`;
+  if (m.tags?.length) {
+    out += `${m.tags.map((t) => `#${t.replace(/\s+/g, '_')}`).join(' ')}\n`;
+  }
+  out += `\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  if (m.summary) {
+    out += `📝 *Qisqacha mazmun:*\n${m.summary}\n\n`;
+  }
+
+  if (m.decisions?.length) {
+    out += `💡 *Qabul qilingan qarorlar:*\n`;
+    m.decisions.forEach((d) => {
+      out += `• ${d}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.action_items?.length) {
+    out += `🎯 *Topshiriqlar (Action Items):*\n`;
+    m.action_items.forEach((a) => {
+      const status = a.completed ? '✅' : '▫️';
+      const assignee = a.assignee ? ` — @${a.assignee}` : '';
+      const due = a.due_date ? ` (⏰ ${a.due_date})` : '';
+      const priority = a.priority && a.priority !== 'Normal' ? ` [${a.priority}]` : '';
+      out += `${status} ${a.text}${assignee}${due}${priority}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.key_takeaways?.length) {
+    out += `📌 *Asosiy xulosalar:*\n`;
+    m.key_takeaways.forEach((k) => {
+      out += `• ${k}\n`;
+    });
+    out += `\n`;
+  }
+
+  return out.trim();
+}
+
+/**
+ * Exports meeting data to Slack mrkdwn format.
+ */
+export function exportMeetingToSlack(m: MeetingItem): string {
+  const mins = Math.floor((m.duration || 0) / 60);
+  const secs = (m.duration || 0) % 60;
+  const timeStr = `${mins > 0 ? `${mins}m ` : ''}${secs}s`;
+  const dateStr = new Date(m.date).toLocaleString('uz-UZ');
+
+  let out = `*🎙 ${m.title}*\n`;
+  out += `_${dateStr} | Davomiyligi: ${timeStr}_\n\n`;
+
+  if (m.summary) {
+    out += `*📝 Qisqacha Mazmun:*\n> ${m.summary.replace(/\n/g, '\n> ')}\n\n`;
+  }
+
+  if (m.decisions?.length) {
+    out += `*💡 Qabul qilingan qarorlar:*\n`;
+    m.decisions.forEach((d) => {
+      out += `• ${d}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.action_items?.length) {
+    out += `*🎯 Topshiriqlar:*\n`;
+    m.action_items.forEach((a) => {
+      const box = a.completed ? '[x]' : '[ ]';
+      const assignee = a.assignee ? ` _(${a.assignee})_` : '';
+      const due = a.due_date ? ` \`Muddat: ${a.due_date}\`` : '';
+      const prio = a.priority && a.priority !== 'Normal' ? ` *${a.priority}*` : '';
+      out += `• ${box} *${a.text}*${assignee}${due}${prio}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.key_takeaways?.length) {
+    out += `*📌 Asosiy Xulosalar:*\n`;
+    m.key_takeaways.forEach((k) => {
+      out += `• ${k}\n`;
+    });
+    out += `\n`;
+  }
+
+  return out.trim();
+}
+
+/**
+ * Exports meeting data to human-readable plain text.
+ */
+export function exportMeetingToPlainText(m: MeetingItem): string {
+  const mins = Math.floor((m.duration || 0) / 60);
+  const secs = (m.duration || 0) % 60;
+  const timeStr = `${mins > 0 ? `${mins}m ` : ''}${secs}s`;
+  const dateStr = new Date(m.date).toLocaleString('uz-UZ');
+
+  let out = `========================================\n`;
+  out += `  UCHRASHUV: ${m.title.toUpperCase()}\n`;
+  out += `  Sana: ${dateStr} | Davomiyligi: ${timeStr}\n`;
+  out += `========================================\n\n`;
+
+  if (m.summary) {
+    out += `[QISQACHA MAZMUN]\n${m.summary}\n\n`;
+  }
+
+  if (m.decisions?.length) {
+    out += `[QABUL QILINGAN QARORLAR]\n`;
+    m.decisions.forEach((d, i) => {
+      out += `  ${i + 1}. ${d}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.action_items?.length) {
+    out += `[TOPSHIRIQLAR VA VAZIFALAR]\n`;
+    m.action_items.forEach((a, i) => {
+      const status = a.completed ? '[BAJARILDI]' : '[KUTILMOQDA]';
+      const assignee = a.assignee ? ` | Mas'ul: ${a.assignee}` : '';
+      const due = a.due_date ? ` | Muddat: ${a.due_date}` : '';
+      const prio = a.priority ? ` | Prioritet: ${a.priority}` : '';
+      out += `  ${i + 1}. ${status} ${a.text}${assignee}${due}${prio}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.key_takeaways?.length) {
+    out += `[ASOSIY XULOSALAR]\n`;
+    m.key_takeaways.forEach((k) => {
+      out += `  • ${k}\n`;
+    });
+    out += `\n`;
+  }
+
+  if (m.transcript) {
+    out += `----------------------------------------\n`;
+    out += `[TRANSKRIPT]\n${m.transcript}\n`;
+  }
+
+  return out.trim();
+}
+
+/**
+ * Helper to download text file to local filesystem.
+ */
+export function downloadTextFile(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**

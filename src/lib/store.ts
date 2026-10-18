@@ -24,6 +24,7 @@ import type {
   ScheduledReminder,
   HabitItem,
   MeetingItem,
+  DevLinkItem,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -40,6 +41,7 @@ import {
   DEFAULT_GOALS,
   DEFAULT_ACTIVE_PROJECTS,
   DEFAULT_HABITS,
+  DEFAULT_DEV_LINKS,
 } from './seed';
 import {
   deleteTaskFromDb,
@@ -227,6 +229,13 @@ interface SynapseState {
   addSpace: (space: Omit<SpaceItem, 'id'>) => void;
   updateSpace: (id: string, patch: Partial<Omit<SpaceItem, 'id'>>) => void;
   deleteSpace: (id: string) => void;
+
+  // Links & Developer Bookmarks
+  links: DevLinkItem[];
+  addLink: (link: Omit<DevLinkItem, 'id' | 'created_at'>) => void;
+  updateLink: (id: string, patch: Partial<DevLinkItem>) => void;
+  deleteLink: (id: string) => void;
+  togglePinLink: (id: string) => void;
 
   // Habit Tracker
   habits: HabitItem[];
@@ -835,6 +844,57 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       const nextActive = state.activeSpaceId === id ? null : state.activeSpaceId;
       const nextView = state.activeSpaceId === id ? 'dashboard' : state.mainView;
       return { spaces: next, activeSpaceId: nextActive, mainView: nextView };
+    }),
+
+  // Links & Developer Bookmarks State
+  links: (() => {
+    try {
+      const s = localStorage.getItem('cognidev_dev_links');
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+      return DEFAULT_DEV_LINKS;
+    } catch {
+      return DEFAULT_DEV_LINKS;
+    }
+  })(),
+  addLink: (link) =>
+    set((state) => {
+      const newLink: DevLinkItem = {
+        ...link,
+        id: 'link-' + Date.now(),
+        created_at: new Date().toISOString(),
+      };
+      const updated = [newLink, ...state.links];
+      try {
+        localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
+      } catch {}
+      return { links: updated };
+    }),
+  updateLink: (id, patch) =>
+    set((state) => {
+      const updated = state.links.map((l) => (l.id === id ? { ...l, ...patch } : l));
+      try {
+        localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
+      } catch {}
+      return { links: updated };
+    }),
+  deleteLink: (id) =>
+    set((state) => {
+      const updated = state.links.filter((l) => l.id !== id);
+      try {
+        localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
+      } catch {}
+      return { links: updated };
+    }),
+  togglePinLink: (id) =>
+    set((state) => {
+      const updated = state.links.map((l) => (l.id === id ? { ...l, pinned: !l.pinned } : l));
+      try {
+        localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
+      } catch {}
+      return { links: updated };
     }),
 
   // Habit Tracker State

@@ -311,3 +311,60 @@ export async function resetMicPermission(): Promise<string | null> {
   return null;
 }
 
+export type AudioSourceOption = 'mic' | 'system' | 'mixed';
+
+/** Safely request screen/system audio stream */
+export async function requestScreenAudioStream(): Promise<MediaStream> {
+  if (!navigator?.mediaDevices?.getDisplayMedia) {
+    throw new Error('Tizim yoki ekran audiosini yozib olish ushbu muhitda mavjud emas.');
+  }
+
+  const displayStream = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    },
+  });
+
+  const audioTracks = displayStream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    displayStream.getTracks().forEach((t) => t.stop());
+    throw new Error('Ekran tanlanganda "Tizim audiosini ulashish" (Share system audio) belgilanmadi.');
+  }
+
+  return displayStream;
+}
+
+/** Mix microphone and system audio streams using Web Audio API */
+export function mixAudioStreams(
+  micStream: MediaStream,
+  systemStream: MediaStream
+): { mixedStream: MediaStream; cleanup: () => void } {
+  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+  const ctx = new AudioCtx();
+
+  const micSource = ctx.createMediaStreamSource(micStream);
+  const sysSource = ctx.createMediaStreamSource(systemStream);
+
+  const dest = ctx.createMediaStreamDestination();
+  micSource.connect(dest);
+  sysSource.connect(dest);
+
+  const cleanup = () => {
+    try {
+      micSource.disconnect();
+      sysSource.disconnect();
+      ctx.close().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return {
+    mixedStream: dest.stream,
+    cleanup,
+  };
+}
+
