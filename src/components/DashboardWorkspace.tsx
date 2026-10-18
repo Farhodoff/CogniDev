@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
   Circle,
@@ -27,17 +27,21 @@ import {
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
 import { formatShortcut } from '../lib/platform';
-import type { ScheduleBlock } from '../lib/types';
+import type { ScheduleBlock, Task } from '../lib/types';
+import { useFocusStore } from '../lib/focusStore';
 import FormattedAiText from './FormattedAiText';
 
 export default function DashboardWorkspace() {
   const {
     tasks,
+    addTask,
     updateTaskStatus,
     deleteTask,
     userProfile,
     notesDocs,
     activeProjects,
+    activeSpaceId,
+    meetings,
     addActiveProject,
     updateProjectProgress,
     deleteActiveProject,
@@ -86,54 +90,73 @@ export default function DashboardWorkspace() {
   // Haftalik umumiy ko'rinish (Weekly Overview) state
   const [weekOffset, setWeekOffset] = useState(0);
 
-  // Joriy fokus (Current Focus) state with localStorage persistence
-  const [focusItems, setFocusItems] = useState<Array<{ id: string; text: string; done: boolean }>>(() => {
+  // Clean up any legacy mock focus items stored in localStorage
+  useEffect(() => {
     try {
-      const saved = localStorage.getItem('cognidev_current_focus');
-      if (saved) return JSON.parse(saved);
+      localStorage.removeItem('cognidev_current_focus');
     } catch {}
-    return [
-      { id: '1', text: 'Zoovita MVP tugatish', done: false },
-      { id: '2', text: 'SU Academy v2 reliz', done: false },
-      { id: '3', text: 'JLPT N1 tayyorgarlik', done: false },
-      { id: '4', text: 'Freelancer ishlar', done: false },
-    ];
-  });
+  }, []);
+
+  // Joriy fokus (Current Focus) state - derived 100% from real tasks
   const [newFocusText, setNewFocusText] = useState('');
   const [isAddingFocus, setIsAddingFocus] = useState(false);
 
-  const handleToggleFocus = (id: string) => {
-    setFocusItems((prev) => {
-      const updated = prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
-      try {
-        localStorage.setItem('cognidev_current_focus', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+  // Filter real active/priority tasks for Current Focus
+  const realFocusTasks = useMemo(() => {
+    // 1. Explicitly tagged with 'focus'
+    const tagged = tasks.filter((t) => t.tags?.some((tag) => tag.toLowerCase() === 'focus'));
+    if (tagged.length > 0) return tagged.slice(0, 6);
+
+    // 2. High priority or active tasks
+    const activeOrHigh = tasks.filter(
+      (t) => t.status === 'active' || t.priority === 'P0 Blocker' || t.priority === 'Critical'
+    );
+    if (activeOrHigh.length > 0) return activeOrHigh.slice(0, 5);
+
+    // 3. Fallback: non-completed tasks
+    const pending = tasks.filter((t) => t.status !== 'completed');
+    if (pending.length > 0) return pending.slice(0, 4);
+
+    return [];
+  }, [tasks]);
+
+  const handleToggleFocus = (taskId: string) => {
+    const target = tasks.find((t) => t.id === taskId);
+    if (!target) return;
+    const nextStatus = target.status === 'completed' ? 'active' : 'completed';
+    updateTaskStatus(taskId, nextStatus);
   };
 
   const handleAddFocusItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFocusText.trim()) return;
-    setFocusItems((prev) => {
-      const updated = [...prev, { id: Date.now().toString(), text: newFocusText.trim(), done: false }];
-      try {
-        localStorage.setItem('cognidev_current_focus', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+    const now = new Date().toISOString();
+    const newTask: Task = {
+      id: `task-${Date.now()}`,
+      workspace_id: activeSpaceId || 'personal',
+      group_id: null,
+      space_id: activeSpaceId || null,
+      title: newFocusText.trim(),
+      status: 'active',
+      priority: 'High Priority',
+      git_branch: null,
+      pr_url: null,
+      ai_source: 'dashboard_focus',
+      assignee_name: userProfile?.full_name || 'Men',
+      assignee_avatar: userProfile?.avatar_initials || 'ME',
+      assignee_name2: null,
+      assignee_avatar2: null,
+      tags: ['focus'],
+      created_at: now,
+      updated_at: now,
+    };
+    addTask(newTask);
     setNewFocusText('');
     setIsAddingFocus(false);
   };
 
-  const handleDeleteFocusItem = (id: string) => {
-    setFocusItems((prev) => {
-      const updated = prev.filter((item) => item.id !== id);
-      try {
-        localStorage.setItem('cognidev_current_focus', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+  const handleDeleteFocusItem = (taskId: string) => {
+    deleteTask(taskId);
   };
 
   // AI dan bugungi maslahat state
@@ -203,7 +226,7 @@ export default function DashboardWorkspace() {
   const workTargetHours = 25;
   const workActualHours = Math.min(workTargetHours, Math.round(completedWorkCount * 2.5 * 10) / 10);
 
-  // Haftalik umumiy ko'rinish dynamic data calculation
+  // Haftalik umumiy ko'rinish dynamic data calculation with 100% REAL data
   const weeklyOverviewData = useMemo(() => {
     const uzMonths = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun', 'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
     const now = new Date();
@@ -224,23 +247,74 @@ export default function DashboardWorkspace() {
     const dayNames = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
     const todayIndex = (now.getDay() + 6) % 7; // Monday = 0, Sunday = 6
 
-    // Proportional bar heights resembling the user's design mockup:
-    // Du: ~85%, Se: ~48%, Ch: ~65%, Pa: ~28%, Ju: ~38%, Sh: ~75%, Ya: ~20%
-    const baseDistribution = [85, 48, 65, 28, 38, 75, 20];
-    const days = dayNames.map((name, idx) => {
-      const isToday = weekOffset === 0 && idx === todayIndex;
-      const heightPercent = baseDistribution[idx];
+    // Real per-day activity calculation across tasks, notes, and meetings
+    const daysRaw = dayNames.map((name, idx) => {
+      const dayDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+      const year = dayDate.getFullYear();
+      const month = String(dayDate.getMonth() + 1).padStart(2, '0');
+      const day = String(dayDate.getDate()).padStart(2, '0');
+      const dayDateStr = `${year}-${month}-${day}`;
+
+      // Count tasks completed on this specific day
+      const completedOnDay = tasks.filter((t) => {
+        if (t.status === 'completed') {
+          const uDate = (t.updated_at || t.created_at || '').slice(0, 10);
+          return uDate === dayDateStr;
+        }
+        return false;
+      }).length;
+
+      // Count notes created or updated on this day
+      const notesOnDay = notesDocs.filter((n) => {
+        const nDate = (n.created_at || n.updated_at || '').slice(0, 10);
+        return nDate === dayDateStr;
+      }).length;
+
+      // Count meetings on this day
+      const meetingsOnDay = meetings.filter((m) => {
+        const mDate = (m.date || m.created_at || '').slice(0, 10);
+        return mDate === dayDateStr;
+      }).length;
+
+      const totalActivity = completedOnDay + notesOnDay + meetingsOnDay;
+
       return {
         name,
-        heightPercent,
-        isToday,
+        dateStr: dayDateStr,
+        isToday: weekOffset === 0 && idx === todayIndex,
+        completedOnDay,
+        notesOnDay,
+        meetingsOnDay,
+        totalActivity,
       };
     });
 
-    const completedCount = completedTasksCount > 0 ? completedTasksCount : 18;
-    const notesCount = notesDocs.length > 0 ? notesDocs.length : 12;
-    const totalHours = Math.max(28, Math.round(studyActualHours + workActualHours + 16));
-    const projectsCount = activeProjects.length > 0 ? activeProjects.length : 6;
+    const maxActivity = Math.max(...daysRaw.map((d) => d.totalActivity), 0);
+
+    const days = daysRaw.map((d) => {
+      let heightPercent = 0;
+      if (maxActivity > 0 && d.totalActivity > 0) {
+        heightPercent = Math.max(16, Math.round((d.totalActivity / maxActivity) * 100));
+      }
+      return {
+        name: d.name,
+        dateStr: d.dateStr,
+        isToday: d.isToday,
+        heightPercent,
+        totalActivity: d.totalActivity,
+        tooltip: `${d.name} (${d.dateStr}): ${d.totalActivity} ta faollik (${d.completedOnDay} vazifa, ${d.notesOnDay} qayd${
+          d.meetingsOnDay > 0 ? `, ${d.meetingsOnDay} uchrashuv` : ''
+        })`,
+      };
+    });
+
+    const completedCount = completedTasksCount;
+    const notesCount = notesDocs.length;
+    // Real time spent: study hours + work hours + any deep work minutes logged in focus store
+    const deepWorkMinutes = useFocusStore.getState().totalDeepWorkMinutesToday || 0;
+    const deepWorkHours = Math.round((deepWorkMinutes / 60) * 10) / 10;
+    const totalHours = Math.round((studyActualHours + workActualHours + deepWorkHours) * 10) / 10;
+    const projectsCount = activeProjects.length;
 
     return {
       dateRangeStr,
@@ -250,7 +324,16 @@ export default function DashboardWorkspace() {
       totalHours,
       projectsCount,
     };
-  }, [weekOffset, completedTasksCount, notesDocs.length, studyActualHours, workActualHours, activeProjects.length]);
+  }, [
+    weekOffset,
+    tasks,
+    notesDocs,
+    meetings,
+    completedTasksCount,
+    studyActualHours,
+    workActualHours,
+    activeProjects.length,
+  ]);
 
 
   // Active Roadmap
@@ -399,14 +482,14 @@ ${realContext}`;
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#0a0b0f] p-4 text-zinc-100 select-none scrollbar-thin">
-      <div className="mx-auto max-w-[1550px] space-y-4">
+    <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-none bg-[#0a0b0f] p-4 text-zinc-100 select-none scrollbar-thin">
+      <div className="mx-auto max-w-[1550px] w-full min-w-0 space-y-4">
 
         {/* 12-Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-w-0">
 
           {/* LEFT 8 COLUMNS: Main Cockpit */}
-          <div className="lg:col-span-8 space-y-4">
+          <div className="lg:col-span-8 space-y-4 min-w-0">
 
             {/* 1. Hero Scenic Banner */}
             <div
@@ -901,7 +984,7 @@ ${realContext}`;
           </div>
 
           {/* RIGHT 4 COLUMNS: Haftalik umumiy ko'rinish, Joriy fokus, AI Advice, AI Assistant, Calendar, Quick Capture */}
-          <div className="lg:col-span-4 space-y-4">
+          <div className="lg:col-span-4 space-y-4 min-w-0">
 
             {/* 1. Haftalik umumiy ko'rinish Card */}
             <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/90 p-4 shadow-sm backdrop-blur-sm space-y-4">
@@ -931,16 +1014,24 @@ ${realContext}`;
               {/* 7-Day Vertical Bar Chart */}
               <div className="flex items-end justify-between px-1.5 pt-2 pb-1">
                 {weeklyOverviewData.days.map((day) => (
-                  <div key={day.name} className="flex flex-col items-center gap-2 group">
+                  <div key={day.name} className="flex flex-col items-center gap-2 group relative" title={day.tooltip}>
                     <div className="relative flex flex-col justify-end h-[74px] w-[14px] sm:w-[16px] rounded-full bg-white/[0.07] overflow-hidden p-[2px]">
-                      <div
-                        className={`w-full rounded-full transition-all duration-500 ${
-                          day.isToday
-                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                            : 'bg-emerald-500/90 group-hover:bg-emerald-400'
-                        }`}
-                        style={{ height: `${day.heightPercent}%` }}
-                      />
+                      {day.heightPercent > 0 ? (
+                        <div
+                          className={`w-full rounded-full transition-all duration-500 ${
+                            day.isToday
+                              ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                              : 'bg-emerald-500/90 group-hover:bg-emerald-400'
+                          }`}
+                          style={{ height: `${day.heightPercent}%` }}
+                        />
+                      ) : (
+                        <div
+                          className={`w-full h-1 rounded-full ${
+                            day.isToday ? 'bg-emerald-400/50' : 'bg-white/10'
+                          }`}
+                        />
+                      )}
                     </div>
                     <span
                       className={`text-[11px] font-medium transition ${
@@ -1013,53 +1104,68 @@ ${realContext}`;
                     type="text"
                     value={newFocusText}
                     onChange={(e) => setNewFocusText(e.target.value)}
-                    placeholder="Yangi fokus yo'nalishi..."
+                    placeholder="Yangi fokus vazifa yozing va Enter bosing..."
                     autoFocus
                     className="w-full rounded-xl border border-rose-500/30 bg-black/40 px-3 py-1.5 text-[12px] text-white placeholder:text-zinc-600 focus:outline-none focus:border-rose-500"
                   />
                 </form>
               )}
 
-              <div className="space-y-2">
-                {focusItems.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleToggleFocus(item.id)}
-                    className="flex items-center justify-between gap-2.5 p-1 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group"
+              {realFocusTasks.length === 0 ? (
+                <div className="py-4 px-2 text-center border border-dashed border-white/10 rounded-xl bg-white/[0.01]">
+                  <p className="text-[12px] text-zinc-500">Bugun uchun faol fokus vazifalar yo'q</p>
+                  <button
+                    onClick={() => setIsAddingFocus(true)}
+                    className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-rose-400 hover:text-rose-300 transition"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <Plus size={11} /> Fokus qo'shish
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {realFocusTasks.map((item) => {
+                    const isDone = item.status === 'completed';
+                    return (
                       <div
-                        className={`h-4 w-4 rounded-full border transition flex items-center justify-center shrink-0 ${
-                          item.done
-                            ? 'bg-rose-500 border-rose-500 text-white'
-                            : 'border-zinc-500 group-hover:border-rose-400'
-                        }`}
+                        key={item.id}
+                        onClick={() => handleToggleFocus(item.id)}
+                        className="flex items-center justify-between gap-2.5 p-1 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group"
                       >
-                        {item.done && <Check size={10} strokeWidth={3} />}
-                      </div>
-                      <span
-                        className={`text-[12px] font-medium transition truncate ${
-                          item.done ? 'line-through text-zinc-500' : 'text-zinc-200'
-                        }`}
-                      >
-                        {item.text}
-                      </span>
-                    </div>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`h-4 w-4 rounded-full border transition flex items-center justify-center shrink-0 ${
+                              isDone
+                                ? 'bg-rose-500 border-rose-500 text-white'
+                                : 'border-zinc-500 group-hover:border-rose-400'
+                            }`}
+                          >
+                            {isDone && <Check size={10} strokeWidth={3} />}
+                          </div>
+                          <span
+                            className={`text-[12px] font-medium transition truncate ${
+                              isDone ? 'line-through text-zinc-500' : 'text-zinc-200'
+                            }`}
+                          >
+                            {item.title}
+                          </span>
+                        </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFocusItem(item.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5 transition"
-                      title="O'chirish"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFocusItem(item.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5 transition"
+                          title="O'chirish"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* 3. AI dan bugungi maslahat Card */}

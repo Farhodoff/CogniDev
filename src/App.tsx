@@ -155,9 +155,9 @@ export default function App() {
   }, [mainView, selectedTaskId, tasks]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-obsidian-950 text-zinc-200 antialiased">
+    <div className="flex h-screen w-full max-w-full flex-col overflow-hidden overscroll-none bg-obsidian-950 text-zinc-200 antialiased select-none">
       <Header onPalette={() => setPaletteOpen(true)} />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden overscroll-none">
         <Sidebar />
         <Suspense fallback={<WorkspaceLoading />}>
           {mainView === 'dashboard' && <DashboardWorkspace />}
