@@ -102,7 +102,8 @@ export type MainView =
   | 'habits'
   | 'projects'
   | 'space'
-  | 'meetings';
+  | 'meetings'
+  | 'links';
 
 export interface MeetingActionItem {
   id: string;
@@ -186,6 +187,21 @@ export interface ActiveProject {
   status?: 'active' | 'in_progress' | 'completed' | 'on_hold';
   tags?: string[];
   created_at?: string;
+}
+
+export type LinkCategory = 'docs' | 'tools' | 'cloud' | 'repo' | 'learning' | 'design' | 'other';
+
+export interface DevLinkItem {
+  id: string;
+  title: string;
+  url: string;
+  category: LinkCategory;
+  description?: string;
+  tags: string[];
+  space_id?: string | null;
+  pinned?: boolean;
+  icon?: string;
+  created_at: string;
 }
 
 export interface SpaceItem {
