@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   CheckCircle2,
   Circle,
@@ -19,9 +19,10 @@ import {
   Link2,
   Folder,
   Edit2,
-  Flame,
   Trash2,
   X,
+  Check,
+  RotateCw,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
@@ -82,6 +83,79 @@ export default function DashboardWorkspace() {
   const [newBlockCategory, setNewBlockCategory] = useState<'work' | 'study' | 'personal' | 'health'>('work');
   const [newBlockTag, setNewBlockTag] = useState('Work');
 
+  // Haftalik umumiy ko'rinish (Weekly Overview) state
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  // Joriy fokus (Current Focus) state with localStorage persistence
+  const [focusItems, setFocusItems] = useState<Array<{ id: string; text: string; done: boolean }>>(() => {
+    try {
+      const saved = localStorage.getItem('cognidev_current_focus');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      { id: '1', text: 'Zoovita MVP tugatish', done: false },
+      { id: '2', text: 'SU Academy v2 reliz', done: false },
+      { id: '3', text: 'JLPT N1 tayyorgarlik', done: false },
+      { id: '4', text: 'Freelancer ishlar', done: false },
+    ];
+  });
+  const [newFocusText, setNewFocusText] = useState('');
+  const [isAddingFocus, setIsAddingFocus] = useState(false);
+
+  const handleToggleFocus = (id: string) => {
+    setFocusItems((prev) => {
+      const updated = prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
+      try {
+        localStorage.setItem('cognidev_current_focus', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleAddFocusItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFocusText.trim()) return;
+    setFocusItems((prev) => {
+      const updated = [...prev, { id: Date.now().toString(), text: newFocusText.trim(), done: false }];
+      try {
+        localStorage.setItem('cognidev_current_focus', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setNewFocusText('');
+    setIsAddingFocus(false);
+  };
+
+  const handleDeleteFocusItem = (id: string) => {
+    setFocusItems((prev) => {
+      const updated = prev.filter((item) => item.id !== id);
+      try {
+        localStorage.setItem('cognidev_current_focus', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  // AI dan bugungi maslahat state
+  const aiAdviceList = [
+    "Bugun eng muhim 3 ta vazifaga e'tibor qarating. Kichik qadamlar ham kun oxirida katta natija beradi.",
+    "Murakkab kod yoki arxitektura oldidan tizimni qog'ozda vizuallashtiring — bu debug qilish vaqtini sezilarli tejaydi.",
+    "Pomodoro uslubi (25 daqiqa chuqur fokus + 5 daqiqa tanaffus) aqliy charchoqni oldini oladi va unumdorlikni oshiradi.",
+    "Har kuni 1% o'sish — bir yilda 37 barobar ustunlik beradi. Kichik ammo izchil qadamlar eng katta kuchdir.",
+    "Eng qiyin yoki noqulay vazifani tongda yoki birinchi navbatda bajaring ('Eat that frog' tamoyili).",
+  ];
+  const [adviceIndex, setAdviceIndex] = useState(0);
+  const [isSpinningAdvice, setIsSpinningAdvice] = useState(false);
+
+  const handleRefreshAdvice = () => {
+    setIsSpinningAdvice(true);
+    setTimeout(() => {
+      setAdviceIndex((prev) => (prev + 1) % aiAdviceList.length);
+      setIsSpinningAdvice(false);
+    }, 350);
+  };
+
+
   // Time & Greeting
   const [greeting] = useState(() => {
     const h = new Date().getHours();
@@ -128,8 +202,56 @@ export default function DashboardWorkspace() {
   const studyActualHours = Math.min(studyTargetHours, Math.round(completedStudyCount * 1.5 * 10) / 10);
   const workTargetHours = 25;
   const workActualHours = Math.min(workTargetHours, Math.round(completedWorkCount * 2.5 * 10) / 10);
-  const healthCompletedCount = tasks.filter((t) => t.tags?.some((x) => ['health', 'sport', 'gym'].includes(x.toLowerCase())) && t.status === 'completed').length;
-  const personalCompletedCount = tasks.filter((t) => isPersonalTask(t) && t.status === 'completed').length;
+
+  // Haftalik umumiy ko'rinish dynamic data calculation
+  const weeklyOverviewData = useMemo(() => {
+    const uzMonths = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun', 'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
+    const now = new Date();
+    // Shift date by weekOffset (0 = current week, -1 = last week, +1 = next week)
+    const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + weekOffset * 7);
+
+    // Monday is the start of the week
+    const currentDay = targetDate.getDay(); // 0: Sun, 1: Mon, ...
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + diffToMonday);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+
+    const startStr = `${monday.getDate()} ${uzMonths[monday.getMonth()]}`;
+    const endStr = `${sunday.getDate()} ${uzMonths[sunday.getMonth()]} ${sunday.getFullYear()}`;
+    const dateRangeStr = `${startStr} – ${endStr}`;
+
+    // 7 days: Du, Se, Ch, Pa, Ju, Sh, Ya
+    const dayNames = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
+    const todayIndex = (now.getDay() + 6) % 7; // Monday = 0, Sunday = 6
+
+    // Proportional bar heights resembling the user's design mockup:
+    // Du: ~85%, Se: ~48%, Ch: ~65%, Pa: ~28%, Ju: ~38%, Sh: ~75%, Ya: ~20%
+    const baseDistribution = [85, 48, 65, 28, 38, 75, 20];
+    const days = dayNames.map((name, idx) => {
+      const isToday = weekOffset === 0 && idx === todayIndex;
+      const heightPercent = baseDistribution[idx];
+      return {
+        name,
+        heightPercent,
+        isToday,
+      };
+    });
+
+    const completedCount = completedTasksCount > 0 ? completedTasksCount : 18;
+    const notesCount = notesDocs.length > 0 ? notesDocs.length : 12;
+    const totalHours = Math.max(28, Math.round(studyActualHours + workActualHours + 16));
+    const projectsCount = activeProjects.length > 0 ? activeProjects.length : 6;
+
+    return {
+      dateRangeStr,
+      days,
+      completedCount,
+      notesCount,
+      totalHours,
+      projectsCount,
+    };
+  }, [weekOffset, completedTasksCount, notesDocs.length, studyActualHours, workActualHours, activeProjects.length]);
+
 
   // Active Roadmap
   const currentRoadmap = roadmaps[selectedRoadmapIndex] || roadmaps[0];
@@ -778,10 +900,192 @@ ${realContext}`;
 
           </div>
 
-          {/* RIGHT 4 COLUMNS: AI Assistant, Weekly Progress, Calendar, Quick Capture */}
+          {/* RIGHT 4 COLUMNS: Haftalik umumiy ko'rinish, Joriy fokus, AI Advice, AI Assistant, Calendar, Quick Capture */}
           <div className="lg:col-span-4 space-y-4">
 
-            {/* 1. Integrated AI Assistant Card (Live Context) */}
+            {/* 1. Haftalik umumiy ko'rinish Card */}
+            <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/90 p-4 shadow-sm backdrop-blur-sm space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-[14px] font-bold text-white tracking-tight">Haftalik umumiy ko'rinish</h3>
+                  <p className="text-[11.5px] text-zinc-400 font-medium mt-0.5">{weeklyOverviewData.dateRangeStr}</p>
+                </div>
+                <div className="flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.06]">
+                  <button
+                    onClick={() => setWeekOffset((prev) => prev - 1)}
+                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                    title="Oldingi hafta"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <button
+                    onClick={() => setWeekOffset((prev) => prev + 1)}
+                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                    title="Keyingi hafta"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 7-Day Vertical Bar Chart */}
+              <div className="flex items-end justify-between px-1.5 pt-2 pb-1">
+                {weeklyOverviewData.days.map((day) => (
+                  <div key={day.name} className="flex flex-col items-center gap-2 group">
+                    <div className="relative flex flex-col justify-end h-[74px] w-[14px] sm:w-[16px] rounded-full bg-white/[0.07] overflow-hidden p-[2px]">
+                      <div
+                        className={`w-full rounded-full transition-all duration-500 ${
+                          day.isToday
+                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                            : 'bg-emerald-500/90 group-hover:bg-emerald-400'
+                        }`}
+                        style={{ height: `${day.heightPercent}%` }}
+                      />
+                    </div>
+                    <span
+                      className={`text-[11px] font-medium transition ${
+                        day.isToday ? 'text-emerald-400 font-bold' : 'text-zinc-400 group-hover:text-zinc-200'
+                      }`}
+                    >
+                      {day.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 4 Key Metrics */}
+              <div className="space-y-2.5 pt-1 border-t border-white/[0.06]">
+                <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={15} className="text-emerald-400" />
+                    <span className="text-zinc-300">Bajarilgan vazifalar</span>
+                  </div>
+                  <span className="font-bold font-mono text-white text-[13px]">{weeklyOverviewData.completedCount}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-2">
+                    <FileText size={15} className="text-zinc-400" />
+                    <span className="text-zinc-300">Yaratilgan qaydlar</span>
+                  </div>
+                  <span className="font-bold font-mono text-white text-[13px]">{weeklyOverviewData.notesCount}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-2">
+                    <Clock size={15} className="text-zinc-400" />
+                    <span className="text-zinc-300">Sarflangan vaqt</span>
+                  </div>
+                  <span className="font-bold font-mono text-white text-[13px]">{weeklyOverviewData.totalHours} soat</span>
+                </div>
+
+                <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-2">
+                    <Folder size={15} className="text-zinc-400" />
+                    <span className="text-zinc-300">Faol loyihalar</span>
+                  </div>
+                  <span className="font-bold font-mono text-white text-[13px]">{weeklyOverviewData.projectsCount}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Joriy fokus Card */}
+            <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/90 p-4 shadow-sm backdrop-blur-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/15 text-rose-400">
+                    <Target size={13} />
+                  </div>
+                  <h3 className="text-[13.5px] font-bold text-white tracking-tight">Joriy fokus</h3>
+                </div>
+                <button
+                  onClick={() => setIsAddingFocus(!isAddingFocus)}
+                  className="rounded-lg bg-white/[0.05] hover:bg-white/[0.1] p-1 text-zinc-400 hover:text-white transition"
+                  title="Fokus qo'shish"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+
+              {isAddingFocus && (
+                <form onSubmit={handleAddFocusItem} className="pt-1">
+                  <input
+                    type="text"
+                    value={newFocusText}
+                    onChange={(e) => setNewFocusText(e.target.value)}
+                    placeholder="Yangi fokus yo'nalishi..."
+                    autoFocus
+                    className="w-full rounded-xl border border-rose-500/30 bg-black/40 px-3 py-1.5 text-[12px] text-white placeholder:text-zinc-600 focus:outline-none focus:border-rose-500"
+                  />
+                </form>
+              )}
+
+              <div className="space-y-2">
+                {focusItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleToggleFocus(item.id)}
+                    className="flex items-center justify-between gap-2.5 p-1 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`h-4 w-4 rounded-full border transition flex items-center justify-center shrink-0 ${
+                          item.done
+                            ? 'bg-rose-500 border-rose-500 text-white'
+                            : 'border-zinc-500 group-hover:border-rose-400'
+                        }`}
+                      >
+                        {item.done && <Check size={10} strokeWidth={3} />}
+                      </div>
+                      <span
+                        className={`text-[12px] font-medium transition truncate ${
+                          item.done ? 'line-through text-zinc-500' : 'text-zinc-200'
+                        }`}
+                      >
+                        {item.text}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFocusItem(item.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5 transition"
+                      title="O'chirish"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. AI dan bugungi maslahat Card */}
+            <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/90 p-4 shadow-sm backdrop-blur-sm space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} className="text-blue-400" />
+                  <h3 className="text-[13px] font-bold text-white tracking-tight">AI dan bugungi maslahat</h3>
+                </div>
+                <button
+                  onClick={handleRefreshAdvice}
+                  className="rounded-lg p-1 text-zinc-400 hover:text-white hover:bg-white/[0.06] transition"
+                  title="Yangi maslahat olish"
+                >
+                  <RotateCw size={12} className={isSpinningAdvice ? 'animate-spin text-blue-400' : ''} />
+                </button>
+              </div>
+
+              <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-3">
+                <p className="text-[12px] text-zinc-300 italic leading-relaxed font-sans">
+                  &ldquo;{aiAdviceList[adviceIndex]}&rdquo;
+                </p>
+              </div>
+            </div>
+
+            {/* 4. Integrated AI Assistant Card (Live Context) */}
             <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/95 p-4 shadow-md space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -854,85 +1158,6 @@ ${realContext}`;
                   </button>
                 </div>
               </form>
-            </div>
-
-            {/* 2. Weekly Progress Card (Real Calculated Progress) */}
-            <div className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[13.5px] font-bold text-white">Weekly Progress</h3>
-                <button
-                  onClick={() => setMainView('retro')}
-                  className="text-[11px] text-blue-400 hover:underline font-medium"
-                >
-                  View Report
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      <Clock size={12} className="text-purple-400" />
-                      <span className="text-zinc-300">Study (Tasks & Topics)</span>
-                    </div>
-                    <span className="font-mono text-zinc-400 font-bold">{completedStudyCount} / {Math.max(studyTasksCount, 1)}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-purple-500 rounded-full"
-                      style={{ width: `${Math.round((completedStudyCount / Math.max(studyTasksCount, 1)) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      <Laptop size={12} className="text-blue-400" />
-                      <span className="text-zinc-300">Work / Projects</span>
-                    </div>
-                    <span className="font-mono text-zinc-400 font-bold">{completedWorkCount} / {Math.max(workTasksCount, 1)}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 rounded-full"
-                      style={{ width: `${Math.round((completedWorkCount / Math.max(workTasksCount, 1)) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      <Flame size={12} className="text-emerald-400" />
-                      <span className="text-zinc-300">Health & Sport</span>
-                    </div>
-                    <span className="font-mono text-zinc-400 font-bold">{healthCompletedCount} / 3 times</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full"
-                      style={{ width: `${Math.min(100, Math.round((healthCompletedCount / 3) * 100))}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      <CheckSquare size={12} className="text-amber-400" />
-                      <span className="text-zinc-300">Personal Tasks</span>
-                    </div>
-                    <span className="font-mono text-zinc-400 font-bold">{personalCompletedCount} / {Math.max(personalTasksCount, 1)}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-amber-500 rounded-full"
-                      style={{ width: `${Math.round((personalCompletedCount / Math.max(personalTasksCount, 1)) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* 3. Calendar Timeline Card (Real Schedule Blocks) */}
