@@ -4,6 +4,9 @@
 
 html, body, #root {
   height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -13,6 +16,7 @@ body {
   font-family: -apple-system, 'SF Pro Text', Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* macOS overlay scrollbars */
