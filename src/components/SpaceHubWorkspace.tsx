@@ -20,6 +20,11 @@ import {
   BookOpen,
   Coffee,
   Layers,
+  Link2,
+  ExternalLink,
+  Plus,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { Task, SpaceItem } from '../lib/types';
@@ -53,14 +58,21 @@ export default function SpaceHubWorkspace() {
     deleteTask,
     activeProjects,
     notesDocs,
+    links,
+    addLink,
+    deleteLink,
     setMainView,
     setHud,
     userProfile,
   } = useSynapse();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'notes' | 'ai'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'notes' | 'links' | 'ai'>('overview');
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [quickTaskPriority, setQuickTaskPriority] = useState<Task['priority']>('Normal');
+  const [quickLinkTitle, setQuickLinkTitle] = useState('');
+  const [quickLinkUrl, setQuickLinkUrl] = useState('');
+  const [showAddLinkForm, setShowAddLinkForm] = useState(false);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -103,6 +115,37 @@ export default function SpaceHubWorkspace() {
       return titleMatch || tagMatch;
     });
   }, [notesDocs, currentSpace]);
+
+  const spaceLinks = useMemo(() => {
+    if (!currentSpace) return [];
+    const nameLow = currentSpace.name.toLowerCase();
+    return links.filter((l) => {
+      if (l.space_id === currentSpace.id) return true;
+      const tagMatch = (l.tags || []).some((tag) => nameLow.includes(tag.toLowerCase()));
+      const titleMatch = l.title.toLowerCase().includes(nameLow);
+      return tagMatch || titleMatch;
+    });
+  }, [links, currentSpace]);
+
+  const handleAddSpaceLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickLinkTitle.trim() || !quickLinkUrl.trim() || !currentSpace) return;
+    const formattedUrl = quickLinkUrl.trim().startsWith('http') ? quickLinkUrl.trim() : `https://${quickLinkUrl.trim()}`;
+    addLink({
+      title: quickLinkTitle.trim(),
+      url: formattedUrl,
+      category: 'docs',
+      description: `${currentSpace.name} bo'limiga tegishli resurs`,
+      tags: [currentSpace.name.toLowerCase().replace(/\s+/g, '-'), 'space'],
+      space_id: currentSpace.id,
+      pinned: false,
+    });
+    setHud(`"${quickLinkTitle.trim()}" havolasi qo‘shildi ✓`);
+    setQuickLinkTitle('');
+    setQuickLinkUrl('');
+    setShowAddLinkForm(false);
+  };
+
 
   // Handle Quick Add Task inside Space
   const handleAddSpaceTask = (e: React.FormEvent) => {
@@ -245,13 +288,39 @@ Hozir bu bo'limda ${spaceTasks.length} ta vazifa va ${spaceProjects.length} ta l
           </div>
         </div>
 
+        {/* Space Selector Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+          <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mr-1 shrink-0">
+            Spacelar:
+          </span>
+          {spaces.map((sp) => {
+            const isCur = currentSpace.id === sp.id;
+            const Icon = SPACE_ICON_MAP[sp.icon] || Folder;
+            return (
+              <button
+                key={sp.id}
+                onClick={() => selectSpace(sp.id)}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition shrink-0 ${
+                  isCur
+                    ? 'bg-white/10 text-white font-semibold border border-white/15 shadow-sm'
+                    : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
+                }`}
+              >
+                <Icon size={13} style={{ color: sp.color }} />
+                <span>{sp.name}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Space Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3 flex-wrap">
           {[
             { id: 'overview', label: 'Umumiy Ko‘rinish', icon: Layers },
             { id: 'tasks', label: `Vazifalar (${spaceTasks.length})`, icon: CheckSquare },
             { id: 'projects', label: `Loyihalar (${spaceProjects.length})`, icon: Briefcase },
             { id: 'notes', label: `Qaydlar (${spaceNotes.length})`, icon: FileText },
+            { id: 'links', label: `Havolalar (${spaceLinks.length})`, icon: Link2 },
             { id: 'ai', label: 'AI Space Mentori', icon: Sparkles },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -504,6 +573,125 @@ Hozir bu bo'limda ${spaceTasks.length} ta vazifa va ${spaceProjects.length} ta l
             )}
           </div>
         )}
+
+        {/* Tab 4: Links View */}
+        {activeTab === 'links' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white">
+                {currentSpace.name} Resurslari & Havolalari ({spaceLinks.length})
+              </h3>
+              <button
+                onClick={() => setShowAddLinkForm(!showAddLinkForm)}
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition shadow-sm"
+              >
+                <Plus size={13} />
+                <span>Havola Qo‘shish</span>
+              </button>
+            </div>
+
+            {showAddLinkForm && (
+              <form onSubmit={handleAddSpaceLink} className="rounded-2xl border border-white/10 bg-[#121319] p-4 space-y-3 animate-in fade-in duration-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    required
+                    value={quickLinkTitle}
+                    onChange={(e) => setQuickLinkTitle(e.target.value)}
+                    placeholder="Havola nomi (masalan: API documentation)..."
+                    className="rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={quickLinkUrl}
+                    onChange={(e) => setQuickLinkUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddLinkForm(false)}
+                    className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-white"
+                  >
+                    Bekor
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-500"
+                  >
+                    Saqlash
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {spaceLinks.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 p-12 text-center text-zinc-500 text-xs">
+                Ushbu bo‘lim uchun havolalar mavjud emas. Yuqoridagi tugma orqali resurs qo‘shing.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {spaceLinks.map((l) => (
+                  <div
+                    key={l.id}
+                    onClick={() => {
+                      const target = l.url.startsWith('http') ? l.url : `https://${l.url}`;
+                      window.open(target, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="group rounded-2xl border border-white/[0.08] bg-[#121319] p-4 hover:border-white/20 transition cursor-pointer flex flex-col justify-between space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white group-hover:text-blue-300 transition truncate">
+                          {l.title}
+                        </h4>
+                        <p className="text-[11px] font-mono text-zinc-500 truncate mt-0.5">{l.url.replace(/^https?:\/\//, '')}</p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(l.url);
+                            setCopiedLinkId(l.id);
+                            setTimeout(() => setCopiedLinkId(null), 1500);
+                          }}
+                          className="p-1 rounded text-zinc-500 hover:text-white"
+                          title="Nusxalash"
+                        >
+                          {copiedLinkId === l.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteLink(l.id);
+                          }}
+                          className="p-1 rounded text-zinc-500 hover:text-rose-400"
+                          title="O‘chirish"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.04] text-[10px] text-zinc-500">
+                      <span className="uppercase font-semibold tracking-wider text-blue-400">{l.category}</span>
+                      <span className="flex items-center gap-1 group-hover:text-white transition">
+                        <span>Ochish</span>
+                        <ExternalLink size={10} />
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
 
         {/* Tab 5: AI Domain Mentor */}
         {activeTab === 'ai' && (

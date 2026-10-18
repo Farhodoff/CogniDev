@@ -11,7 +11,6 @@ import {
   Flame,
   Mic,
   BarChart3,
-  Paperclip,
   Plus,
   Trash2,
   User,
@@ -29,6 +28,7 @@ import {
   Coffee,
   X,
   Check,
+  Link2,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { SpaceItem } from '../lib/types';
@@ -80,6 +80,7 @@ export default function Sidebar() {
     activeProjects,
     meetings,
     tasks,
+    links,
     setHud,
     setFilter,
     setSearch,
@@ -257,13 +258,16 @@ export default function Sidebar() {
       },
     },
     {
-      id: 'files',
-      label: 'Files & Links',
-      icon: Paperclip,
+      id: 'links',
+      label: 'Links & Resurslar',
+      icon: Link2,
+      count: links.length,
+      view: 'links' as const,
       onClick: () => {
-        setMainView('notes');
         selectSpace(null);
-        setHud("Hujjatlar & havolalar");
+        setMainView('links');
+        setFilter(null);
+        setHud("Dasturchi havolalari, hujjatlar va resurslar markazi");
       },
     },
   ];
@@ -285,7 +289,8 @@ export default function Sidebar() {
             (item.id === 'ideas' && mainView === 'ideas') ||
             (item.id === 'habits' && mainView === 'habits') ||
             (item.id === 'meetings' && mainView === 'meetings') ||
-            (item.id === 'reports' && mainView === 'retro');
+            (item.id === 'reports' && mainView === 'retro') ||
+            (item.id === 'links' && mainView === 'links');
 
           return (
             <button
