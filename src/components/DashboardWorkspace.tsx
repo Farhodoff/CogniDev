@@ -350,6 +350,12 @@ export default function DashboardWorkspace() {
       )
     : [];
 
+  const roadmapProgress = useMemo(() => {
+    if (roadmapNodes.length === 0) return 0;
+    const done = roadmapNodes.filter((n) => n.status === 'done').length;
+    return Math.round((done / roadmapNodes.length) * 100);
+  }, [roadmapNodes]);
+
   // Handle AI with real context & clean concise response
   const handleAiQuery = async (promptText: string) => {
     if (!promptText.trim() || isAiSending) return;
@@ -834,85 +840,135 @@ ${realContext}`;
             </div>
 
             {/* 5. Subgrid: Learning Roadmap & Goals */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
               {/* Learning Roadmap */}
-              <div className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BookOpen size={15} className="text-purple-400" />
-                    <h3 className="text-[13.5px] font-bold text-white">Learning Roadmap</h3>
-                  </div>
-                  <button
-                    onClick={() => setMainView('roadmap')}
-                    className="text-[11px] text-blue-400 hover:underline font-medium"
-                  >
-                    View
-                  </button>
-                </div>
-
-                {roadmaps.length === 0 ? (
-                  <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
-                    <p className="text-[12px] text-zinc-400">Hozircha o‘rganish yo‘l xaritasi yo‘q.</p>
+              <div className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3 min-w-0 overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-purple-500/15 text-purple-400">
+                        <BookOpen size={14} />
+                      </div>
+                      <h3 className="text-[13.5px] font-bold text-white tracking-tight">Learning Roadmap</h3>
+                    </div>
                     <button
                       onClick={() => setMainView('roadmap')}
-                      className="mt-2 text-[11px] text-blue-400 hover:underline font-medium"
+                      className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold transition"
                     >
-                      + Yo‘l xaritasi (Roadmap) yaratish
+                      Barchasi
                     </button>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
-                      {roadmaps.map((r, i) => (
-                        <button
-                          key={r.id}
-                          onClick={() => setSelectedRoadmapIndex(i)}
-                          className={`rounded-lg px-2.5 py-1 text-[10.5px] font-semibold whitespace-nowrap transition ${
-                            selectedRoadmapIndex === i
-                              ? 'bg-blue-600/25 text-blue-300 border border-blue-500/30'
-                              : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-                          }`}
-                        >
-                          {r.title}
-                        </button>
-                      ))}
-                    </div>
 
-                    <div className="pt-3 pb-2 px-1">
-                      <div className="relative flex items-center justify-between">
-                        <div className="absolute left-2 right-2 top-2 h-0.5 bg-white/10 -z-0" />
-                        {roadmapNodes.slice(0, 6).map((node) => (
-                          <div
-                            key={node.id}
-                            onClick={() => toggleTopicDone(node.roadmapId, node.milestoneId, node.id)}
-                            className="relative z-10 flex flex-col items-center cursor-pointer group"
+                  {roadmaps.length === 0 ? (
+                    <div className="py-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01] my-2">
+                      <p className="text-[12px] text-zinc-400">Hozircha o‘rganish yo‘l xaritasi yo‘q.</p>
+                      <button
+                        onClick={() => setMainView('roadmap')}
+                        className="mt-2 text-[11px] text-purple-400 hover:underline font-semibold"
+                      >
+                        + Yo‘l xaritasi yaratish
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      {/* Roadmap Selector Tabs */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+                        {roadmaps.map((r, i) => (
+                          <button
+                            key={r.id}
+                            onClick={() => setSelectedRoadmapIndex(i)}
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap transition shrink-0 ${
+                              selectedRoadmapIndex === i
+                                ? 'bg-purple-600/25 text-purple-300 border border-purple-500/40 shadow-sm'
+                                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5 border border-transparent'
+                            }`}
                           >
-                            <div
-                              className={`h-4 w-4 rounded-full flex items-center justify-center transition ${
-                                node.status === 'done'
-                                  ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.8)]'
-                                  : 'bg-zinc-800 border border-white/20 group-hover:border-blue-400'
-                              }`}
-                            >
-                              {node.status === 'done' && <span className="h-1.5 w-1.5 bg-white rounded-full" />}
-                            </div>
-                            <span
-                              className={`mt-2 text-[10px] whitespace-nowrap text-center ${
-                                node.status === 'done' ? 'text-zinc-300' : 'text-zinc-600'
-                              }`}
-                            >
-                              {node.label}
-                            </span>
-                          </div>
+                            {r.title}
+                          </button>
                         ))}
                       </div>
+
+                      {/* Current Roadmap Progress Bar */}
+                      <div className="space-y-1.5 rounded-xl border border-white/[0.05] bg-black/30 p-2.5">
+                        <div className="flex items-center justify-between text-[11.5px]">
+                          <span className="font-semibold text-zinc-200 truncate max-w-[170px]" title={currentRoadmap?.title}>
+                            {currentRoadmap?.title}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-purple-400 shrink-0">
+                            {roadmapNodes.filter((n) => n.status === 'done').length}/{roadmapNodes.length} ({roadmapProgress}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-white/[0.08] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500"
+                            style={{ width: `${roadmapProgress}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Compact Topics Checklist */}
+                      <div className="space-y-1.5">
+                        {roadmapNodes.length === 0 ? (
+                          <p className="text-[11.5px] text-zinc-500 py-2 text-center">Bu yo‘nalishda hali mavzular yo‘q</p>
+                        ) : (
+                          roadmapNodes.slice(0, 3).map((node) => {
+                            const isDone = node.status === 'done';
+                            return (
+                              <div
+                                key={node.id}
+                                onClick={() => toggleTopicDone(node.roadmapId, node.milestoneId, node.id)}
+                                className="flex items-center justify-between gap-2.5 p-1.5 rounded-lg hover:bg-white/[0.04] cursor-pointer transition group min-w-0"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <div
+                                    className={`h-4 w-4 rounded-full border transition flex items-center justify-center shrink-0 ${
+                                      isDone
+                                        ? 'bg-purple-600 border-purple-600 text-white shadow-[0_0_8px_rgba(147,51,234,0.5)]'
+                                        : 'border-zinc-600 group-hover:border-purple-400 bg-zinc-900/60'
+                                    }`}
+                                  >
+                                    {isDone && <Check size={10} strokeWidth={3} />}
+                                  </div>
+                                  <span
+                                    className={`text-[12px] font-medium transition truncate ${
+                                      isDone ? 'line-through text-zinc-500' : 'text-zinc-200 group-hover:text-white'
+                                    }`}
+                                    title={node.label}
+                                  >
+                                    {node.label}
+                                  </span>
+                                </div>
+                                <span
+                                  className={`text-[10px] font-mono shrink-0 transition ${
+                                    isDone ? 'text-emerald-400/80' : 'text-zinc-500 group-hover:text-purple-400'
+                                  }`}
+                                >
+                                  {isDone ? 'Bajarildi' : 'Kutilmoqda'}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </>
+                  )}
+                </div>
+
+                {roadmaps.length > 0 && (
+                  <div className="pt-2 mt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-400">
+                    <span>{currentRoadmap?.milestones?.length || 0} ta bosqich (milestone)</span>
+                    <button
+                      onClick={() => setMainView('roadmap')}
+                      className="inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-semibold transition"
+                    >
+                      Barchasini ko‘rish <ChevronRight size={12} />
+                    </button>
+                  </div>
                 )}
               </div>
 
               {/* Goals */}
-              <div id="myspace-goals-card" className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3">
+              <div id="myspace-goals-card" className="rounded-2xl border border-white/[0.07] bg-[#121319]/90 p-4 shadow-sm space-y-3 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Target size={15} className="text-rose-400" />
