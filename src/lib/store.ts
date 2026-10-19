@@ -1889,9 +1889,9 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     const cur = get().tasks.find((t) => t.id === taskId)?.tags ?? [];
     if (cur.includes(tag)) return;
     const next = [...cur, tag];
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, tags: next } : t)),
-    }));
+    const updatedTasks = get().tasks.map((t) => (t.id === taskId ? { ...t, tags: next } : t));
+    saveStoredTasks(updatedTasks);
+    set({ tasks: updatedTasks });
     if (get().dbMode === 'sqlite') {
       updateTaskTags(taskId, next).catch(() => {});
     }
@@ -1901,9 +1901,9 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     const cur = get().tasks.find((t) => t.id === taskId)?.tags ?? [];
     if (!cur.includes(tag)) return;
     const next = cur.filter((t) => t !== tag);
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, tags: next } : t)),
-    }));
+    const updatedTasks = get().tasks.map((t) => (t.id === taskId ? { ...t, tags: next } : t));
+    saveStoredTasks(updatedTasks);
+    set({ tasks: updatedTasks });
     if (get().dbMode === 'sqlite') {
       updateTaskTags(taskId, next).catch(() => {});
     }
