@@ -18,6 +18,7 @@ import {
   Lightbulb,
   Link2,
   Folder,
+  FolderArchive,
   Edit2,
   Trash2,
   X,
@@ -619,68 +620,137 @@ ${realContext}`;
               </div>
 
               {/* Task Items */}
-              {filteredTasks.length === 0 ? (
-                <div className="py-8 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
-                  <p className="text-[13px] text-zinc-400">Hozircha hech qanday vazifa yo‘q.</p>
-                  <p className="text-[11px] text-zinc-600 mt-1">Yangi vazifa kiritish uchun yuqoridagi tugmani bosing yoki {formatShortcut('N')} bosing.</p>
-                  <button
-                    onClick={() => setTaskModal(true)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/10 px-3 py-1.5 text-[11.5px] font-medium text-white transition"
-                  >
-                    <Plus size={13} />
-                    <span>Yangi Vazifa Qo‘shish</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="divide-y divide-white/[0.04]">
-                  {filteredTasks.map((t) => {
-                    const isDone = t.status === 'completed';
-                    const mainTag = t.tags?.[0] || 'Task';
-                    return (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between gap-3 py-2.5 hover:bg-white/[0.02] px-2 rounded-xl transition group"
+              {(() => {
+                const activeTasks = filteredTasks.filter((t) => t.status !== 'completed');
+                const completedTasks = filteredTasks.filter((t) => t.status === 'completed');
+
+                if (activeTasks.length === 0 && completedTasks.length === 0) {
+                  return (
+                    <div className="py-8 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                      <p className="text-[13px] text-zinc-400">Hozircha hech qanday vazifa yo‘q.</p>
+                      <p className="text-[11px] text-zinc-600 mt-1">Yangi vazifa kiritish uchun yuqoridagi tugmani bosing yoki {formatShortcut('N')} bosing.</p>
+                      <button
+                        onClick={() => setTaskModal(true)}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/10 px-3 py-1.5 text-[11.5px] font-medium text-white transition"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <button
-                            onClick={() => updateTaskStatus(t.id, isDone ? 'active' : 'completed')}
-                            className="text-zinc-400 hover:text-blue-400 transition shrink-0"
-                          >
-                            {isDone ? (
-                              <CheckCircle2 size={17} className="text-blue-400 fill-blue-500/20" />
-                            ) : (
-                              <Circle size={17} className="text-zinc-500" />
-                            )}
-                          </button>
-                          <span
-                            className={`text-[12.5px] truncate font-medium ${
-                              isDone ? 'line-through text-zinc-500' : 'text-zinc-200'
-                            }`}
-                          >
-                            {t.title}
+                        <Plus size={13} />
+                        <span>Yangi Vazifa Qo‘shish</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {/* Active Tasks List */}
+                    {activeTasks.length > 0 ? (
+                      <div className="divide-y divide-white/[0.04]">
+                        {activeTasks.map((t) => {
+                          const mainTag = t.tags?.[0] || 'Task';
+                          return (
+                            <div
+                              key={t.id}
+                              className="flex items-center justify-between gap-3 py-2.5 hover:bg-white/[0.02] px-2 rounded-xl transition group"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <button
+                                  onClick={() => updateTaskStatus(t.id, 'completed')}
+                                  className="text-zinc-400 hover:text-blue-400 transition shrink-0"
+                                  title="Bajarildi deb belgilash va arxivga tushirish"
+                                >
+                                  <Circle size={17} className="text-zinc-500 hover:text-blue-400" />
+                                </button>
+                                <span className="text-[12.5px] truncate font-medium text-zinc-200">
+                                  {t.title}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className="rounded-md bg-white/[0.06] border border-white/[0.08] px-2 py-0.5 text-[10px] font-medium text-zinc-300">
+                                  {mainTag}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline-block">
+                                  {t.priority}
+                                </span>
+                                <button
+                                  onClick={() => deleteTask(t.id)}
+                                  title="O'chirish"
+                                  className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-1 transition"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-4 text-center rounded-xl bg-emerald-500/[0.04] border border-emerald-500/15 text-[12px] text-emerald-300 flex items-center justify-center gap-2">
+                        <CheckCircle2 size={15} className="text-emerald-400" />
+                        <span>Barcha faol vazifalar bajarildi! Baraka toping 🚀</span>
+                      </div>
+                    )}
+
+                    {/* Dedicated Archive Section for Completed Tasks */}
+                    {completedTasks.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                        <div className="flex items-center justify-between mb-2 px-1">
+                          <div className="flex items-center gap-2">
+                            <FolderArchive size={13} className="text-zinc-500" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                              Arxiv / Bajarilgan vazifalar
+                            </span>
+                            <span className="rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.2 text-[10px] font-semibold text-emerald-400">
+                              {completedTasks.length} ta
+                            </span>
+                          </div>
+                          <span className="text-[10.5px] text-zinc-500 italic hidden sm:inline">
+                            Qayta faollashtirish uchun belgilashni bosing
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="rounded-md bg-white/[0.06] border border-white/[0.08] px-2 py-0.5 text-[10px] font-medium text-zinc-300">
-                            {mainTag}
-                          </span>
-                          <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline-block">
-                            {t.priority}
-                          </span>
-                          <button
-                            onClick={() => deleteTask(t.id)}
-                            title="O'chirish"
-                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-1 transition"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                        <div className="divide-y divide-white/[0.03] rounded-xl bg-white/[0.015] border border-white/[0.04] p-1 opacity-75 hover:opacity-100 transition">
+                          {completedTasks.map((t) => {
+                            const mainTag = t.tags?.[0] || 'Vazifa';
+                            return (
+                              <div
+                                key={t.id}
+                                className="flex items-center justify-between gap-3 py-2 px-2 hover:bg-white/[0.03] rounded-lg transition group"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <button
+                                    onClick={() => updateTaskStatus(t.id, 'active')}
+                                    className="text-emerald-400 hover:text-zinc-400 transition shrink-0"
+                                    title="Qayta faollashtirish"
+                                  >
+                                    <CheckCircle2 size={16} className="text-emerald-400 fill-emerald-500/20" />
+                                  </button>
+                                  <span className="text-[12px] truncate font-medium line-through text-zinc-500">
+                                    {t.title}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="rounded-md bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[9.5px] font-medium text-zinc-400">
+                                    {mainTag}
+                                  </span>
+                                  <button
+                                    onClick={() => deleteTask(t.id)}
+                                    title="O'chirish"
+                                    className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-1 transition"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* 4. Subgrid: Recent Notes & Active Projects */}

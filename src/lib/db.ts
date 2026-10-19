@@ -267,18 +267,25 @@ export function uid(prefix = 'id'): string {
  *  from here on only the user's own saved data is shown. */
 export async function ensureDefaultWorkspace(): Promise<void> {
   const db = await getDb();
-  const count = await db.select<{ c: number }[]>('SELECT COUNT(*) as c FROM workspaces');
-  if ((count[0]?.c ?? 0) === 0) {
-    await db.execute(
-      'INSERT INTO workspaces (id, name, type) VALUES ($1,$2,$3)',
-      [DEFAULT_PERSONAL_WORKSPACE.id, DEFAULT_PERSONAL_WORKSPACE.name, DEFAULT_PERSONAL_WORKSPACE.type],
-    );
-  }
+  await db.execute(
+    'INSERT OR IGNORE INTO workspaces (id, name, type) VALUES ($1,$2,$3)',
+    [DEFAULT_PERSONAL_WORKSPACE.id, DEFAULT_PERSONAL_WORKSPACE.name, DEFAULT_PERSONAL_WORKSPACE.type],
+  ).catch(() => {});
+  // Also register 'default' to ensure legacy or external tool references never fail foreign keys
+  await db.execute(
+    'INSERT OR IGNORE INTO workspaces (id, name, type) VALUES ($1,$2,$3)',
+    ['default', 'Personal Dev Hub', 'personal'],
+  ).catch(() => {});
 }
 
 /** One-time cleanup of legacy mock/seed records from previous dev runs.
  *  Only touches known seed IDs — user-created tasks are never affected. */
 export async function purgeMockDataIfPresent(): Promise<void> {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('cognidev_mock_purged_v2')) {
+      return;
+    }
+  } catch {}
   const db = await getDb();
   const legacyTasks = [
     'DEV-104', 'DEV-108', 'DEV-112', 'DEV-99', 'DEV-121', 'DEV-117', 'DEV-122', 'DEV-115',
@@ -293,6 +300,11 @@ export async function purgeMockDataIfPresent(): Promise<void> {
   await db.execute(`DELETE FROM task_resolutions WHERE task_id IN (${inList(legacyTasks)})`).catch(() => {});
   await db.execute(`DELETE FROM notion_notes WHERE id IN (${inList(legacyNotes)})`).catch(() => {});
   await db.execute("DELETE FROM workspaces WHERE id = 'ws-team'").catch(() => {});
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('cognidev_mock_purged_v2', 'true');
+    }
+  } catch {}
 }
 
 /** Complete reset to pristine state. */
@@ -347,7 +359,7 @@ export async function fetchPrompts(taskId: string): Promise<PromptEntry[]> {
 export async function insertTask(t: Omit<Task, 'created_at' | 'updated_at'>): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `INSERT INTO tasks (id, workspace_id, group_id, title, status, priority, git_branch, pr_url, ai_source, assignee_name, assignee_avatar, assignee_name2, assignee_avatar2, tags)
+    `INSERT OR REPLACE INTO tasks (id, workspace_id, group_id, title, status, priority, git_branch, pr_url, ai_source, assignee_name, assignee_avatar, assignee_name2, assignee_avatar2, tags)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [
       t.id,

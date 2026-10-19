@@ -163,22 +163,63 @@ export default function TaskStream() {
 
       {/* Vazifalar ro'yxati */}
       <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3 pb-20">
-        {visible.map((t) => {
-          const grp = groups.find((g) => g.id === t.group_id);
+        {(() => {
+          const activeVisible = visible.filter((t) => t.status !== 'completed');
+          const completedVisible = visible.filter((t) => t.status === 'completed');
+
           return (
-            <TaskCard
-              key={t.id}
-              task={t}
-              selected={t.id === selectedTaskId}
-              groupName={grp?.name}
-              groupColor={grp?.color}
-              noteSnippet={notes[t.id]}
-              promptSnippet={prompts.find((p) => p.task_id === t.id)?.raw_prompt}
-              onSelect={() => selectTask(t.id)}
-              onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
-            />
+            <>
+              {activeVisible.map((t) => {
+                const grp = groups.find((g) => g.id === t.group_id);
+                return (
+                  <TaskCard
+                    key={t.id}
+                    task={t}
+                    selected={t.id === selectedTaskId}
+                    groupName={grp?.name}
+                    groupColor={grp?.color}
+                    noteSnippet={notes[t.id]}
+                    promptSnippet={prompts.find((p) => p.task_id === t.id)?.raw_prompt}
+                    onSelect={() => selectTask(t.id)}
+                    onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
+                  />
+                );
+              })}
+
+              {completedVisible.length > 0 && (
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 px-1 py-1.5 text-zinc-500">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                      Arxiv / Bajarilgan
+                    </span>
+                    <span className="rounded-full bg-emerald-500/15 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-medium text-emerald-400">
+                      {completedVisible.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2 opacity-75 hover:opacity-100 transition">
+                    {completedVisible.map((t) => {
+                      const grp = groups.find((g) => g.id === t.group_id);
+                      return (
+                        <TaskCard
+                          key={t.id}
+                          task={t}
+                          selected={t.id === selectedTaskId}
+                          groupName={grp?.name}
+                          groupColor={grp?.color}
+                          noteSnippet={notes[t.id]}
+                          promptSnippet={prompts.find((p) => p.task_id === t.id)?.raw_prompt}
+                          onSelect={() => selectTask(t.id)}
+                          onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           );
-        })}
+        })()}
 
         {/* 0 ta vazifa bo'lgandagi bo'sh holat */}
         {workspaceTasks.length === 0 && (
