@@ -49,7 +49,7 @@ interface GitHubSyncModalProps {
 }
 
 export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHubSyncModalProps) {
-  const { addTask, setHud, activeProjects, updateProjectProgress, userProfile } = useSynapse();
+  const { addTask, setHud, activeProjects, updateProjectProgress, userProfile, activeWorkspaceId } = useSynapse();
 
   // Auth & Connection State
   const [token, setToken] = useState<string>('');
@@ -326,12 +326,13 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
     let count = 0;
     const authorName = user?.name || user?.login || userProfile?.full_name || 'Dasturchi';
     const authorAvatar = (user?.login || userProfile?.full_name || 'DEV').slice(0, 2).toUpperCase();
+    const targetWsId = activeWorkspaceId || 'ws-personal';
 
     for (const st of tasksToImport) {
-      const newId = `DEV-${Date.now().toString().slice(-4)}${count + 1}`;
+      const newId = `DEV-${Date.now()}-${count + 1}`;
       addTask({
         id: newId,
-        workspace_id: 'default',
+        workspace_id: targetWsId,
         title: `[${selectedRepo.name}] ${st.title}`,
         status: st.priority === 'P0 Blocker' ? 'blocker' : 'active',
         priority: st.priority,

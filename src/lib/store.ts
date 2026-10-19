@@ -130,9 +130,115 @@ export function parseTagsInput(input: string): string[] {
   return out;
 }
 
-/** Fire-and-forget write-through of a task's note + checklist. */
+export function loadStoredTasks(): Task[] {
+  try {
+    const s = localStorage.getItem('cognidev_tasks_v2');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return DEFAULT_TASKS;
+}
+
+export function saveStoredTasks(tasks: Task[]) {
+  try {
+    localStorage.setItem('cognidev_tasks_v2', JSON.stringify(tasks));
+  } catch (e) {
+    console.warn('Failed to save tasks to localStorage:', e);
+  }
+}
+
+export function loadStoredNotesDocs(): NoteDoc[] {
+  try {
+    const s = localStorage.getItem('cognidev_notion_notes_v2');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return DEFAULT_NOTION_NOTES;
+}
+
+export function saveStoredNotesDocs(notesDocs: NoteDoc[]) {
+  try {
+    localStorage.setItem('cognidev_notion_notes_v2', JSON.stringify(notesDocs));
+  } catch {}
+}
+
+export function loadStoredRoadmaps(): RoadmapItem[] {
+  try {
+    const s = localStorage.getItem('cognidev_roadmaps_v2');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return DEFAULT_ROADMAPS;
+}
+
+export function saveStoredRoadmaps(roadmaps: RoadmapItem[]) {
+  try {
+    localStorage.setItem('cognidev_roadmaps_v2', JSON.stringify(roadmaps));
+  } catch {}
+}
+
+export function loadStoredProjectIdeas(): ProjectIdea[] {
+  try {
+    const s = localStorage.getItem('cognidev_project_ideas_v2');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return DEFAULT_PROJECT_IDEAS;
+}
+
+export function saveStoredProjectIdeas(projectIdeas: ProjectIdea[]) {
+  try {
+    localStorage.setItem('cognidev_project_ideas_v2', JSON.stringify(projectIdeas));
+  } catch {}
+}
+
+export function loadStoredNotes(): Record<string, string> {
+  try {
+    const s = localStorage.getItem('cognidev_task_notes_v2');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {}
+  return DEFAULT_NOTES;
+}
+
+export function saveStoredNotes(notes: Record<string, string>) {
+  try {
+    localStorage.setItem('cognidev_task_notes_v2', JSON.stringify(notes));
+  } catch {}
+}
+
+export function loadStoredChecklists(): Record<string, ChecklistItem[]> {
+  try {
+    const s = localStorage.getItem('cognidev_task_checklists_v2');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {}
+  return DEFAULT_CHECKLISTS;
+}
+
+export function saveStoredChecklists(checklists: Record<string, ChecklistItem[]>) {
+  try {
+    localStorage.setItem('cognidev_task_checklists_v2', JSON.stringify(checklists));
+  } catch {}
+}
+
+/** Fire-and-forget write-through of a task's note + checklist with dual persistence. */
 function persistResolution(taskId: string) {
   const { dbMode, notes, checklists } = useSynapse.getState();
+  saveStoredNotes(notes);
+  saveStoredChecklists(checklists);
   if (dbMode !== 'sqlite') return;
   const md = notes[taskId] ?? '';
   const cl = JSON.stringify(checklists[taskId] ?? []);
@@ -411,15 +517,15 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   activeWorkspaceId: DEFAULT_PERSONAL_WORKSPACE.id,
   groups: DEFAULT_GROUPS,
   activeGroupId: null,
-  tasks: DEFAULT_TASKS,
+  tasks: loadStoredTasks(),
   selectedTaskId: null,
   editorTab: 'note',
   quickFilter: null,
   activeTag: null,
   sortOrder: 'newest',
   search: '',
-  notes: DEFAULT_NOTES,
-  checklists: DEFAULT_CHECKLISTS,
+  notes: loadStoredNotes(),
+  checklists: loadStoredChecklists(),
   prompts: DEFAULT_PROMPTS,
   standup: null,
   standupSource: null,
@@ -434,8 +540,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showWeeklyCoachModal: false,
 
   // Notion Notes initial
-  notesDocs: DEFAULT_NOTION_NOTES,
-  selectedNoteId: DEFAULT_NOTION_NOTES[0]?.id ?? null,
+  notesDocs: loadStoredNotesDocs(),
+  selectedNoteId: loadStoredNotesDocs()[0]?.id ?? null,
   selectNote: (id) => set({ selectedNoteId: id }),
 
   createNote: async (title = 'Yangi Qayd') => {
@@ -451,6 +557,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       updated_at: new Date().toISOString(),
     };
     const updated = [newDoc, ...get().notesDocs];
+    saveStoredNotesDocs(updated);
     set({ notesDocs: updated, selectedNoteId: id });
     if (get().dbMode === 'sqlite') {
       await upsertNote(newDoc).catch(() => {});
@@ -460,6 +567,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
 
   updateNoteDoc: async (id, patch) => {
     const docs = get().notesDocs.map((d) => (d.id === id ? { ...d, ...patch, updated_at: new Date().toISOString() } : d));
+    saveStoredNotesDocs(docs);
     set({ notesDocs: docs });
     const target = docs.find((d) => d.id === id);
     if (target && get().dbMode === 'sqlite') {
@@ -470,6 +578,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   deleteNoteDoc: async (id) => {
     const docs = get().notesDocs.filter((d) => d.id !== id);
     const sel = get().selectedNoteId === id ? docs[0]?.id ?? null : get().selectedNoteId;
+    saveStoredNotesDocs(docs);
     set({ notesDocs: docs, selectedNoteId: sel });
     if (get().dbMode === 'sqlite') {
       await deleteNoteFromDb(id).catch(() => {});
@@ -478,8 +587,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   // Roadmaps initial
-  roadmaps: DEFAULT_ROADMAPS,
-  selectedRoadmapId: DEFAULT_ROADMAPS[0]?.id ?? null,
+  roadmaps: loadStoredRoadmaps(),
+  selectedRoadmapId: loadStoredRoadmaps()[0]?.id ?? null,
   selectRoadmap: (id) => set({ selectedRoadmapId: id }),
 
   toggleTopicDone: async (roadmapId, milestoneId, topicId) => {
@@ -492,6 +601,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       });
       return { ...r, milestones, updated_at: new Date().toISOString() };
     });
+    saveStoredRoadmaps(roadmaps);
     set({ roadmaps });
     const target = roadmaps.find((r) => r.id === roadmapId);
     if (target && get().dbMode === 'sqlite') {
@@ -531,6 +641,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       updated_at: new Date().toISOString(),
     };
     const updated = [...get().roadmaps, newRd];
+    saveStoredRoadmaps(updated);
     set({ roadmaps: updated, selectedRoadmapId: id });
     if (get().dbMode === 'sqlite') {
       await upsertRoadmap(newRd).catch(() => {});
@@ -630,6 +741,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   deleteRoadmap: async (roadmapId) => {
     const remaining = get().roadmaps.filter((r) => r.id !== roadmapId);
     const sel = get().selectedRoadmapId === roadmapId ? remaining[0]?.id ?? null : get().selectedRoadmapId;
+    saveStoredRoadmaps(remaining);
     set({ roadmaps: remaining, selectedRoadmapId: sel });
     if (get().dbMode === 'sqlite') {
       await deleteRoadmapFromDb(roadmapId).catch(() => {});
@@ -646,6 +758,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       updated_at: new Date().toISOString(),
     };
     const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    saveStoredRoadmaps(all);
     set({ roadmaps: all });
     if (get().dbMode === 'sqlite') {
       await upsertRoadmap(updatedRd).catch(() => {});
@@ -654,8 +767,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   },
 
   // Project Ideas initial
-  projectIdeas: DEFAULT_PROJECT_IDEAS,
-  selectedIdeaId: DEFAULT_PROJECT_IDEAS[0]?.id ?? null,
+  projectIdeas: loadStoredProjectIdeas(),
+  selectedIdeaId: loadStoredProjectIdeas()[0]?.id ?? null,
   selectIdea: (id) => set({ selectedIdeaId: id }),
 
   createIdea: async (title, stack, description) => {
@@ -672,6 +785,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       updated_at: new Date().toISOString(),
     };
     const updated = [newIdea, ...get().projectIdeas];
+    saveStoredProjectIdeas(updated);
     set({ projectIdeas: updated, selectedIdeaId: id });
     if (get().dbMode === 'sqlite') {
       await upsertProjectIdea(newIdea).catch(() => {});
@@ -681,6 +795,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
 
   updateIdea: async (id, patch) => {
     const ideas = get().projectIdeas.map((i) => (i.id === id ? { ...i, ...patch, updated_at: new Date().toISOString() } : i));
+    saveStoredProjectIdeas(ideas);
     set({ projectIdeas: ideas });
     const target = ideas.find((i) => i.id === id);
     if (target && get().dbMode === 'sqlite') {
@@ -691,6 +806,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   deleteIdea: async (id) => {
     const ideas = get().projectIdeas.filter((i) => i.id !== id);
     const sel = get().selectedIdeaId === id ? ideas[0]?.id ?? null : get().selectedIdeaId;
+    saveStoredProjectIdeas(ideas);
     set({ projectIdeas: ideas, selectedIdeaId: sel });
     if (get().dbMode === 'sqlite') {
       await deleteProjectIdeaFromDb(id).catch(() => {});
@@ -1503,47 +1619,92 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
         fetchScheduleBlocks().catch(() => []),
       ]);
 
-    // Seed initial tasks if empty in SQLite
+    // Tasks: Dual-layer persistence
     let tasks = rawTasks;
-    if (tasks.length === 0 && DEFAULT_TASKS.length > 0) {
-      tasks = DEFAULT_TASKS;
-      for (const t of DEFAULT_TASKS) {
+    const memoryOrStoredTasks = get().tasks.length > 0 ? get().tasks : loadStoredTasks();
+    if (tasks.length === 0 && memoryOrStoredTasks.length > 0) {
+      tasks = memoryOrStoredTasks;
+      for (const t of tasks) {
         insertTask(t).catch(() => {});
       }
-      for (const [taskId, noteMd] of Object.entries(DEFAULT_NOTES)) {
-        upsertResolution(taskId, noteMd, JSON.stringify(DEFAULT_CHECKLISTS[taskId] ?? [])).catch(() => {});
+    } else if (tasks.length > 0) {
+      const map = new Map<string, Task>();
+      for (const t of tasks) map.set(t.id, t);
+      for (const t of memoryOrStoredTasks) {
+        if (!map.has(t.id)) {
+          map.set(t.id, t);
+          insertTask(t).catch(() => {});
+        }
       }
+      tasks = Array.from(map.values());
+      saveStoredTasks(tasks);
     }
 
     const activeWs = ws.find((w) => w.id === get().activeWorkspaceId) ?? ws[0] ?? DEFAULT_PERSONAL_WORKSPACE;
     const currentSelected = get().selectedTaskId;
     const sel = tasks.find((t) => t.id === currentSelected) ?? tasks[0] ?? null;
 
-    // Seed initial notes if empty in SQLite
+    // Notes: Dual-layer persistence
     let notesDocs = rawNotes;
-    if (notesDocs.length === 0 && DEFAULT_NOTION_NOTES.length > 0) {
-      notesDocs = DEFAULT_NOTION_NOTES;
-      for (const n of DEFAULT_NOTION_NOTES) {
+    const memoryOrStoredNotes = get().notesDocs.length > 0 ? get().notesDocs : loadStoredNotesDocs();
+    if (notesDocs.length === 0 && memoryOrStoredNotes.length > 0) {
+      notesDocs = memoryOrStoredNotes;
+      for (const n of notesDocs) {
         upsertNote(n).catch(() => {});
       }
+    } else if (notesDocs.length > 0) {
+      const map = new Map<string, NoteDoc>();
+      for (const n of notesDocs) map.set(n.id, n);
+      for (const n of memoryOrStoredNotes) {
+        if (!map.has(n.id)) {
+          map.set(n.id, n);
+          upsertNote(n).catch(() => {});
+        }
+      }
+      notesDocs = Array.from(map.values());
+      saveStoredNotesDocs(notesDocs);
     }
 
-    // Seed initial roadmaps if empty in SQLite
+    // Roadmaps: Dual-layer persistence
     let roadmaps = rawRoadmaps;
-    if (roadmaps.length === 0 && DEFAULT_ROADMAPS.length > 0) {
-      roadmaps = DEFAULT_ROADMAPS;
-      for (const r of DEFAULT_ROADMAPS) {
+    const memoryOrStoredRoadmaps = get().roadmaps.length > 0 ? get().roadmaps : loadStoredRoadmaps();
+    if (roadmaps.length === 0 && memoryOrStoredRoadmaps.length > 0) {
+      roadmaps = memoryOrStoredRoadmaps;
+      for (const r of roadmaps) {
         upsertRoadmap(r).catch(() => {});
       }
+    } else if (roadmaps.length > 0) {
+      const map = new Map<string, RoadmapItem>();
+      for (const r of roadmaps) map.set(r.id, r);
+      for (const r of memoryOrStoredRoadmaps) {
+        if (!map.has(r.id)) {
+          map.set(r.id, r);
+          upsertRoadmap(r).catch(() => {});
+        }
+      }
+      roadmaps = Array.from(map.values());
+      saveStoredRoadmaps(roadmaps);
     }
 
-    // Seed initial project ideas if empty in SQLite
+    // Project Ideas: Dual-layer persistence
     let projectIdeas = rawIdeas;
-    if (projectIdeas.length === 0 && DEFAULT_PROJECT_IDEAS.length > 0) {
-      projectIdeas = DEFAULT_PROJECT_IDEAS;
-      for (const i of DEFAULT_PROJECT_IDEAS) {
+    const memoryOrStoredIdeas = get().projectIdeas.length > 0 ? get().projectIdeas : loadStoredProjectIdeas();
+    if (projectIdeas.length === 0 && memoryOrStoredIdeas.length > 0) {
+      projectIdeas = memoryOrStoredIdeas;
+      for (const i of projectIdeas) {
         upsertProjectIdea(i).catch(() => {});
       }
+    } else if (projectIdeas.length > 0) {
+      const map = new Map<string, ProjectIdea>();
+      for (const i of projectIdeas) map.set(i.id, i);
+      for (const i of memoryOrStoredIdeas) {
+        if (!map.has(i.id)) {
+          map.set(i.id, i);
+          upsertProjectIdea(i).catch(() => {});
+        }
+      }
+      projectIdeas = Array.from(map.values());
+      saveStoredProjectIdeas(projectIdeas);
     }
 
     // Meetings: if SQLite has meetings, use them; if empty but in memory/localStorage, save them to SQLite
@@ -1624,6 +1785,12 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     const groups = d.teamGroups ?? (d as any).groups ?? get().groups;
 
     try {
+      saveStoredTasks(d.tasks);
+      saveStoredNotes(notes);
+      saveStoredChecklists(checklists);
+      if (d.notesDocs) saveStoredNotesDocs(d.notesDocs);
+      if (d.roadmaps) saveStoredRoadmaps(d.roadmaps);
+      if (d.projectIdeas) saveStoredProjectIdeas(d.projectIdeas);
       if (d.meetings) localStorage.setItem('cognidev_meetings', JSON.stringify(d.meetings));
       if (d.scheduleBlocks) localStorage.setItem('cognidev_schedule_blocks', JSON.stringify(d.scheduleBlocks));
       if (d.goals) localStorage.setItem('cognidev_goals', JSON.stringify(d.goals));
@@ -1813,7 +1980,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   quickCapture: async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const { tasks, activeWorkspaceId, dbMode, userProfile } = get();
+    const { tasks, activeWorkspaceId, dbMode, userProfile, notes, checklists } = get();
     const id = nextTaskId(tasks);
     const now = new Date().toISOString();
     const newTask: Task = {
@@ -1835,36 +2002,38 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     };
 
     const initialNote = `# ${trimmed}\n\n### Problem Solved & Kontekst\n\n\`\`\`typescript\n// Yechim kodi yoki arxitektura namunasi\n\`\`\`\n\n### Key Learnings (O'rganilgan bilimlar)\n- Bugun nimalar tushunildi:\n- Keyingi qadamlar:\n`;
+    const newChecklist = [
+      { id: uid('chk'), text: "Muammoni aniqlash va o'rganish", done: false },
+      { id: uid('chk'), text: "Yechim kodini tekshirish", done: false },
+    ];
 
     if (dbMode === 'sqlite') {
       try {
         await insertTask(newTask);
-        await upsertResolution(id, initialNote, JSON.stringify([
-          { id: uid('chk'), text: "Muammoni aniqlash va o'rganish", done: false },
-          { id: uid('chk'), text: "Yechim kodini tekshirish", done: false },
-        ]));
+        await upsertResolution(id, initialNote, JSON.stringify(newChecklist));
       } catch {
         /* fallback */
       }
     }
 
-    set((s) => ({
-      tasks: [newTask, ...s.tasks],
+    const updatedTasks = [newTask, ...tasks];
+    const updatedNotes = { ...notes, [id]: initialNote };
+    const updatedChecklists = { ...checklists, [id]: newChecklist };
+    saveStoredTasks(updatedTasks);
+    saveStoredNotes(updatedNotes);
+    saveStoredChecklists(updatedChecklists);
+
+    set({
+      tasks: updatedTasks,
       selectedTaskId: id,
-      notes: { ...s.notes, [id]: initialNote },
-      checklists: {
-        ...s.checklists,
-        [id]: [
-          { id: uid('chk'), text: "Muammoni aniqlash va o'rganish", done: false },
-          { id: uid('chk'), text: "Yechim kodini tekshirish", done: false },
-        ],
-      },
+      notes: updatedNotes,
+      checklists: updatedChecklists,
       hudMessage: `Yangi vazifa qayd etildi: ${id}`,
-    }));
+    });
   },
 
   ingestAiConversation: async (ingestData, mode, targetTaskId) => {
-    const { tasks, activeWorkspaceId, dbMode, notes, userProfile } = get();
+    const { tasks, activeWorkspaceId, dbMode, notes, checklists, userProfile } = get();
     const now = new Date().toISOString();
     const shortPromptHash = '#' + Math.random().toString(16).slice(2, 7);
 
@@ -1916,14 +2085,21 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
         }
       }
 
-      set((s) => ({
-        tasks: [newTask, ...s.tasks],
+      const updatedTasks = [newTask, ...tasks];
+      const updatedNotes = { ...notes, [id]: richNote };
+      const updatedChecklists = { ...checklists, [id]: checklistItems };
+      saveStoredTasks(updatedTasks);
+      saveStoredNotes(updatedNotes);
+      saveStoredChecklists(updatedChecklists);
+
+      set({
+        tasks: updatedTasks,
         selectedTaskId: id,
-        notes: { ...s.notes, [id]: richNote },
-        checklists: { ...s.checklists, [id]: checklistItems },
+        notes: updatedNotes,
+        checklists: updatedChecklists,
         prompts: [promptEntry],
         hudMessage: `AI yechimi muvaffaqiyatli import qilindi: ${id}`,
-      }));
+      });
 
       return id;
     } else {
@@ -1953,8 +2129,11 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
         }
       }
 
+      const updatedNotes = { ...notes, [id]: updatedNote };
+      saveStoredNotes(updatedNotes);
+
       set((s) => ({
-        notes: { ...s.notes, [id]: updatedNote },
+        notes: updatedNotes,
         prompts: [...s.prompts, promptEntry],
         selectedTaskId: id,
         hudMessage: `AI suhbati ${id} ga biriktirildi`,
@@ -1965,7 +2144,10 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   },
 
   addTask: (t) => {
-    set((s) => ({ tasks: [t, ...s.tasks], selectedTaskId: t.id, prompts: [] }));
+    const remaining = get().tasks.filter((x) => x.id !== t.id);
+    const updated = [t, ...remaining];
+    saveStoredTasks(updated);
+    set({ tasks: updated, selectedTaskId: t.id, prompts: [] });
     if (get().dbMode === 'sqlite') {
       insertTask(t).catch((e) => console.warn('Failed to insert task to SQLite:', e));
     }
@@ -1978,6 +2160,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     }
     const remaining = tasks.filter((t) => t.id !== id);
     const newSelected = selectedTaskId === id ? (remaining[0]?.id ?? null) : selectedTaskId;
+    saveStoredTasks(remaining);
     set({
       tasks: remaining,
       selectedTaskId: newSelected,
@@ -1990,30 +2173,31 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
 
   updateTaskStatus: (id, status) => {
     const stamp = new Date().toISOString();
-    set((s) => {
-      const isDone = status === 'completed' || (status as string) === 'done';
-      const updatedMeetings = s.meetings.map((m) => {
-        if (!m.action_items?.some((a) => a.task_id === id)) return m;
-        return {
-          ...m,
-          action_items: m.action_items.map((a) =>
-            a.task_id === id ? { ...a, completed: isDone } : a
-          ),
-          updated_at: stamp,
-        };
-      });
-
-      try {
-        localStorage.setItem('cognidev_meetings', JSON.stringify(updatedMeetings));
-      } catch {}
-
+    const isDone = status === 'completed' || (status as string) === 'done';
+    const updatedTasks = get().tasks.map((t) => (t.id === id ? { ...t, status, updated_at: stamp } : t));
+    const updatedMeetings = get().meetings.map((m) => {
+      if (!m.action_items?.some((a) => a.task_id === id)) return m;
       return {
-        tasks: s.tasks.map((t) => (t.id === id ? { ...t, status, updated_at: stamp } : t)),
-        meetings: updatedMeetings,
-        hudMessage: `${id} holati o'zgartirildi: ${status}`,
+        ...m,
+        action_items: m.action_items.map((a) =>
+          a.task_id === id ? { ...a, completed: isDone } : a
+        ),
+        updated_at: stamp,
       };
     });
-    const t = get().tasks.find((task) => task.id === id);
+
+    try {
+      localStorage.setItem('cognidev_meetings', JSON.stringify(updatedMeetings));
+    } catch {}
+    saveStoredTasks(updatedTasks);
+
+    set({
+      tasks: updatedTasks,
+      meetings: updatedMeetings,
+      hudMessage: `${id} holati o'zgartirildi: ${status}`,
+    });
+
+    const t = updatedTasks.find((task) => task.id === id);
     if (get().dbMode === 'sqlite' && t) {
       updateTaskMeta(id, status, t.priority).catch(() => {});
     }
@@ -2021,11 +2205,13 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
 
   updateTaskPriority: (id, priority) => {
     const stamp = new Date().toISOString();
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, priority, updated_at: stamp } : t)),
+    const updatedTasks = get().tasks.map((t) => (t.id === id ? { ...t, priority, updated_at: stamp } : t));
+    saveStoredTasks(updatedTasks);
+    set({
+      tasks: updatedTasks,
       hudMessage: `${id} muhimlik darajasi o'zgartirildi`,
-    }));
-    const t = get().tasks.find((task) => task.id === id);
+    });
+    const t = updatedTasks.find((task) => task.id === id);
     if (get().dbMode === 'sqlite' && t) {
       updateTaskMeta(id, t.status, priority).catch(() => {});
     }
@@ -2134,7 +2320,12 @@ export function filteredTasks(
   activeTag?: string | null,
   userName?: string,
 ): Task[] {
-  let out = tasks.filter((t) => t.workspace_id === workspaceId);
+  let out = tasks.filter(
+    (t) =>
+      t.workspace_id === workspaceId ||
+      (!t.workspace_id && workspaceId === DEFAULT_PERSONAL_WORKSPACE.id) ||
+      (t.workspace_id === 'default' && workspaceId === DEFAULT_PERSONAL_WORKSPACE.id),
+  );
   if (activeGroupId) {
     out = out.filter((t) => t.group_id === activeGroupId);
   }
