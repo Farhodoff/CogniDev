@@ -95,6 +95,7 @@ import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, ty
 import { isTauri } from './vault';
 import type { AiSource } from './providers';
 import { playNotificationSound, sendDesktopNotification } from './notifications';
+import { logAuditEvent } from './audit';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -430,6 +431,10 @@ interface SynapseState {
   updateTaskStatus: (id: string, status: Task['status']) => void;
   updateTaskPriority: (id: string, priority: Task['priority']) => void;
   createWorkspace: (name: string, type: 'personal' | 'team') => Promise<void>;
+  updateWorkspace: (id: string, name: string) => Promise<void>;
+  deleteWorkspace: (id: string) => Promise<void>;
+  auditModalOpen: boolean;
+  setAuditModalOpen: (open: boolean) => void;
   addPrompt: (p: PromptEntry) => void;
   triggerStandup: () => Promise<void>;
 }
@@ -511,7 +516,22 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   ready: true, // App starts instantly with 0ms delay!
   dbMode: 'memory',
   mainView: 'dashboard',
-  setMainView: (v) => set({ mainView: v }),
+  setMainView: (v) => {
+    const prev = get().mainView;
+    if (prev !== v) {
+      logAuditEvent({
+        target_type: 'main',
+        action: 'switch',
+        target_id: v,
+        target_name: `Main View: ${v}`,
+        workspace_id: get().activeWorkspaceId,
+        details: { previous_view: prev, next_view: v },
+      });
+    }
+    set({ mainView: v });
+  },
+  auditModalOpen: false,
+  setAuditModalOpen: (open) => set({ auditModalOpen: open }),
 
   workspaces: [DEFAULT_PERSONAL_WORKSPACE],
   activeWorkspaceId: DEFAULT_PERSONAL_WORKSPACE.id,
@@ -925,6 +945,16 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   })(),
   activeSpaceId: null,
   selectSpace: (id) => {
+    const prevSpaceId = get().activeSpaceId;
+    const space = id ? get().spaces.find((s) => s.id === id) : null;
+    logAuditEvent({
+      target_type: 'space',
+      action: 'switch',
+      target_id: id || 'none',
+      target_name: space?.name || (id ? id : 'None'),
+      workspace_id: get().activeWorkspaceId,
+      details: { previous_space_id: prevSpaceId, target_space_id: id },
+    });
     if (id) {
       set({ activeSpaceId: id, mainView: 'space' });
     } else {
@@ -941,22 +971,48 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       try {
         localStorage.setItem('cognidev_spaces', JSON.stringify(next));
       } catch {}
+      logAuditEvent({
+        target_type: 'space',
+        action: 'create',
+        target_id: newSpace.id,
+        target_name: newSpace.name,
+        workspace_id: state.activeWorkspaceId,
+        details: { icon: newSpace.icon, color: newSpace.color },
+      });
       return { spaces: next };
     }),
   updateSpace: (id, patch) =>
     set((state) => {
+      const target = state.spaces.find((s) => s.id === id);
       const next = state.spaces.map((s) => (s.id === id ? { ...s, ...patch } : s));
       try {
         localStorage.setItem('cognidev_spaces', JSON.stringify(next));
       } catch {}
+      logAuditEvent({
+        target_type: 'space',
+        action: 'update',
+        target_id: id,
+        target_name: patch.name || target?.name || id,
+        workspace_id: state.activeWorkspaceId,
+        details: { patch, previous_state: target },
+      });
       return { spaces: next };
     }),
   deleteSpace: (id) =>
     set((state) => {
+      const target = state.spaces.find((s) => s.id === id);
       const next = state.spaces.filter((s) => s.id !== id);
       try {
         localStorage.setItem('cognidev_spaces', JSON.stringify(next));
       } catch {}
+      logAuditEvent({
+        target_type: 'space',
+        action: 'delete',
+        target_id: id,
+        target_name: target?.name || id,
+        workspace_id: state.activeWorkspaceId,
+        details: { deleted_space: target },
+      });
       const nextActive = state.activeSpaceId === id ? null : state.activeSpaceId;
       const nextView = state.activeSpaceId === id ? 'dashboard' : state.mainView;
       return { spaces: next, activeSpaceId: nextActive, mainView: nextView };
@@ -986,30 +1042,66 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       try {
         localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
       } catch {}
+      logAuditEvent({
+        target_type: 'link',
+        action: 'create',
+        target_id: newLink.id,
+        target_name: newLink.title,
+        workspace_id: state.activeWorkspaceId,
+        details: { url: newLink.url, category: newLink.category, space_id: newLink.space_id, pinned: newLink.pinned },
+      });
       return { links: updated };
     }),
   updateLink: (id, patch) =>
     set((state) => {
+      const target = state.links.find((l) => l.id === id);
       const updated = state.links.map((l) => (l.id === id ? { ...l, ...patch } : l));
       try {
         localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
       } catch {}
+      logAuditEvent({
+        target_type: 'link',
+        action: 'update',
+        target_id: id,
+        target_name: patch.title || target?.title || id,
+        workspace_id: state.activeWorkspaceId,
+        details: { patch, previous_state: target },
+      });
       return { links: updated };
     }),
   deleteLink: (id) =>
     set((state) => {
+      const target = state.links.find((l) => l.id === id);
       const updated = state.links.filter((l) => l.id !== id);
       try {
         localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
       } catch {}
+      logAuditEvent({
+        target_type: 'link',
+        action: 'delete',
+        target_id: id,
+        target_name: target?.title || id,
+        workspace_id: state.activeWorkspaceId,
+        details: { deleted_link: target },
+      });
       return { links: updated };
     }),
   togglePinLink: (id) =>
     set((state) => {
+      const target = state.links.find((l) => l.id === id);
+      const nextPinned = !target?.pinned;
       const updated = state.links.map((l) => (l.id === id ? { ...l, pinned: !l.pinned } : l));
       try {
         localStorage.setItem('cognidev_dev_links', JSON.stringify(updated));
       } catch {}
+      logAuditEvent({
+        target_type: 'link',
+        action: 'update',
+        target_id: id,
+        target_name: target?.title || id,
+        workspace_id: state.activeWorkspaceId,
+        details: { field: 'pinned', pinned: nextPinned },
+      });
       return { links: updated };
     }),
 
@@ -1822,6 +1914,18 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   },
 
   setWorkspace: async (id) => {
+    const prevId = get().activeWorkspaceId;
+    const ws = get().workspaces.find((w) => w.id === id);
+    if (prevId !== id) {
+      logAuditEvent({
+        target_type: 'workspace',
+        action: 'switch',
+        target_id: id,
+        target_name: ws?.name || id,
+        workspace_id: id,
+        details: { previous_workspace_id: prevId, target_workspace_id: id },
+      });
+    }
     set({ activeWorkspaceId: id, quickFilter: null, activeTag: null, search: '' });
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
@@ -2227,12 +2331,58 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     if (get().dbMode === 'sqlite') {
       await insertWorkspace(w).catch(() => {});
     }
+    logAuditEvent({
+      target_type: 'workspace',
+      action: 'create',
+      target_id: w.id,
+      target_name: w.name,
+      workspace_id: w.id,
+      details: { name: w.name, type: w.type },
+    });
     set((s) => ({
       workspaces: [...s.workspaces, w],
       activeWorkspaceId: w.id,
       hudMessage: `Yangi ombor yaratildi: ${w.name}`,
     }));
     await get().setWorkspace(w.id);
+  },
+
+  updateWorkspace: async (id, name) => {
+    const target = get().workspaces.find((w) => w.id === id);
+    const trimmed = name.trim();
+    set((s) => ({
+      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: trimmed } : w)),
+    }));
+    logAuditEvent({
+      target_type: 'workspace',
+      action: 'update',
+      target_id: id,
+      target_name: trimmed,
+      workspace_id: id,
+      details: { previous_name: target?.name, new_name: trimmed },
+    });
+  },
+
+  deleteWorkspace: async (id) => {
+    const target = get().workspaces.find((w) => w.id === id);
+    if (!target) return;
+    const remaining = get().workspaces.filter((w) => w.id !== id);
+    const nextActive = get().activeWorkspaceId === id ? (remaining[0]?.id ?? 'ws-personal') : get().activeWorkspaceId;
+    set({
+      workspaces: remaining,
+      activeWorkspaceId: nextActive,
+    });
+    logAuditEvent({
+      target_type: 'workspace',
+      action: 'delete',
+      target_id: id,
+      target_name: target.name,
+      workspace_id: id,
+      details: { deleted_workspace: target },
+    });
+    if (get().activeWorkspaceId !== nextActive) {
+      await get().setWorkspace(nextActive);
+    }
   },
 
   addPrompt: (p) => set((s) => ({ prompts: [...s.prompts, p] })),
