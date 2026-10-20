@@ -29,6 +29,7 @@ import {
   X,
   Check,
   Link2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { SpaceItem } from '../lib/types';
@@ -84,6 +85,7 @@ export default function Sidebar() {
     setHud,
     setFilter,
     setSearch,
+    setAuditModalOpen,
   } = useSynapse();
 
   // Create Space Form State
@@ -552,6 +554,17 @@ export default function Sidebar() {
         >
           <Trash2 size={14} className="text-zinc-500" />
           <span>Trash</span>
+        </button>
+
+        <button
+          onClick={() => setAuditModalOpen(true)}
+          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[12px] text-zinc-400 hover:bg-white/[0.04] hover:text-amber-300 transition"
+        >
+          <ShieldCheck size={14} className="text-amber-400" />
+          <span>Audit Jurnali</span>
+          <span className="ml-auto text-[9.5px] font-mono text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded">
+            BQ/ES
+          </span>
         </button>
 
         {/* User Profile Card */}

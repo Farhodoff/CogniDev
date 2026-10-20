@@ -25,6 +25,7 @@ import {
   GitBranch,
   FolderGit2,
   HardDrive,
+  ShieldCheck,
 } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
@@ -48,6 +49,7 @@ const UpdateModal = lazy(() => import('./UpdateModal'));
 const GitInspectorModal = lazy(() => import('./GitInspectorModal'));
 const GitHubSyncModal = lazy(() => import('./GitHubSyncModal'));
 const BackupModal = lazy(() => import('./BackupModal'));
+const WorkspaceAuditModal = lazy(() => import('./WorkspaceAuditModal'));
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -75,6 +77,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     toggleSoundEnabled,
     deleteReminder,
     testNotification,
+    auditModalOpen,
+    setAuditModalOpen,
   } = useSynapse();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -405,6 +409,19 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 <button onClick={() => { setGuideModal(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <BookOpen size={13} className="text-blue-300" /> Qo'llanma va Imkoniyatlar
                 </button>
+                <button
+                  onClick={() => {
+                    setAuditModalOpen(true);
+                    setSettingsOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition"
+                >
+                  <ShieldCheck size={13} className="text-amber-400" />
+                  <span>Audit jurnali & Loglar</span>
+                  <span className="ml-auto rounded-md bg-amber-500/15 px-1.5 py-px font-mono text-[9.5px] text-amber-300">
+                    BQ/ES
+                  </span>
+                </button>
                 <button onClick={() => { setUpdateModalOpen(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <ArrowDownCircle size={13} className="text-sky-300" /> Yangilanishlarni tekshirish
                   {updateInfo?.available && <span className="ml-auto h-2 w-2 rounded-full bg-sky-400 animate-ping" />}
@@ -595,6 +612,12 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             open={backupModalOpen}
             onClose={() => setBackupModalOpen(false)}
             initialTab={backupModalTab}
+          />
+        )}
+        {auditModalOpen && (
+          <WorkspaceAuditModal
+            open={auditModalOpen}
+            onClose={() => setAuditModalOpen(false)}
           />
         )}
       </Suspense>
