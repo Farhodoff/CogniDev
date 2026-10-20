@@ -1,13 +1,25 @@
-import { isTauri } from './platform';
 import { callAi } from './ai';
 import type { CloudProviderId } from './providers';
+import {
+  detectGhCliAuth,
+  loadStoredGitHubSession,
+  saveStoredGitHubSession,
+  clearStoredGitHubSession,
+  maskToken,
+  parseGitHubScopes,
+  type GhCliAuthStatus,
+  type GitHubPermissions,
+  type GitHubAuthSession,
+  type GitHubAuthStatus,
+} from './githubAuth';
 
-export interface GhCliAuthStatus {
-  is_installed: boolean;
-  is_authenticated: boolean;
-  username: string;
-  token: string;
-}
+export {
+  detectGhCliAuth,
+  type GhCliAuthStatus,
+  type GitHubPermissions,
+  type GitHubAuthSession,
+  type GitHubAuthStatus,
+};
 
 export interface GitHubUser {
   login: string;
@@ -69,6 +81,10 @@ const STORAGE_KEY_USERNAME = 'cognidev_gh_username';
 
 export function getStoredGitHubToken(): string | null {
   try {
+    const session = loadStoredGitHubSession();
+    if (session && session.token) {
+      return session.token;
+    }
     return localStorage.getItem(STORAGE_KEY_TOKEN) || null;
   } catch {
     return null;
@@ -78,9 +94,36 @@ export function getStoredGitHubToken(): string | null {
 export function setStoredGitHubToken(token: string | null, username?: string | null) {
   try {
     if (token) {
-      localStorage.setItem(STORAGE_KEY_TOKEN, token.trim());
+      const cleanToken = token.trim();
+      localStorage.setItem(STORAGE_KEY_TOKEN, cleanToken);
+      const existing = loadStoredGitHubSession();
+      if (!existing || existing.token !== cleanToken) {
+        saveStoredGitHubSession({
+          token: cleanToken,
+          maskedToken: maskToken(cleanToken),
+          username: username || existing?.username || 'developer',
+          user: existing?.user || {
+            login: username || 'developer',
+            name: username || 'developer',
+            avatar_url: `https://github.com/${username || 'developer'}.png`,
+            html_url: `https://github.com/${username || 'developer'}`,
+            bio: null,
+            public_repos: 0,
+          },
+          scopes: existing?.scopes || ['repo'],
+          permissions: existing?.permissions || parseGitHubScopes('repo'),
+          status: 'valid',
+          statusMessage: 'Faol ulanish ✓',
+          createdAt: existing?.createdAt || new Date().toISOString(),
+          lastVerifiedAt: new Date().toISOString(),
+          expiresAt: existing?.expiresAt || null,
+          authMethod: 'pat',
+          checksum: '',
+        });
+      }
     } else {
       localStorage.removeItem(STORAGE_KEY_TOKEN);
+      clearStoredGitHubSession();
     }
     if (username) {
       localStorage.setItem(STORAGE_KEY_USERNAME, username.trim());
@@ -89,21 +132,6 @@ export function setStoredGitHubToken(token: string | null, username?: string | n
     }
   } catch (err) {
     console.warn('LocalStorage error setting GH token:', err);
-  }
-}
-
-/**
- * Check if the macOS/Linux/Windows system has `gh` CLI authenticated
- */
-export async function detectGhCliAuth(): Promise<GhCliAuthStatus | null> {
-  if (!isTauri) return null;
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const res = await invoke<GhCliAuthStatus>('get_gh_cli_auth');
-    return res;
-  } catch (err) {
-    console.warn('Tauri get_gh_cli_auth error:', err);
-    return null;
   }
 }
 
