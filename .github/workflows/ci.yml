@@ -33,6 +33,9 @@ jobs:
       - name: Lint with Oxlint
         run: npm run lint
 
+      - name: Automated Unit, Integration & UI Tests
+        run: npm test
+
       - name: TypeScript & Vite Build
         run: npm run build
 
