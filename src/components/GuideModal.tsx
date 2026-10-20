@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, X, CheckCircle2, Bot, Mic, Cpu, Search, Sparkles, ShieldCheck, Database } from 'lucide-react';
+import { BookOpen, X, CheckCircle2, Bot, Mic, Cpu, Search, Sparkles, ShieldCheck, Database, Radio } from 'lucide-react';
 import { modKey, modPrefix } from '../lib/platform';
 
 const SECTIONS = [
@@ -38,6 +38,12 @@ const SECTIONS = [
     title: '5. Qidiruv & Klaviatura tugmalari',
     icon: <Search size={16} className="text-cyan-400" />,
     badge: 'Tezkor klavishlar',
+  },
+  {
+    id: 'metrics-api',
+    title: '6. Real-time Metrics Push API',
+    icon: <Radio size={16} className="text-amber-400" />,
+    badge: 'WebSocket / SSE',
   },
 ];
 
@@ -284,6 +290,94 @@ export default function GuideModal({ open, onClose }: { open: boolean; onClose: 
                     <span className="text-zinc-200">Oynalarni yopish / Qidiruvni tozalash</span>
                     <kbd className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-zinc-400">Esc</kbd>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'metrics-api' && (
+              <div className="space-y-5 animate-in fade-in duration-150">
+                <div>
+                  <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+                    Real-time Push & Observability API
+                  </span>
+                  <h3 className="mt-1 text-xl font-bold text-white">Dashboard Real-Time Metrics Push API</h3>
+                  <p className="mt-1.5 text-xs text-zinc-300 leading-relaxed">
+                    Dashboard ko‘rsatkichlarini tashqi xizmatlar, botlar, monitoring va skriptlar orqali real vaqtda yangilash imkonini beruvchi yuqori unumli Server-Sent Events (SSE) & WebSocket API tizimi.
+                  </p>
+                </div>
+
+                {/* Key specs badge cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                    <p className="text-[10px] font-mono uppercase text-zinc-500">Kechikish (Latency)</p>
+                    <p className="mt-0.5 text-base font-bold text-emerald-400 font-mono">&lt; 90 ms</p>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">Ultra-tez callback kafolatlangan</p>
+                  </div>
+                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                    <p className="text-[10px] font-mono uppercase text-zinc-500">Bir vaqtda (Concurrency)</p>
+                    <p className="mt-0.5 text-base font-bold text-amber-400 font-mono">10 000+ seans</p>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">Xotira tejamkor broadcast</p>
+                  </div>
+                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                    <p className="text-[10px] font-mono uppercase text-zinc-500">Protokollar</p>
+                    <p className="mt-0.5 text-base font-bold text-sky-400 font-mono">SSE / REST</p>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">Avtomatik keep-alive ping</p>
+                  </div>
+                </div>
+
+                {/* Endpoints specification */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold text-white uppercase font-mono tracking-wider">
+                    Asosiy API Endpointlari
+                  </h4>
+
+                  <div className="rounded-xl border border-white/[0.08] bg-black/40 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-500 text-black">
+                        PUT
+                      </span>
+                      <code className="text-xs font-mono text-zinc-100 font-bold">/api/v1/metrics/:id</code>
+                    </div>
+                    <p className="text-[11.5px] text-zinc-400">
+                      Dashboard ko‘rsatkichlarini push qilish. <code className="text-amber-300">weeklyOverview</code>, <code className="text-amber-300">currentFocus</code>, va <code className="text-amber-300">progressBar</code> maydonlarini qabul qiladi.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/[0.08] bg-black/40 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-sky-500 text-black">
+                        GET
+                      </span>
+                      <code className="text-xs font-mono text-zinc-100 font-bold">/api/v1/metrics/stream</code>
+                    </div>
+                    <p className="text-[11.5px] text-zinc-400">
+                      Real vaqtli Server-Sent Events (SSE) oqimi. Yangi ko‘rsatkich kelishi bilan barcha 10 000+ ulangan klientlarga 90ms ichida yetkaziladi.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Example cURL */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-mono text-zinc-400">Misol: cURL orqali metrikani yangilash:</span>
+                  <pre className="p-3 bg-black/60 border border-white/10 rounded-xl text-[11px] font-mono text-emerald-300 overflow-x-auto leading-relaxed">
+{`curl -X PUT http://127.0.0.1:1420/api/v1/metrics/dashboard-1 \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "weeklyOverview": {
+      "completedCount": 18,
+      "totalHours": 32.5
+    },
+    "currentFocus": {
+      "items": [
+        { "id": "focus-1", "title": "Real-time Metrics SSE", "status": "in_progress" }
+      ]
+    },
+    "progressBar": {
+      "percentage": 85,
+      "label": "Roadmap 85% yakunlandi"
+    }
+  }'`}
+                  </pre>
                 </div>
               </div>
             )}

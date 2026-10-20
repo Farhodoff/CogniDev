@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint src",
     "test": "vitest run",
+    "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "preview": "vite preview",
     "tauri": "tauri",
