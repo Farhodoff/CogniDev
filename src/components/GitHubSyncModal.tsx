@@ -28,7 +28,6 @@ import { useSynapse } from '../lib/store';
 import {
   detectGhCliAuth,
   getStoredGitHubToken,
-  setStoredGitHubToken,
   fetchGitHubUser,
   fetchUserRepos,
   fetchRepoCommits,
@@ -40,6 +39,13 @@ import {
   type AiTaskSuggestion,
   type GhCliAuthStatus,
 } from '../lib/github';
+import {
+  fetchGitHubAuthEndpoint,
+  startGitHubTokenHealthCheck,
+  stopGitHubTokenHealthCheck,
+  type GitHubPermissions,
+  type GitHubAuthStatus,
+} from '../lib/githubAuth';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 
 interface GitHubSyncModalProps {
@@ -56,6 +62,10 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
   const [manualTokenInput, setManualTokenInput] = useState<string>('');
   const [publicUsernameInput, setPublicUsernameInput] = useState<string>('');
   const [user, setUser] = useState<GitHubUser | null>(null);
+  const [permissions, setPermissions] = useState<GitHubPermissions | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<GitHubAuthStatus>('unauthenticated');
+  const [maskedToken, setMaskedToken] = useState<string>('');
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [authType, setAuthType] = useState<'cli' | 'token' | 'public' | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -132,57 +142,81 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
     }
   };
 
-  // Check saved session & local CLI status on open
+  // Check saved session & local CLI status on open + autologin
   useEffect(() => {
     if (!open) return;
+
+    let isMounted = true;
 
     async function initCheck() {
       setAuthError(null);
 
-      // 1. Check if user already explicitly saved a token in LocalStorage
-      const savedToken = getStoredGitHubToken();
-      if (savedToken) {
-        try {
-          setAuthLoading(true);
-          const u = await fetchGitHubUser(savedToken, true);
-          setUser(u);
-          setToken(savedToken);
-          setAuthType('token');
-          await loadRepos(savedToken);
+      // 1. Attempt dynamic autologin via /auth/github endpoint
+      try {
+        setAuthLoading(true);
+        const autoRes = await fetchGitHubAuthEndpoint({ action: 'autologin' });
+        if (!isMounted) return;
+
+        if (autoRes.success && autoRes.user) {
+          setUser(autoRes.user as any);
+          const activeTok = getStoredGitHubToken() || '';
+          setToken(activeTok);
+          setAuthType(autoRes.message.includes('CLI') ? 'cli' : 'token');
+          if (autoRes.permissions) setPermissions(autoRes.permissions);
+          setSessionStatus(autoRes.status);
+          if (autoRes.maskedToken) setMaskedToken(autoRes.maskedToken);
+          setHud(autoRes.message);
+          await loadRepos(activeTok);
           setAuthLoading(false);
           return;
-        } catch (err) {
-          console.warn('Saved token expired or invalid:', err);
-          setStoredGitHubToken(null);
-        } finally {
-          setAuthLoading(false);
+        } else if (autoRes.status === 'invalid' || autoRes.status === 'expired') {
+          setAuthError(autoRes.message);
         }
+      } catch (err: any) {
+        console.warn('Autologin check error:', err);
+      } finally {
+        if (isMounted) setAuthLoading(false);
       }
 
       // 2. Check if local machine has `gh` CLI without auto-logging in
       try {
         const cliAuth = await detectGhCliAuth();
-        if (cliAuth && cliAuth.is_installed) {
+        if (isMounted && cliAuth && cliAuth.is_installed) {
           setDetectedCli(cliAuth);
           if (cliAuth.is_authenticated) {
             setConnectTab('cli');
           } else {
             setConnectTab('pat');
           }
-        } else {
+        } else if (isMounted) {
           setConnectTab('pat');
         }
       } catch (err) {
         console.warn('CLI check error:', err);
-        setConnectTab('pat');
+        if (isMounted) setConnectTab('pat');
       }
     }
 
     initCheck();
+
+    // Start periodic background token health-check (every 3 minutes)
+    startGitHubTokenHealthCheck(180_000, (status, msg) => {
+      if (!isMounted) return;
+      setSessionStatus(status);
+      if (status === 'invalid' || status === 'expired') {
+        setAuthError(msg);
+        setHud(msg);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      stopGitHubTokenHealthCheck();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Connect via Detected CLI (User explicitly clicks button)
+  // Connect via Detected CLI
   const handleConnectWithCli = async () => {
     if (!detectedCli || !detectedCli.token) {
       setAuthError("Tizimingizda `gh` CLI orqali faol login topilmadi. Terminalda 'gh auth login' bajaring.");
@@ -192,13 +226,24 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const u = await fetchGitHubUser(detectedCli.token, true);
-      setUser(u);
-      setToken(detectedCli.token);
-      setAuthType('cli');
-      setStoredGitHubToken(detectedCli.token, u.login);
-      setHud(`GitHub CLI orqali muvaffaqiyatli ulandi: @${u.login} ✓`);
-      await loadRepos(detectedCli.token);
+      const res = await fetchGitHubAuthEndpoint({
+        action: 'login',
+        token: detectedCli.token,
+        authMethod: 'cli',
+      });
+
+      if (res.success && res.user) {
+        setUser(res.user as any);
+        setToken(detectedCli.token);
+        setAuthType('cli');
+        if (res.permissions) setPermissions(res.permissions);
+        setSessionStatus(res.status);
+        if (res.maskedToken) setMaskedToken(res.maskedToken);
+        setHud(res.message);
+        await loadRepos(detectedCli.token);
+      } else {
+        setAuthError(res.message || 'GitHub CLI orqali ulanishda xatolik');
+      }
     } catch (err: any) {
       setAuthError(err.message || 'GitHub CLI orqali ulanishda xatolik');
     } finally {
@@ -215,18 +260,53 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
     setAuthError(null);
     try {
       const cleaned = manualTokenInput.trim();
-      const u = await fetchGitHubUser(cleaned, true);
-      setUser(u);
-      setToken(cleaned);
-      setAuthType('token');
-      setStoredGitHubToken(cleaned, u.login);
-      setManualTokenInput('');
-      setHud(`GitHub muvaffaqiyatli ulandi: @${u.login} ✓`);
-      await loadRepos(cleaned);
+      const res = await fetchGitHubAuthEndpoint({
+        action: 'login',
+        token: cleaned,
+        authMethod: 'pat',
+      });
+
+      if (res.success && res.user) {
+        setUser(res.user as any);
+        setToken(cleaned);
+        setAuthType('token');
+        if (res.permissions) setPermissions(res.permissions);
+        setSessionStatus(res.status);
+        if (res.maskedToken) setMaskedToken(res.maskedToken);
+        setManualTokenInput('');
+        setHud(res.message);
+        await loadRepos(cleaned);
+      } else {
+        setAuthError(res.message || 'Token tekshirishda xatolik yuz berdi');
+      }
     } catch (err: any) {
       setAuthError(err.message || 'Token tekshirishda xatolik yuz berdi');
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  // Re-verify & Refresh Token Permissions
+  const handleRefreshToken = async () => {
+    setIsRefreshing(true);
+    setAuthError(null);
+    try {
+      const res = await fetchGitHubAuthEndpoint({ action: 'refresh' });
+      if (res.success) {
+        if (res.permissions) setPermissions(res.permissions);
+        setSessionStatus(res.status);
+        if (res.user) setUser(res.user as any);
+        if (res.maskedToken) setMaskedToken(res.maskedToken);
+        setHud("GitHub token ruxsatnomalari qayta tekshirildi va yangilandi ✓");
+        await loadRepos(token || getStoredGitHubToken());
+      } else {
+        setAuthError(res.message);
+        setHud(res.message);
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Ruxsatnomalarni yangilashda xatolik');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -242,6 +322,9 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
       const u = await fetchGitHubUser(uname, false);
       setUser(u);
       setToken('');
+      setPermissions(null);
+      setSessionStatus('valid');
+      setMaskedToken('');
       setAuthType('public');
       setPublicUsernameInput('');
       setHud(`@${u.login} ochiq profili yuklandi (Read-Only) ✓`);
@@ -254,15 +337,18 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
   };
 
   // Disconnect & Reset
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     setToken('');
     setUser(null);
+    setPermissions(null);
+    setSessionStatus('unauthenticated');
+    setMaskedToken('');
     setAuthType(null);
     setRepos([]);
     setSelectedRepo(null);
     setCommits([]);
     setAiReport(null);
-    setStoredGitHubToken(null, null);
+    await fetchGitHubAuthEndpoint({ action: 'logout' });
     setHud("GitHub ulanishi uzildi. Boshqa hisob bilan ulanishingiz mumkin.");
   };
 
@@ -437,6 +523,110 @@ export default function GitHubSyncModal({ open, onClose, initialRepoUrl }: GitHu
             </button>
           </div>
         </div>
+
+        {/* Permissions & Security Status Ribbon (When Connected) */}
+        {user && permissions && (
+          <div className="px-6 py-2 bg-[#10141d] border-b border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[#8b949e] text-[11px] font-medium">Ruxsatnomalar (Scopes):</span>
+              <span
+                className={`px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[11px] ${
+                  permissions.repo
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                }`}
+                title="Repozitoriya kodlari va branchlariga to'liq kirish"
+              >
+                {permissions.repo ? <Check className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-rose-400" />}
+                <span>repo</span>
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[11px] ${
+                  permissions.issues
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                }`}
+                title="Issue va masalalarni boshqarish"
+              >
+                {permissions.issues ? <Check className="w-3 h-3 text-emerald-400" /> : <AlertCircle className="w-3 h-3 text-amber-400" />}
+                <span>issues</span>
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[11px] ${
+                  permissions.pullRequests
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                }`}
+                title="Pull Requestlarni tekshirish va boshqarish"
+              >
+                {permissions.pullRequests ? <Check className="w-3 h-3 text-emerald-400" /> : <AlertCircle className="w-3 h-3 text-amber-400" />}
+                <span>pull_requests</span>
+              </span>
+              {maskedToken && (
+                <span className="px-2 py-0.5 rounded bg-white/5 text-[#8b949e] font-mono text-[11px] border border-white/10" title="Himoyalangan va maskalangan token">
+                  {maskedToken}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                sessionStatus === 'valid'
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  : sessionStatus === 'insufficient_permissions'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+              }`}>
+                {sessionStatus === 'valid' ? 'Xavfsiz va Tasdiqlangan ✓' : sessionStatus === 'insufficient_permissions' ? 'Ruxsat yetarli emas' : 'Tekshirish talab etiladi'}
+              </span>
+              <button
+                onClick={handleRefreshToken}
+                disabled={isRefreshing}
+                title="GitHub API orqali tokenni qayta yangilash va ruxsatlarni tekshirish"
+                className="flex items-center gap-1.5 text-xs text-[#8b949e] hover:text-white px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`} />
+                <span>Qayta tekshirish</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Insufficient Permissions Warning Banner */}
+        {user && permissions && !permissions.hasRequiredScopes && (
+          <div className="px-6 py-2.5 bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Diqqat:</strong> Tokeningizda <code className="bg-black/30 px-1 py-0.5 rounded font-mono">repo</code> ruxsati topilmadi. AI Task tahlili to‘liq ishlashi uchun GitHub sozlamalaridan ushbu ruxsatni yoqing.
+              </span>
+            </div>
+            <a
+              href="https://github.com/settings/tokens"
+              target="_blank"
+              rel="noreferrer"
+              className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 rounded text-[11px] font-medium transition shrink-0"
+            >
+              Tokenni yangilash →
+            </a>
+          </div>
+        )}
+
+        {/* Global Auth Error Alert */}
+        {user && authError && (
+          <div className="px-6 py-2.5 bg-rose-500/15 border-b border-rose-500/30 text-rose-200 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{authError}</span>
+            </div>
+            <button
+              onClick={handleDisconnect}
+              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-100 rounded text-[11px] font-medium transition shrink-0"
+            >
+              Qayta ulanish
+            </button>
+          </div>
+        )}
 
         {/* Modal Body */}
         {!user ? (
