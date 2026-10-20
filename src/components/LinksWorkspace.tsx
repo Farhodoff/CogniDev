@@ -24,6 +24,16 @@ import {
 import { useSynapse } from '../lib/store';
 import type { DevLinkItem, LinkCategory } from '../lib/types';
 import { callAi } from '../lib/ai';
+import {
+  cleanDisplayUrl,
+  formatUrl,
+  parseTags,
+  autoDetectCategoryAndTitle,
+  buildAiResourceFinderPrompt,
+  parseAiResourceResponse,
+  formatExportMarkdown,
+  filterBookmarks,
+} from '../lib/links';
 
 const CATEGORIES: Array<{ id: LinkCategory | 'all'; label: string; icon: any; color: string }> = [
   { id: 'all', label: 'Barchasi', icon: Layers, color: '#3b82f6' },
@@ -35,15 +45,6 @@ const CATEGORIES: Array<{ id: LinkCategory | 'all'; label: string; icon: any; co
   { id: 'design', label: 'UI / UX Dizayn', icon: Palette, color: '#f43f5e' },
   { id: 'other', label: 'Boshqa', icon: Globe, color: '#71717a' },
 ];
-
-function cleanDisplayUrl(url: string): string {
-  try {
-    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
-    return `${u.hostname}${u.pathname === '/' ? '' : u.pathname}`;
-  } catch {
-    return url.replace(/^https?:\/\//, '');
-  }
-}
 
 export default function LinksWorkspace() {
   const { links, addLink, updateLink, deleteLink, togglePinLink, spaces, setHud } = useSynapse();
@@ -75,21 +76,9 @@ export default function LinksWorkspace() {
   // Auto-detect category and title helper when URL changes
   const handleUrlChange = (val: string) => {
     setFormUrl(val);
-    const low = val.toLowerCase();
-    if (!formTitle) {
-      if (low.includes('github.com')) {
-        setFormCategory('repo');
-        setFormTitle('GitHub Repository');
-      } else if (low.includes('developer.mozilla.org') || low.includes('docs.')) {
-        setFormCategory('docs');
-        setFormTitle('Documentation');
-      } else if (low.includes('figma.com')) {
-        setFormCategory('design');
-        setFormTitle('Figma Design');
-      } else if (low.includes('vercel.com') || low.includes('aws.') || low.includes('supabase.com')) {
-        setFormCategory('cloud');
-      }
-    }
+    const detected = autoDetectCategoryAndTitle(val, formTitle);
+    if (detected.category) setFormCategory(detected.category);
+    if (detected.suggestedTitle) setFormTitle(detected.suggestedTitle);
   };
 
   const handleCopy = (id: string, url: string, e: React.MouseEvent) => {
@@ -101,7 +90,7 @@ export default function LinksWorkspace() {
   };
 
   const handleOpenLink = (url: string) => {
-    const targetUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+    const targetUrl = formatUrl(url);
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -109,11 +98,8 @@ export default function LinksWorkspace() {
     e.preventDefault();
     if (!formTitle.trim() || !formUrl.trim()) return;
 
-    const formattedUrl = formUrl.trim().startsWith('http') ? formUrl.trim() : `https://${formUrl.trim()}`;
-    const parsedTags = formTags
-      .split(/[,;\s]+/)
-      .map((t) => t.trim().toLowerCase().replace(/^#+/, ''))
-      .filter(Boolean);
+    const formattedUrl = formatUrl(formUrl);
+    const parsedTags = parseTags(formTags);
 
     if (editingLink) {
       updateLink(editingLink.id, {
@@ -175,29 +161,13 @@ export default function LinksWorkspace() {
     setAiLoading(true);
     setAiSuggestions([]);
 
-    const prompt = `Siz katta dasturiy ta'minot muhandisi va resurslar ekspertisiz.
-Foydalanuvchi quyidagi mavzu bo'yicha eng yaxshi 3-4 ta rasmiy yoki yuqori sifatli dasturchi havolalarini (dokumentatsiya, asbob, repo yoki maqola) qidirmoqda:
-"${aiQuery}"
-
-Faqat va faqat quyidagi JSON formatida massiv qaytaring:
-[
-  {
-    "title": "Resurs Nomi",
-    "url": "https://...",
-    "category": "docs" | "tools" | "cloud" | "repo" | "learning" | "design" | "other",
-    "description": "Nima uchun foydali ekani haqida 1 ta qisqa gap",
-    "tags": ["tag1", "tag2"]
-  }
-]`;
+    const prompt = buildAiResourceFinderPrompt(aiQuery);
 
     try {
       const res = await callAi(prompt, "Faqat JSON qaytaring, ortiqcha so'z yoki markdown belgilarisiz.");
-      let jsonStr = res.text.trim();
-      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
-      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
-      const parsed = JSON.parse(jsonStr);
-      if (Array.isArray(parsed)) {
-        setAiSuggestions(parsed);
+      const suggestions = parseAiResourceResponse(res.text);
+      if (suggestions.length > 0) {
+        setAiSuggestions(suggestions);
       }
     } catch {
       setHud("AI dan resurs qidirishda xatolik yuz berdi");
@@ -209,7 +179,7 @@ Faqat va faqat quyidagi JSON formatida massiv qaytaring:
   const handleAddAiSuggestion = (sug: { title: string; url: string; category: LinkCategory; description: string; tags: string[] }) => {
     addLink({
       title: sug.title,
-      url: sug.url,
+      url: formatUrl(sug.url),
       category: sug.category,
       description: sug.description,
       tags: sug.tags || [],
@@ -222,21 +192,7 @@ Faqat va faqat quyidagi JSON formatida massiv qaytaring:
 
   // Export to Markdown
   const handleExportMarkdown = () => {
-    let md = `# 🌐 CogniDev Dasturchi Havolalari & Resurslar\n\n`;
-    md += `*Exported: ${new Date().toLocaleDateString('uz-UZ')}*\n\n`;
-
-    for (const cat of CATEGORIES) {
-      if (cat.id === 'all') continue;
-      const catLinks = links.filter((l) => l.category === cat.id);
-      if (catLinks.length === 0) continue;
-
-      md += `## ${cat.label}\n\n`;
-      for (const l of catLinks) {
-        md += `- [**${l.title}**](${l.url}) - ${l.description || 'Havola'} \`[${(l.tags || []).join(', ')}]\`\n`;
-      }
-      md += `\n`;
-    }
-
+    const md = formatExportMarkdown(links);
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -249,24 +205,10 @@ Faqat va faqat quyidagi JSON formatida massiv qaytaring:
 
   // Filtered links
   const filteredLinks = useMemo(() => {
-    return links.filter((l) => {
-      // Category filter
-      if (activeCategory !== 'all' && l.category !== activeCategory) return false;
-      // Space filter
-      if (selectedSpaceFilter !== 'all') {
-        if (selectedSpaceFilter === 'unassigned' && l.space_id) return false;
-        if (selectedSpaceFilter !== 'unassigned' && l.space_id !== selectedSpaceFilter) return false;
-      }
-      // Search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = l.title.toLowerCase().includes(q);
-        const matchUrl = l.url.toLowerCase().includes(q);
-        const matchDesc = (l.description || '').toLowerCase().includes(q);
-        const matchTags = (l.tags || []).some((t) => t.toLowerCase().includes(q));
-        if (!matchTitle && !matchUrl && !matchDesc && !matchTags) return false;
-      }
-      return true;
+    return filterBookmarks(links, {
+      category: activeCategory,
+      spaceId: selectedSpaceFilter,
+      search: searchQuery,
     });
   }, [links, activeCategory, selectedSpaceFilter, searchQuery]);
 
