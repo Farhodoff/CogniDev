@@ -29,6 +29,7 @@ import {
   X,
   Check,
   Link2,
+  Users,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { SpaceItem } from '../lib/types';
@@ -268,6 +269,18 @@ export default function Sidebar() {
         setMainView('links');
         setFilter(null);
         setHud("Dasturchi havolalari, hujjatlar va resurslar markazi");
+      },
+    },
+    {
+      id: 'team',
+      label: 'Team Cockpit',
+      icon: Users,
+      view: 'team' as const,
+      onClick: () => {
+        selectSpace(null);
+        setMainView('team');
+        setFilter(null);
+        setHud("👥 Team P2P Standup Cockpit (Jamoaviy fokus va sinxronizatsiya)");
       },
     },
   ];

@@ -22,6 +22,7 @@ const HabitTrackerWorkspace = lazy(() => import('./components/HabitTrackerWorksp
 const SpaceHubWorkspace = lazy(() => import('./components/SpaceHubWorkspace'));
 const MeetingsWorkspace = lazy(() => import('./components/MeetingsWorkspace'));
 const LinksWorkspace = lazy(() => import('./components/LinksWorkspace'));
+const TeamStandupWorkspace = lazy(() => import('./components/TeamStandupWorkspace'));
 
 // Drawers & Modals lazy loaded on demand:
 const AiAssistantDrawer = lazy(() => import('./components/AiAssistantDrawer'));
@@ -211,6 +212,7 @@ export default function App() {
           {mainView === 'meetings' && <MeetingsWorkspace />}
           {mainView === 'retro' && <RetroWorkspace />}
           {mainView === 'links' && <LinksWorkspace />}
+          {mainView === 'team' && <TeamStandupWorkspace />}
         </Suspense>
         <Suspense fallback={null}>
           <AiAssistantDrawer />

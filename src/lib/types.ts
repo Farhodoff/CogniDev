@@ -116,7 +116,8 @@ export type MainView =
   | 'projects'
   | 'space'
   | 'meetings'
-  | 'links';
+  | 'links'
+  | 'team';
 
 export interface MeetingActionItem {
   id: string;

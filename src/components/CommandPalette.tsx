@@ -90,6 +90,16 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       });
     }
 
+    if ('team jamoa standup p2p sync cockpit'.includes(needle) || needle.includes('team') || needle.includes('jamoa')) {
+      out.push({
+        kind: 'action',
+        id: 'cmd-team',
+        title: '👥 Team P2P Standup Cockpit',
+        sub: 'Jamoaviy fokus, blockerlar, PR review va AI sintez doskasi',
+        onSelect: () => setMainView('team'),
+      });
+    }
+
     // 1. Search in Tasks
     for (const t of tasks) {
       if (t.id.toLowerCase().includes(needle) || t.title.toLowerCase().includes(needle)) {

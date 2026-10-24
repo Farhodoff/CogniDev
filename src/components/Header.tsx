@@ -28,6 +28,7 @@ import {
   Send,
   Zap,
   Activity,
+  Users,
 } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
@@ -320,6 +321,16 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <span className="text-amber-400 text-sm">🦆</span>
                   <span>AI Rubber Duck Debugger</span>
                   <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">{formatShortcut('D')}</kbd>
+                </button>
+                <button
+                  onClick={() => {
+                    setMainView('team');
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <Users size={14} className="text-blue-400" />
+                  <span>Team Cockpit</span>
                 </button>
               </div>
             )}
