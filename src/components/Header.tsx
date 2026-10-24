@@ -71,6 +71,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setGitHubModal,
     setQuickCaptureModal,
     setDeveloperHealthModal,
+    setRubberDuckModal,
     showTelegramModal,
     setTelegramModal,
     telegramStatus,
@@ -309,6 +310,17 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <Activity size={14} className="text-emerald-400" />
                   <span>Health & Growth Analitika</span>
                 </button>
+                <button
+                  onClick={() => {
+                    setRubberDuckModal(true);
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <span className="text-amber-400 text-sm">🦆</span>
+                  <span>AI Rubber Duck Debugger</span>
+                  <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">{formatShortcut('D')}</kbd>
+                </button>
               </div>
             )}
           </div>
@@ -360,6 +372,16 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
           >
             <Activity size={12} className="text-emerald-400" />
             <span className="hidden md:inline">Health & Growth</span>
+          </button>
+
+          {/* 🦆 Rubber Duck Debugger Pill */}
+          <button
+            onClick={() => setRubberDuckModal(true)}
+            title={`AI Rubber Duck Debugger & Error Explainer (${formatShortcut('D')})`}
+            className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[11.5px] font-mono text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shadow-amber-500/10"
+          >
+            <span>🦆</span>
+            <span className="hidden sm:inline">Rubber Duck</span>
           </button>
 
           {/* ✨ AI Assistant Button */}

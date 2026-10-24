@@ -373,6 +373,8 @@ interface SynapseState {
   setQuickCaptureModal: (open: boolean) => void;
   showDeveloperHealthModal: boolean;
   setDeveloperHealthModal: (open: boolean) => void;
+  showRubberDuckModal: boolean;
+  setRubberDuckModal: (open: boolean) => void;
   contextSwitchWarning: ContextSwitchReport | null;
   dismissContextSwitchWarning: () => void;
   checkContextSwitchThrashing: () => ContextSwitchReport;
@@ -759,6 +761,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   showQuickCaptureModal: false,
   showDeveloperHealthModal: false,
   setDeveloperHealthModal: (open) => set({ showDeveloperHealthModal: open }),
+  showRubberDuckModal: false,
+  setRubberDuckModal: (open) => set({ showRubberDuckModal: open }),
   contextSwitchWarning: null,
   dismissContextSwitchWarning: () => set({ contextSwitchWarning: null }),
   checkContextSwitchThrashing: () => contextSwitchTracker.getReport(),

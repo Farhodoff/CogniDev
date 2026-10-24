@@ -32,6 +32,7 @@ const FocusModal = lazy(() => import('./components/FocusModal'));
 const VoiceStandupModal = lazy(() => import('./components/VoiceStandupModal'));
 const QuickCaptureSpotlightModal = lazy(() => import('./components/QuickCaptureSpotlightModal'));
 const DeveloperHealthModal = lazy(() => import('./components/DeveloperHealthModal'));
+const RubberDuckModal = lazy(() => import('./components/RubberDuckModal'));
 import { useFocusStore } from './lib/focusStore';
 import { initGlobalQuickCaptureListener } from './lib/quickCapture';
 
@@ -44,6 +45,8 @@ export default function App() {
     setQuickCaptureModal,
     showDeveloperHealthModal,
     setDeveloperHealthModal,
+    showRubberDuckModal,
+    setRubberDuckModal,
     openVoiceStandup,
     selectedTaskId,
     tasks,
@@ -76,6 +79,15 @@ export default function App() {
         if (!typing) {
           e.preventDefault();
           useFocusStore.getState().setShowModal(!useFocusStore.getState().showModal);
+        }
+      }
+      // ⌘D → Toggle AI Rubber Duck Debugger
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+        if (!typing) {
+          e.preventDefault();
+          setRubberDuckModal(!showRubberDuckModal);
         }
       }
       // ⌘G → Toggle GitHub Hub & AI Task Synthesizer
@@ -217,6 +229,7 @@ export default function App() {
           open={showDeveloperHealthModal}
           onClose={() => setDeveloperHealthModal(false)}
         />
+        <RubberDuckModal />
         {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
       </Suspense>
     </div>

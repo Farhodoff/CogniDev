@@ -8,10 +8,25 @@ type Hit =
   | { kind: 'vazifa'; id: string; title: string; sub: string }
   | { kind: 'qayd'; id: string; title: string; sub: string }
   | { kind: 'prompt'; id: string; title: string; sub: string }
-  | { kind: 'uchrashuv'; id: string; title: string; sub: string };
+  | { kind: 'uchrashuv'; id: string; title: string; sub: string }
+  | { kind: 'action'; id: string; title: string; sub: string; onSelect: () => void };
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tasks, notes, prompts, meetings, selectTask, setSelectedMeetingId, setTab, setSearch, setMainView, dbMode } = useSynapse();
+  const {
+    tasks,
+    notes,
+    prompts,
+    meetings,
+    selectTask,
+    setSelectedMeetingId,
+    setTab,
+    setSearch,
+    setMainView,
+    dbMode,
+    setRubberDuckModal,
+    setDeveloperHealthModal,
+    setGitHubModal,
+  } = useSynapse();
   const [q, setQ] = useState('');
   const [allPrompts, setAllPrompts] = useState<PromptEntry[]>(() => (dbMode === 'sqlite' ? [] : prompts));
   const [cursor, setCursor] = useState(0);
@@ -43,6 +58,37 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     }
 
     const out: Hit[] = [];
+
+    // Quick Command Actions
+    if ('rubber duck debugger xato patch tuzatish debug'.includes(needle) || needle.includes('duck') || needle.includes('debug')) {
+      out.push({
+        kind: 'action',
+        id: 'cmd-rubber-duck',
+        title: '🦆 AI Rubber Duck Debugger & Error Explainer',
+        sub: 'Xatolik matni tahlili, kod patch diffi va ikkinchi miya qidiruvi (⌘D)',
+        onSelect: () => setRubberDuckModal(true),
+      });
+    }
+
+    if ('developer health growth analitika heatmap'.includes(needle) || needle.includes('health')) {
+      out.push({
+        kind: 'action',
+        id: 'cmd-health',
+        title: '📊 Developer Health & Growth Analytics',
+        sub: 'O‘rganish matritsasi va haftalik AI murabbiy infografikasi',
+        onSelect: () => setDeveloperHealthModal(true),
+      });
+    }
+
+    if ('github repo commits pr issues'.includes(needle) || needle.includes('git')) {
+      out.push({
+        kind: 'action',
+        id: 'cmd-github',
+        title: '🐙 GitHub Hub & AI Task Synthesizer',
+        sub: 'Repozitoriyalar, PR/Issue va avtomatik Daily Standup (⌘G)',
+        onSelect: () => setGitHubModal(true),
+      });
+    }
 
     // 1. Search in Tasks
     for (const t of tasks) {
@@ -105,6 +151,12 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   if (!open) return null;
 
   async function go(h: Hit) {
+    if (h.kind === 'action') {
+      h.onSelect();
+      setSearch('');
+      onClose();
+      return;
+    }
     if (h.kind === 'uchrashuv') {
       setSelectedMeetingId(h.id);
       setMainView('meetings');
@@ -150,7 +202,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${i === activeCursor ? 'bg-sky-500/15' : 'hover:bg-white/5'}`}
             >
               <span className="text-zinc-500">
-                {h.kind === 'vazifa' ? (
+                {h.kind === 'action' ? (
+                  <span className="text-amber-400 text-xs">⚡️</span>
+                ) : h.kind === 'vazifa' ? (
                   <Hash size={14} />
                 ) : h.kind === 'qayd' ? (
                   <FileText size={14} />
@@ -165,7 +219,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 <span className="block truncate font-mono text-[11px] text-zinc-500">{h.sub}</span>
               </span>
               <span className="ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
-                {h.kind === 'vazifa' ? 'Vazifa' : h.kind === 'qayd' ? 'Qayd' : h.kind === 'uchrashuv' ? 'Uchrashuv' : 'Prompt'}
+                {h.kind === 'action' ? 'Buyruq' : h.kind === 'vazifa' ? 'Vazifa' : h.kind === 'qayd' ? 'Qayd' : h.kind === 'uchrashuv' ? 'Uchrashuv' : 'Prompt'}
               </span>
             </button>
           ))}
