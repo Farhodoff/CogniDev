@@ -112,6 +112,12 @@ import {
   dispatchDailyReportToTelegram,
   type DailyReportSummary,
 } from './dailyReport';
+import { scanRoadmapsForDate, buildFocusTasksFromRoadmapGoals } from './roadmapDailyScanner';
+import {
+  checkAndTriggerDailyRoutines,
+  executeDailyRoutineStage,
+  type DailyRoutineStage,
+} from './dailyRoutineSchedule';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -319,6 +325,12 @@ interface SynapseState {
   deleteMilestoneFromRoadmap: (roadmapId: string, milestoneId: string) => Promise<void>;
   deleteRoadmap: (roadmapId: string) => Promise<void>;
   updateRoadmap: (roadmapId: string, updates: Partial<Pick<RoadmapItem, 'title' | 'stack' | 'description'>>) => Promise<void>;
+  updateMilestone: (roadmapId: string, milestoneId: string, updates: Partial<Pick<RoadmapMilestone, 'title' | 'duration' | 'priority'>>) => Promise<void>;
+  updateTopic: (roadmapId: string, milestoneId: string, topicId: string, updates: Partial<Pick<RoadmapTopic, 'title' | 'done'>>) => Promise<void>;
+  updateRoadmapMarkdown: (roadmapId: string, markdown: string) => Promise<void>;
+  batchReplaceYearInRoadmaps: (fromYear?: string, toYear?: string) => Promise<number>;
+  syncDailyRoadmapFocus: (targetDate?: Date) => Promise<number>;
+  triggerDailyRoutineTest: (stage: DailyRoutineStage) => Promise<void>;
 
   // Project Ideas
   projectIdeas: ProjectIdea[];
@@ -554,6 +566,37 @@ function ensureSchedulerStarted(
         break;
       }
     }
+
+    // 3-Stage Daily Routine voice reminder check (10:00, 14:00, 22:00)
+    try {
+      const currentState = getState();
+      checkAndTriggerDailyRoutines({
+        tasks: currentState.tasks,
+        roadmaps: currentState.roadmaps,
+        scheduleBlocks: currentState.scheduleBlocks,
+        telegramConfig: currentState.telegramConfig,
+        soundEnabled: currentState.soundEnabled,
+        userName: currentState.userProfile?.full_name || 'Muhandis',
+        onAlertBanner: (bannerTitle, bannerBody, stage) => {
+          setState({
+            activeAlertReminder: {
+              id: `routine-${stage}-${Date.now()}`,
+              source_type: 'custom',
+              title: bannerTitle,
+              description: bannerBody,
+              target_time: new Date().toISOString(),
+              time_string: new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+              status: 'triggered',
+              sound_enabled: true,
+              created_at: new Date().toISOString(),
+            },
+          });
+        },
+        onSetHud: (msg) => currentState.setHud(msg),
+      });
+    } catch (routineErr) {
+      console.warn('[Scheduler] daily routine tick error:', routineErr);
+    }
   }, 4000);
 }
 
@@ -648,17 +691,41 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   selectRoadmap: (id) => set({ selectedRoadmapId: id }),
 
   toggleTopicDone: async (roadmapId, milestoneId, topicId) => {
+    let nextDone = false;
     const roadmaps = get().roadmaps.map((r) => {
       if (r.id !== roadmapId) return r;
       const milestones = r.milestones.map((m) => {
         if (m.id !== milestoneId) return m;
-        const topics = m.topics.map((t) => (t.id === topicId ? { ...t, done: !t.done } : t));
+        const topics = m.topics.map((t) => {
+          if (t.id === topicId) {
+            nextDone = !t.done;
+            return { ...t, done: nextDone };
+          }
+          return t;
+        });
         return { ...m, topics };
       });
       return { ...r, milestones, updated_at: new Date().toISOString() };
     });
     saveStoredRoadmaps(roadmaps);
-    set({ roadmaps });
+
+    // Bidirectional sync: sync with any matching task in tasks list
+    const updatedTasks = get().tasks.map((task) => {
+      if (
+        task.ai_source === `roadmap_topic:${topicId}` ||
+        task.id === `task-roadmap-${topicId.replace(/^t-/, '')}`
+      ) {
+        return {
+          ...task,
+          status: (nextDone ? 'completed' : 'active') as Task['status'],
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return task;
+    });
+    saveStoredTasks(updatedTasks);
+
+    set({ roadmaps, tasks: updatedTasks });
     const target = roadmaps.find((r) => r.id === roadmapId);
     if (target && get().dbMode === 'sqlite') {
       await upsertRoadmap(target).catch(() => {});
@@ -820,6 +887,189 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       await upsertRoadmap(updatedRd).catch(() => {});
     }
     get().setHud("Yo‘l xaritasi yangilandi ✓");
+  },
+
+  updateMilestone: async (roadmapId, milestoneId, updates) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const updatedMilestones = rd.milestones.map((m) =>
+      m.id === milestoneId ? { ...m, ...updates } : m
+    );
+    const updatedRd: RoadmapItem = { ...rd, milestones: updatedMilestones, updated_at: new Date().toISOString() };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    saveStoredRoadmaps(all);
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud("Yo‘l xaritasi bosqichi yangilandi ✓");
+  },
+
+  updateTopic: async (roadmapId, milestoneId, topicId, updates) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const updatedMilestones = rd.milestones.map((m) => {
+      if (m.id !== milestoneId) return m;
+      const topics = m.topics.map((t) => (t.id === topicId ? { ...t, ...updates } : t));
+      return { ...m, topics };
+    });
+    const updatedRd: RoadmapItem = { ...rd, milestones: updatedMilestones, updated_at: new Date().toISOString() };
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    saveStoredRoadmaps(all);
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud("Mavzu muvaffaqiyatli tahrirlandi ✓");
+  },
+
+  updateRoadmapMarkdown: async (roadmapId, markdown) => {
+    const rd = get().roadmaps.find((r) => r.id === roadmapId);
+    if (!rd) return;
+    const parsed = parseRoadmapMarkdown(markdown, rd.title);
+
+    // Preserve existing done states for matching topic titles
+    const oldDoneMap = new Map<string, boolean>();
+    for (const m of rd.milestones) {
+      for (const t of m.topics) {
+        oldDoneMap.set(t.title.trim().toLowerCase(), t.done);
+      }
+    }
+
+    const mergedMilestones = parsed.milestones.map((m) => ({
+      ...m,
+      topics: m.topics.map((t) => ({
+        ...t,
+        done: oldDoneMap.get(t.title.trim().toLowerCase()) ?? t.done,
+      })),
+    }));
+
+    const updatedRd: RoadmapItem = {
+      ...rd,
+      title: parsed.title,
+      stack: parsed.stack,
+      description: parsed.description,
+      milestones: mergedMilestones,
+      updated_at: new Date().toISOString(),
+    };
+
+    const all = get().roadmaps.map((r) => (r.id === roadmapId ? updatedRd : r));
+    saveStoredRoadmaps(all);
+    set({ roadmaps: all });
+    if (get().dbMode === 'sqlite') {
+      await upsertRoadmap(updatedRd).catch(() => {});
+    }
+    get().setHud("Markdown o‘zgarishlari saqlandi va yo‘l xaritasi yangilandi ✓");
+  },
+
+  batchReplaceYearInRoadmaps: async (fromYear = '2027', toYear = '2026') => {
+    let changedCount = 0;
+    const replaceText = (text: string) => {
+      if (!text || !text.includes(fromYear)) return text;
+      changedCount++;
+      return text.replaceAll(fromYear, toYear);
+    };
+
+    const updatedRoadmaps = get().roadmaps.map((r) => {
+      const newTitle = replaceText(r.title);
+      const newDesc = replaceText(r.description);
+      const newStack = replaceText(r.stack);
+      const newMilestones = r.milestones.map((m) => {
+        const mTitle = replaceText(m.title);
+        const mDuration = replaceText(m.duration || '');
+        const mTopics = m.topics.map((t) => ({
+          ...t,
+          title: replaceText(t.title),
+        }));
+        return { ...m, title: mTitle, duration: mDuration, topics: mTopics };
+      });
+      return {
+        ...r,
+        title: newTitle,
+        description: newDesc,
+        stack: newStack,
+        milestones: newMilestones,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    saveStoredRoadmaps(updatedRoadmaps);
+    set({ roadmaps: updatedRoadmaps });
+    if (get().dbMode === 'sqlite') {
+      for (const r of updatedRoadmaps) {
+        await upsertRoadmap(r).catch(() => {});
+      }
+    }
+    get().setHud(`Barcha yo‘l xaritalarida ${changedCount} ta joyda "${fromYear}" → "${toYear}" ga almashtirildi ✓`);
+    return changedCount;
+  },
+
+  syncDailyRoadmapFocus: async (targetDate = new Date()) => {
+    const { roadmaps, tasks, activeWorkspaceId, userProfile } = get();
+    const goals = scanRoadmapsForDate(roadmaps, targetDate, { includeNextPendingIfNoDate: true, maxPerRoadmap: 2 });
+    if (goals.length === 0) {
+      get().setHud("Yo‘l xaritalarida bugungi kun uchun vazifalar topilmadi");
+      return 0;
+    }
+
+    const { tasksToAdd, tasksToUpdate } = buildFocusTasksFromRoadmapGoals(
+      goals,
+      tasks,
+      activeWorkspaceId || 'personal',
+      userProfile?.full_name || 'Men',
+      userProfile?.avatar_initials || 'ME'
+    );
+
+    let nextTasks = [...tasks];
+    for (const add of tasksToAdd) {
+      nextTasks = [add, ...nextTasks];
+      if (get().dbMode === 'sqlite') {
+        insertTask(add).catch(() => {});
+      }
+    }
+    for (const upd of tasksToUpdate) {
+      nextTasks = nextTasks.map((t) => (t.id === upd.id ? upd : t));
+      if (get().dbMode === 'sqlite') {
+        updateTaskMeta(upd.id, upd.status, upd.priority).catch(() => {});
+      }
+    }
+
+    saveStoredTasks(nextTasks);
+    set({ tasks: nextTasks });
+    get().setHud(`AI: Bugungi fokusga ${tasksToAdd.length} ta yo‘l xaritasi vazifasi qo‘shildi/yangilandi ✓`);
+    return tasksToAdd.length;
+  },
+
+  triggerDailyRoutineTest: async (stage) => {
+    const state = get();
+    await executeDailyRoutineStage(
+      stage,
+      {
+        tasks: state.tasks,
+        roadmaps: state.roadmaps,
+        scheduleBlocks: state.scheduleBlocks,
+        telegramConfig: state.telegramConfig,
+        soundEnabled: state.soundEnabled,
+        userName: state.userProfile?.full_name || 'Muhandis',
+        onAlertBanner: (bannerTitle, bannerBody, stageName) => {
+          set({
+            activeAlertReminder: {
+              id: `routine-${stageName}-${Date.now()}`,
+              source_type: 'custom',
+              title: bannerTitle,
+              description: bannerBody,
+              target_time: new Date().toISOString(),
+              time_string: new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+              status: 'triggered',
+              sound_enabled: true,
+              created_at: new Date().toISOString(),
+            },
+          });
+        },
+        onSetHud: (msg) => state.setHud(msg),
+      },
+      true // isManualTest = true
+    );
   },
 
   // Project Ideas initial
@@ -2476,9 +2726,36 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     } catch {}
     saveStoredTasks(updatedTasks);
 
+    // Bidirectional sync: If task originated from a roadmap topic, update that topic in roadmaps
+    const targetTask = updatedTasks.find((task) => task.id === id);
+    let updatedRoadmaps = get().roadmaps;
+    if (targetTask?.ai_source?.startsWith('roadmap_topic:')) {
+      const topicId = targetTask.ai_source.replace('roadmap_topic:', '');
+      updatedRoadmaps = get().roadmaps.map((r) => {
+        let changed = false;
+        const milestones = r.milestones.map((m) => {
+          if (!m.topics.some((top) => top.id === topicId)) return m;
+          changed = true;
+          return {
+            ...m,
+            topics: m.topics.map((top) => (top.id === topicId ? { ...top, done: isDone } : top)),
+          };
+        });
+        return changed ? { ...r, milestones, updated_at: stamp } : r;
+      });
+      saveStoredRoadmaps(updatedRoadmaps);
+      if (get().dbMode === 'sqlite') {
+        const changedRd = updatedRoadmaps.find((r) =>
+          r.milestones.some((m) => m.topics.some((top) => top.id === topicId))
+        );
+        if (changedRd) upsertRoadmap(changedRd).catch(() => {});
+      }
+    }
+
     set({
       tasks: updatedTasks,
       meetings: updatedMeetings,
+      roadmaps: updatedRoadmaps,
       hudMessage: `${id} holati o'zgartirildi: ${status}`,
     });
 

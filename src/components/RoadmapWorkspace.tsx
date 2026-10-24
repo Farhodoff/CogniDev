@@ -15,11 +15,14 @@ import {
   PlusCircle,
   FolderUp,
   Pencil,
+  FileEdit,
+  RefreshCw,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { analyzeLearningLog } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 import { exportRoadmapToMarkdown } from '../lib/roadmapParser';
+import type { RoadmapMilestone } from '../lib/types';
 import FormattedAiText from './FormattedAiText';
 
 /** Helper to trigger browser download for markdown file */
@@ -51,6 +54,11 @@ export default function RoadmapWorkspace() {
     deleteMilestoneFromRoadmap,
     deleteRoadmap,
     updateRoadmap,
+    updateMilestone,
+    updateTopic,
+    updateRoadmapMarkdown,
+    batchReplaceYearInRoadmaps,
+    syncDailyRoadmapFocus,
     setHud,
   } = useSynapse();
 
@@ -63,6 +71,24 @@ export default function RoadmapWorkspace() {
   const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditRoadmapModal, setShowEditRoadmapModal] = useState(false);
+
+  // Markdown editor modal state
+  const [showMarkdownEditorModal, setShowMarkdownEditorModal] = useState(false);
+  const [markdownEditorContent, setMarkdownEditorContent] = useState('');
+
+  // Milestone edit modal state
+  const [editingMilestone, setEditingMilestone] = useState<RoadmapMilestone | null>(null);
+  const [editMilestoneTitle, setEditMilestoneTitle] = useState('');
+  const [editMilestoneDuration, setEditMilestoneDuration] = useState('2–4 hafta');
+  const [editMilestonePriority, setEditMilestonePriority] = useState('Yuqori');
+
+  // Topic edit state
+  const [editingTopic, setEditingTopic] = useState<{ milestoneId: string; topicId: string; title: string } | null>(null);
+
+  // Batch Year replacer modal
+  const [showBatchYearModal, setShowBatchYearModal] = useState(false);
+  const [batchYearFrom, setBatchYearFrom] = useState('2027');
+  const [batchYearTo, setBatchYearTo] = useState('2026');
 
   // Edit roadmap modal state
   const [editRoadmapTitle, setEditRoadmapTitle] = useState('');
@@ -235,6 +261,77 @@ export default function RoadmapWorkspace() {
     setShowEditRoadmapModal(false);
   };
 
+  // Open Markdown Editor
+  const handleOpenMarkdownEditor = () => {
+    if (!currentRoadmap) return;
+    const md = exportRoadmapToMarkdown(currentRoadmap);
+    setMarkdownEditorContent(md);
+    setShowMarkdownEditorModal(true);
+  };
+
+  // Save Markdown Editor
+  const handleSaveMarkdownEditor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentRoadmap || !markdownEditorContent.trim()) return;
+    await updateRoadmapMarkdown(currentRoadmap.id, markdownEditorContent.trim());
+    setShowMarkdownEditorModal(false);
+  };
+
+  // Quick replace 2027 -> 2026 inside markdown editor
+  const handleQuickReplaceEditorYear = () => {
+    let replaced = markdownEditorContent;
+    replaced = replaced.replaceAll('2027', '2026');
+    replaced = replaced.replaceAll('27-yil', '26-yil');
+    replaced = replaced.replaceAll('27 yil', '26 yil');
+    setMarkdownEditorContent(replaced);
+    setHud("Matndagi '2027' yillari '2026' ga almashtirildi ✓");
+  };
+
+  // Open Edit Milestone
+  const handleOpenEditMilestone = (ms: (typeof currentRoadmap.milestones)[0]) => {
+    setEditingMilestone(ms);
+    setEditMilestoneTitle(ms.title);
+    setEditMilestoneDuration(ms.duration || '2–4 hafta');
+    setEditMilestonePriority(ms.priority || 'Yuqori');
+  };
+
+  // Save Edit Milestone
+  const handleSaveEditMilestone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentRoadmap || !editingMilestone || !editMilestoneTitle.trim()) return;
+    await updateMilestone(currentRoadmap.id, editingMilestone.id, {
+      title: editMilestoneTitle.trim(),
+      duration: editMilestoneDuration.trim(),
+      priority: editMilestonePriority,
+    });
+    setEditingMilestone(null);
+  };
+
+  // Save Edit Topic
+  const handleSaveEditTopic = async (milestoneId: string, topicId: string, newTitle: string) => {
+    if (!currentRoadmap || !newTitle.trim()) return;
+    await updateTopic(currentRoadmap.id, milestoneId, topicId, {
+      title: newTitle.trim(),
+    });
+    setEditingTopic(null);
+  };
+
+  // Run Batch Year Replacer across all roadmaps
+  const handleRunBatchYearReplace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchYearFrom.trim() || !batchYearTo.trim()) return;
+    await batchReplaceYearInRoadmaps(batchYearFrom.trim(), batchYearTo.trim());
+    setShowBatchYearModal(false);
+  };
+
+  // Run Daily Focus Sync
+  const handleSyncDailyFocus = async () => {
+    const count = await syncDailyRoadmapFocus(new Date());
+    if (count > 0) {
+      setHud(`AI: Bugungi kun uchun ${count} ta vazifa Home Focus blokiga qo'shildi! 🚀`);
+    }
+  };
+
   // Submit daily learning check
   const handleSubmitDailyCheck = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -336,6 +433,33 @@ export default function RoadmapWorkspace() {
 
           {currentRoadmap && (
             <>
+              <button
+                onClick={handleSyncDailyFocus}
+                title="Barcha yo‘l xaritalarini skanerlab, bugungi kun maqsadlarini Home Focus joyiga chiqarish"
+                className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/15 px-3 py-1.5 text-[12px] font-semibold text-rose-300 hover:bg-rose-500/25 transition shadow-sm"
+              >
+                <Sparkles size={13} className="text-rose-400 animate-pulse" />
+                <span>Bugungi Fokus (AI Sync)</span>
+              </button>
+
+              <button
+                onClick={handleOpenMarkdownEditor}
+                title="Yo‘l xaritasini to‘liq Markdown matni ko‘rinishida tahrirlash (2027 larni 2026 qilish, maqsadlarni o‘zgartirish)"
+                className="flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 px-2.5 py-1.5 text-[12px] font-medium text-purple-300 hover:bg-purple-500/20 transition"
+              >
+                <FileEdit size={13} />
+                <span>.md Tahrirlash</span>
+              </button>
+
+              <button
+                onClick={() => setShowBatchYearModal(true)}
+                title="Barcha xaritalardagi '2027' yil yozuvlarini '2026' ga almashtirish"
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition"
+              >
+                <RefreshCw size={13} />
+                <span>2027 → 2026</span>
+              </button>
+
               <button
                 onClick={handleExportMarkdown}
                 title="Yo‘l xaritasini .md qilib eksport qilish"
@@ -626,14 +750,21 @@ export default function RoadmapWorkspace() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <span className="font-mono text-[12px] text-zinc-400">
                             {msDone}/{msTotal} o‘zlashtirildi
                           </span>
                           <button
+                            onClick={() => handleOpenEditMilestone(ms)}
+                            title="Bosqichni tahrirlash (nom, muddat, prioritet)"
+                            className="p-1.5 text-zinc-400 hover:text-amber-300 hover:bg-white/[0.06] rounded-lg transition"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
                             onClick={() => deleteMilestoneFromRoadmap(currentRoadmap.id, ms.id)}
                             title="Ushbu bosqichni o‘chirish"
-                            className="p-1 text-zinc-500 hover:text-red-400 transition"
+                            className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
                           >
                             <Trash2 size={13} />
                           </button>
@@ -651,35 +782,98 @@ export default function RoadmapWorkspace() {
                                 : 'border-white/[0.05] bg-white/[0.015] text-zinc-200 hover:border-white/10 hover:bg-white/[0.04]'
                             }`}
                           >
-                            <div
-                              onClick={() => toggleTopicDone(currentRoadmap.id, ms.id, topic.id)}
-                              className="flex flex-1 cursor-pointer items-start gap-2.5 select-none"
-                            >
-                              <span
-                                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
-                                  topic.done
-                                    ? 'border-emerald-500 bg-emerald-500 text-white'
-                                    : 'border-zinc-600 bg-transparent text-transparent hover:border-zinc-400'
-                                }`}
+                            {editingTopic?.topicId === topic.id ? (
+                              <div
+                                className="flex flex-1 items-center gap-1.5"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <Check size={11} strokeWidth={3} />
-                              </span>
-                              <span className={`text-[12.5px] leading-snug break-words ${topic.done ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>
-                                {topic.title}
-                              </span>
-                            </div>
+                                <input
+                                  type="text"
+                                  value={editingTopic.title}
+                                  onChange={(e) =>
+                                    setEditingTopic({ ...editingTopic, title: e.target.value })
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleSaveEditTopic(ms.id, topic.id, editingTopic.title);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingTopic(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                  className="flex-1 rounded-lg border border-amber-400/50 bg-black/80 px-2.5 py-1 text-[12px] text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSaveEditTopic(ms.id, topic.id, editingTopic.title)
+                                  }
+                                  className="rounded-md bg-amber-500 text-black px-2 py-1 text-[10.5px] font-bold hover:bg-amber-400 transition"
+                                >
+                                  Saqlash
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingTopic(null)}
+                                  className="rounded-md bg-white/10 text-zinc-300 px-2 py-1 text-[10.5px] hover:bg-white/20 transition"
+                                >
+                                  Bekor
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div
+                                  onClick={() => toggleTopicDone(currentRoadmap.id, ms.id, topic.id)}
+                                  className="flex flex-1 cursor-pointer items-start gap-2.5 select-none min-w-0"
+                                >
+                                  <span
+                                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                                      topic.done
+                                        ? 'border-emerald-500 bg-emerald-500 text-white'
+                                        : 'border-zinc-600 bg-transparent text-transparent hover:border-zinc-400'
+                                    }`}
+                                  >
+                                    <Check size={11} strokeWidth={3} />
+                                  </span>
+                                  <span
+                                    className={`text-[12.5px] leading-snug break-words ${
+                                      topic.done ? 'line-through text-zinc-500' : 'text-zinc-200'
+                                    }`}
+                                  >
+                                    {topic.title}
+                                  </span>
+                                </div>
 
-                            {/* Delete topic button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteTopicFromMilestone(currentRoadmap.id, ms.id, topic.id);
-                              }}
-                              title="Mavzuni o‘chirish"
-                              className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-600 hover:text-red-400 transition"
-                            >
-                              <X size={12} />
-                            </button>
+                                {/* Topic action buttons */}
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingTopic({
+                                        milestoneId: ms.id,
+                                        topicId: topic.id,
+                                        title: topic.title,
+                                      });
+                                    }}
+                                    title="Mavzuni tahrirlash"
+                                    className="p-1 text-zinc-400 hover:text-amber-300 hover:bg-white/[0.06] rounded transition"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteTopicFromMilestone(currentRoadmap.id, ms.id, topic.id);
+                                    }}
+                                    title="Mavzuni o‘chirish"
+                                    className="p-1 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1236,6 +1430,226 @@ export default function RoadmapWorkspace() {
                   className="rounded-xl bg-amber-600 hover:bg-amber-500 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg transition"
                 >
                   Saqlash
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 6: FULL MARKDOWN EDITOR MODAL ── */}
+      {showMarkdownEditorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#121318] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <FileEdit size={18} className="text-purple-400" />
+                <h3 className="text-[15px] font-bold text-white">
+                  Markdown Tahrirlash — {currentRoadmap?.title}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleQuickReplaceEditorYear}
+                  title="Ushbu matndagi barcha 2027 yillarini 2026 ga o‘zgartirish"
+                  className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                >
+                  <RefreshCw size={12} />
+                  <span>2027 → 2026</span>
+                </button>
+                <button
+                  onClick={() => setShowMarkdownEditorModal(false)}
+                  className="text-zinc-500 hover:text-white p-1"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[12px] text-zinc-400">
+              Yo‘l xaritasining Markdown manbasini to‘liq tahrirlashingiz, yillarni o‘zgartirishingiz yoki yangi maqsadlar qo‘shishingiz mumkin.
+            </p>
+
+            <form onSubmit={handleSaveMarkdownEditor} className="space-y-4">
+              <textarea
+                rows={16}
+                value={markdownEditorContent}
+                onChange={(e) => setMarkdownEditorContent(e.target.value)}
+                className="w-full font-mono text-[12.5px] rounded-xl border border-white/10 bg-black/60 p-4 text-zinc-100 placeholder:text-zinc-600 focus:border-purple-400 focus:outline-none resize-y leading-relaxed"
+              />
+
+              <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+                <span className="text-[11px] text-zinc-500">
+                  Format: # Sarlavha · ### Bosqich · - [ ] Mavzu
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowMarkdownEditorModal(false)}
+                    className="rounded-xl px-4 py-2 text-[12px] font-medium text-zinc-400 hover:text-white"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-purple-600 hover:bg-purple-500 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg transition"
+                  >
+                    Saqlash va Yangilash
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 7: EDIT MILESTONE (TITLE, DURATION, PRIORITY) ── */}
+      {editingMilestone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#16171f] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <h3 className="text-[15px] font-bold text-white flex items-center gap-2">
+                <Pencil size={16} className="text-amber-400" />
+                Bosqich ma’lumotlarini tahrirlash
+              </h3>
+              <button
+                onClick={() => setEditingMilestone(null)}
+                className="rounded-lg p-1 text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditMilestone} className="space-y-4">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                  Bosqich Nomi *
+                </label>
+                <input
+                  type="text"
+                  value={editMilestoneTitle}
+                  onChange={(e) => setEditMilestoneTitle(e.target.value)}
+                  placeholder="Masalan: 1. Asosiy Mavzular (2026-yil)"
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-amber-500 focus:outline-none"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                    Taxminiy Muddat
+                  </label>
+                  <input
+                    type="text"
+                    value={editMilestoneDuration}
+                    onChange={(e) => setEditMilestoneDuration(e.target.value)}
+                    placeholder="2–4 hafta"
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                    Prioritet
+                  </label>
+                  <select
+                    value={editMilestonePriority}
+                    onChange={(e) => setEditMilestonePriority(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-[#121318] px-3 py-2 text-[13px] text-white focus:border-amber-500 focus:outline-none"
+                  >
+                    <option value="Yuqori">🔥 Yuqori</option>
+                    <option value="O‘rta">⚡ O‘rta</option>
+                    <option value="Boshlang‘ich">🌱 Boshlang‘ich</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setEditingMilestone(null)}
+                  className="rounded-xl px-4 py-2 text-[12px] font-medium text-zinc-400 hover:text-white"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-600 hover:bg-amber-500 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg transition"
+                >
+                  Saqlash
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 8: BATCH YEAR REPLACER (ALL ROADMAPS) ── */}
+      {showBatchYearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-500/20 bg-[#121518] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <h3 className="text-[15px] font-bold text-white flex items-center gap-2">
+                <RefreshCw size={16} className="text-emerald-400" />
+                Yillarni Almashtirish (Barcha Yo‘l Xaritalari)
+              </h3>
+              <button
+                onClick={() => setShowBatchYearModal(false)}
+                className="rounded-lg p-1 text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-[12.5px] text-zinc-300 leading-relaxed">
+              Mavjud barcha ({roadmaps.length} ta) yo‘l xaritalaringizdagi yillarni bir zumda almashtiring (masalan, 2027-yil deb belgilangan rejalarni 2026-yil qilish).
+            </p>
+
+            <form onSubmit={handleRunBatchYearReplace} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                    Eski Yil (From)
+                  </label>
+                  <input
+                    type="text"
+                    value={batchYearFrom}
+                    onChange={(e) => setBatchYearFrom(e.target.value)}
+                    placeholder="2027"
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-emerald-500 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+                    Yangi Yil (To)
+                  </label>
+                  <input
+                    type="text"
+                    value={batchYearTo}
+                    onChange={(e) => setBatchYearTo(e.target.value)}
+                    placeholder="2026"
+                    className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-300 focus:border-emerald-400 focus:outline-none font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchYearModal(false)}
+                  className="rounded-xl px-4 py-2 text-[12px] font-medium text-zinc-400 hover:text-white"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg transition"
+                >
+                  Barcha Xaritalarda Almashtirish
                 </button>
               </div>
             </form>

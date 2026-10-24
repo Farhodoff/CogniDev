@@ -27,6 +27,7 @@ import {
   Radio,
   Zap,
   Activity,
+  Volume2,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
@@ -60,6 +61,8 @@ export default function DashboardWorkspace() {
     deleteScheduleBlock,
     roadmaps,
     toggleTopicDone,
+    syncDailyRoadmapFocus,
+    triggerDailyRoutineTest,
     setTaskModal,
     setMainView,
     selectNote,
@@ -1432,13 +1435,26 @@ ${realContext}`;
                   </div>
                   <h3 className="text-[13.5px] font-bold text-white tracking-tight">Joriy fokus</h3>
                 </div>
-                <button
-                  onClick={() => setIsAddingFocus(!isAddingFocus)}
-                  className="rounded-lg bg-white/[0.05] hover:bg-white/[0.1] p-1 text-zinc-400 hover:text-white transition"
-                  title="Fokus qo'shish"
-                >
-                  <Plus size={13} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={async () => {
+                      const count = await syncDailyRoadmapFocus(new Date());
+                      setHud(`AI: Bugungi kun uchun ${count} ta yo‘l xaritasi maqsadi fokusga joylashtirildi ✓`);
+                    }}
+                    className="flex items-center gap-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 text-[11px] font-semibold text-rose-300 border border-rose-500/30 transition shadow-sm"
+                    title="Barcha 10 ta yo‘l xaritasini avtomatik tekshirib, bugungi maqsadlarni fokusga qo'yish"
+                  >
+                    <Sparkles size={11} className="text-rose-400" />
+                    <span>AI Yo‘l Xarita Sync</span>
+                  </button>
+                  <button
+                    onClick={() => setIsAddingFocus(!isAddingFocus)}
+                    className="rounded-lg bg-white/[0.05] hover:bg-white/[0.1] p-1 text-zinc-400 hover:text-white transition"
+                    title="Fokus qo'shish"
+                  >
+                    <Plus size={13} />
+                  </button>
+                </div>
               </div>
 
               {isAddingFocus && (
@@ -1457,22 +1473,37 @@ ${realContext}`;
               {effectiveFocusTasks.length === 0 ? (
                 <div className="py-4 px-2 text-center border border-dashed border-white/10 rounded-xl bg-white/[0.01]">
                   <p className="text-[12px] text-zinc-500">Bugun uchun faol fokus vazifalar yo'q</p>
-                  <button
-                    onClick={() => setIsAddingFocus(true)}
-                    className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-rose-400 hover:text-rose-300 transition"
-                  >
-                    <Plus size={11} /> Fokus qo'shish
-                  </button>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <button
+                      onClick={async () => {
+                        const count = await syncDailyRoadmapFocus(new Date());
+                        setHud(`AI: Bugungi kun uchun ${count} ta yo‘l xaritasi maqsadi fokusga joylashtirildi ✓`);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-rose-400 hover:text-rose-300 transition bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg"
+                    >
+                      <Sparkles size={11} /> AI Yo‘l Xaritalaridan Aniqlash
+                    </button>
+                    <button
+                      onClick={() => setIsAddingFocus(true)}
+                      className="inline-flex items-center gap-1 text-[11.5px] font-medium text-zinc-400 hover:text-zinc-200 transition"
+                    >
+                      <Plus size={11} /> Qo‘lda qo‘shish
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-1.5">
                   {effectiveFocusTasks.map((item) => {
                     const isDone = item.status === 'completed';
+                    const isRoadmapTask =
+                      ('tags' in item && Boolean(item.tags?.includes('roadmap'))) ||
+                      ('ai_source' in item && Boolean(item.ai_source?.startsWith('roadmap_topic:')));
+
                     return (
                       <div
                         key={item.id}
                         onClick={() => handleToggleFocus(item.id)}
-                        className="flex items-center justify-between gap-2.5 p-1 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group"
+                        className="flex items-center justify-between gap-2.5 p-1.5 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
@@ -1491,6 +1522,11 @@ ${realContext}`;
                           >
                             {item.title}
                           </span>
+                          {isRoadmapTask && (
+                            <span className="rounded bg-rose-500/20 px-1.5 py-0.2 text-[9.5px] font-mono text-rose-300 border border-rose-500/30 shrink-0">
+                              Yo‘l xaritasi
+                            </span>
+                          )}
                         </div>
 
                         <button
@@ -1509,6 +1545,80 @@ ${realContext}`;
                   })}
                 </div>
               )}
+            </div>
+
+            {/* 2.5 Kunlik Ovozli Rejim (10:00 · 14:00 · 22:00) */}
+            <div className="rounded-2xl border border-white/[0.08] bg-[#121319]/90 p-4 shadow-sm backdrop-blur-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/15 text-amber-400">
+                    <Volume2 size={13} />
+                  </div>
+                  <div>
+                    <h3 className="text-[13.5px] font-bold text-white tracking-tight">Kunlik Ovozli Bildirishnomalar</h3>
+                    <p className="text-[10.5px] text-zinc-400">10:00 · 14:00 · 22:00 3-bosqichli avtomatik nazorat</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                  ● Rejim Faol
+                </span>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                {/* 10:00 Start */}
+                <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-amber-500/30 transition">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="font-mono text-[11px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">10:00</span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-zinc-200">Ertalabki Start</p>
+                      <p className="text-[10.5px] text-zinc-500 truncate">Bugungi kun vazifalari boshlanishi va AI tekshiruvi</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => triggerDailyRoutineTest('morning_10')}
+                    className="flex items-center gap-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 text-[10.5px] font-semibold text-amber-300 border border-amber-500/20 transition shrink-0"
+                    title="10:00 ovozli bildirishnomasini eshitish"
+                  >
+                    <Volume2 size={11} /> 🔊 Sinash
+                  </button>
+                </div>
+
+                {/* 14:00 Mid-day check */}
+                <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-sky-500/30 transition">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="font-mono text-[11px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded">14:00</span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-zinc-200">Oraliq Nazorat</p>
+                      <p className="text-[10.5px] text-zinc-500 truncate">Belgilanmagan maqsadlar bo‘yicha oraliq ovozli eslatma</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => triggerDailyRoutineTest('midday_14')}
+                    className="flex items-center gap-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 px-2 py-1 text-[10.5px] font-semibold text-sky-300 border border-sky-500/20 transition shrink-0"
+                    title="14:00 ovozli bildirishnomasini eshitish"
+                  >
+                    <Volume2 size={11} /> 🔊 Sinash
+                  </button>
+                </div>
+
+                {/* 22:00 Evening missed tasks audit */}
+                <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-purple-500/30 transition">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="font-mono text-[11px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">22:00</span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-zinc-200">Kun Yakuni Auditi</p>
+                      <p className="text-[10.5px] text-zinc-500 truncate">Bugungi qilinmagan ishlar hisoboti va AI tavsiyasi</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => triggerDailyRoutineTest('evening_22')}
+                    className="flex items-center gap-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 px-2 py-1 text-[10.5px] font-semibold text-purple-300 border border-purple-500/20 transition shrink-0"
+                    title="22:00 ovozli bildirishnomasini eshitish"
+                  >
+                    <Volume2 size={11} /> 🔊 Sinash
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* 3. AI dan bugungi maslahat Card */}
