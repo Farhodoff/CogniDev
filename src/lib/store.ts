@@ -105,6 +105,7 @@ import type { AiSource } from './providers';
 import { playNotificationSound, sendDesktopNotification } from './notifications';
 import { syncHermesMemoriesToDb, formatMemoriesForPrompt } from './hermesMemory';
 import { telegramBotManager, type TelegramBotStatus } from './telegramBot';
+import { isSlashCommand, executeSlashCommand } from './slashCommands';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -1453,6 +1454,42 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     if (!trimmed) return;
     const { tasks, roadmaps, projectIdeas, aiDrawerMessages, memories } = get();
 
+    if (isSlashCommand(trimmed)) {
+      const userMsg: AiDrawerMessage = {
+        id: 'msg-' + Date.now(),
+        role: 'user',
+        content: trimmed,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        source: 'ui',
+      };
+      insertChatMessage(userMsg).catch(() => {});
+
+      const { userProfile } = get();
+      const currentUserName = userProfile?.full_name || 'Dasturchi';
+      const reply = await executeSlashCommand(trimmed, {
+        tasks,
+        memories,
+        messagesCount: aiDrawerMessages.length,
+        roadmapsCount: roadmaps.length,
+        projectIdeasCount: projectIdeas.length,
+        currentUserName,
+        onClearHistory: () => get().clearAiDrawerMessages(),
+      });
+
+      const botMsg: AiDrawerMessage = {
+        id: 'bot-' + Date.now(),
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        model: 'buyruq',
+        source: 'ui',
+      };
+      insertChatMessage(botMsg).catch(() => {});
+      const finalMessages = [...aiDrawerMessages, userMsg, botMsg];
+      set({ aiDrawerMessages: finalMessages, isAiDrawerThinking: false });
+      return;
+    }
+
     const userMsg: AiDrawerMessage = {
       id: 'msg-' + Date.now(),
       role: 'user',
@@ -1569,6 +1606,33 @@ MUHIM QOIDALAR:
           aiDrawerMessages: [...state.aiDrawerMessages, userMsg],
         }));
         insertChatMessage(userMsg).catch(() => {});
+
+        if (isSlashCommand(incomingText)) {
+          const reply = await executeSlashCommand(incomingText, {
+            tasks,
+            memories,
+            messagesCount: get().aiDrawerMessages.length,
+            roadmapsCount: roadmaps.length,
+            projectIdeasCount: projectIdeas.length,
+            currentUserName: fromName || userProfile?.full_name || 'Farhod',
+            onClearHistory: () => get().clearAiDrawerMessages(),
+          });
+
+          const botMsg: AiDrawerMessage = {
+            id: 'tg-bot-' + Date.now(),
+            role: 'assistant',
+            content: reply,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            model: 'buyruq',
+            source: 'telegram',
+          };
+
+          set((state) => ({
+            aiDrawerMessages: [...state.aiDrawerMessages, botMsg],
+          }));
+          insertChatMessage(botMsg).catch(() => {});
+          return reply;
+        }
 
         const completedTasks = tasks.filter((t) => t.status === 'completed');
         const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');

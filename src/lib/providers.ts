@@ -448,3 +448,26 @@ export async function testProvider(id: CloudProviderId): Promise<{ ok: boolean; 
   if (text) return { ok: true, detail: `Ulandi ✓ (${s.model.trim()})` };
   return { ok: false, detail: 'Ulanmadi — kalit/modelni tekshiring' };
 }
+
+const ACTIVE_MODEL_OVERRIDE_KEY = 'cognidev.ai.model_override';
+
+export function getActiveModelOverride(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_MODEL_OVERRIDE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveModelOverride(model: string | null): void {
+  try {
+    if (model) {
+      localStorage.setItem(ACTIVE_MODEL_OVERRIDE_KEY, model.trim());
+    } else {
+      localStorage.removeItem(ACTIVE_MODEL_OVERRIDE_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+

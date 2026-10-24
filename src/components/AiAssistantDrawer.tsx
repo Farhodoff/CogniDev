@@ -20,6 +20,7 @@ import { firstEnabledProvider } from '../lib/providers';
 import { formatShortcut } from '../lib/platform';
 import FormattedAiText from './FormattedAiText';
 import TelegramBotModal from './TelegramBotModal';
+import { SLASH_COMMANDS } from '../lib/slashCommands';
 
 const QUICK_PROMPTS = [
   { icon: Clock, label: 'Bugungi kunimni tahlil qilib ber', prompt: 'Bugungi kunim va bajargan vazifalarimni tahlil qilib, xulosa va tavsiyalar ber.' },
@@ -227,6 +228,30 @@ export default function AiAssistantDrawer() {
 
       {/* Bottom Input Area */}
       <div className="border-t border-white/10 p-3 bg-black/40">
+        {/* Slash Command Autocomplete Menu */}
+        {input.startsWith('/') && !input.includes(' ') && (
+          <div className="mb-2 rounded-xl border border-purple-500/30 bg-zinc-900/95 backdrop-blur-xl p-1.5 shadow-2xl space-y-0.5 animate-in fade-in duration-100">
+            <div className="px-2 py-1 text-[10px] font-semibold text-purple-400 uppercase tracking-wider">
+              Tezkor buyruqlar:
+            </div>
+            {SLASH_COMMANDS.filter((sc) => sc.command.startsWith(input.toLowerCase())).map((sc) => (
+              <button
+                key={sc.command}
+                type="button"
+                onClick={() => {
+                  setInput(sc.command + (sc.command === '/model' ? ' ' : ''));
+                }}
+                className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-purple-500/20 text-zinc-200 transition group"
+              >
+                <span className="font-mono font-semibold text-purple-300 group-hover:text-purple-200">
+                  {sc.command}
+                </span>
+                <span className="text-[11px] text-zinc-400">{sc.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="relative rounded-xl border border-white/10 bg-black/60 focus-within:border-purple-400/50 transition">
           <textarea
             value={input}

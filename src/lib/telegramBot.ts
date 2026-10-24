@@ -117,6 +117,36 @@ export type OnTelegramMessageCallback = (
 /**
  * Long-polling client for Telegram Bot integration inside CogniDev.
  */
+/**
+ * Registers slash commands with Telegram so users get autocomplete when typing /
+ */
+export async function registerTelegramCommands(token: string): Promise<boolean> {
+  const cleanToken = token.trim();
+  if (!cleanToken) return false;
+
+  const commands = [
+    { command: 'model', description: 'AI modelini ko‘rish yoki o‘zgartirish' },
+    { command: 'usage', description: 'Foydalanish statistikasi va xotira holati' },
+    { command: 'tasks', description: 'CogniDev faol vazifalar ro‘yxati' },
+    { command: 'memory', description: 'Hermes uzoq muddatli xotiralari' },
+    { command: 'clear', description: 'Yozishmalar tarixini tozalash' },
+    { command: 'help', description: 'Barcha buyruqlar va qo‘llanma' },
+  ];
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${cleanToken}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commands }),
+    });
+    const data = await res.json();
+    return Boolean(data.ok);
+  } catch (err) {
+    console.warn('[TelegramBot] Failed to setMyCommands:', err);
+    return false;
+  }
+}
+
 class TelegramBotManager {
   private abortController: AbortController | null = null;
   private status: TelegramBotStatus = 'stopped';
@@ -173,6 +203,9 @@ class TelegramBotManager {
       this.setStatus('error', null);
       return;
     }
+
+    // Auto-register slash commands for autocomplete
+    registerTelegramCommands(token).catch(() => {});
 
     this.setStatus('running', test.botUsername || test.botName || 'CogniDev Bot');
 
