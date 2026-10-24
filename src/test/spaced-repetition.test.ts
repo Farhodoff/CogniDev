@@ -113,7 +113,7 @@ describe('Spaced Repetition SM-2 Algorithm', () => {
           code_snippet: 'CREATE INDEX idx ON users (email);',
         },
       ]),
-      provider: 'gemini',
+      source: 'gemini',
       model: 'gemini-1.5-pro',
     });
 
