@@ -229,6 +229,23 @@ export interface AiDrawerMessage {
   content: string;
   timestamp: string;
   model?: string;
+  source?: 'ui' | 'telegram' | 'hermes';
+}
+
+export interface AiMemoryItem {
+  id: string;
+  category: 'user_profile' | 'tech_stack' | 'goals' | 'preferences' | 'general';
+  content: string;
+  source: 'hermes_import' | 'conversation' | 'manual';
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TelegramBotConfig {
+  bot_token: string;
+  allowed_user_ids: string;
+  is_active: boolean;
+  last_update_id?: number;
 }
 
 export interface NoteDoc {

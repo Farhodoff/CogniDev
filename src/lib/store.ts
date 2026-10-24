@@ -25,6 +25,8 @@ import type {
   HabitItem,
   MeetingItem,
   DevLinkItem,
+  AiMemoryItem,
+  TelegramBotConfig,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -87,6 +89,12 @@ import {
   fetchScheduleBlocks,
   upsertScheduleBlock,
   deleteScheduleBlockFromDb,
+  fetchMemories,
+  fetchChatMessages,
+  insertChatMessage,
+  clearChatMessagesInDb,
+  fetchTelegramSettings,
+  upsertTelegramSettings,
   type VaultDump,
 } from './db';
 import { deleteMeetingAudio } from './audioDb';
@@ -95,6 +103,8 @@ import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, ty
 import { isTauri } from './vault';
 import type { AiSource } from './providers';
 import { playNotificationSound, sendDesktopNotification } from './notifications';
+import { syncHermesMemoriesToDb, formatMemoriesForPrompt } from './hermesMemory';
+import { telegramBotManager, type TelegramBotStatus } from './telegramBot';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -328,6 +338,18 @@ interface SynapseState {
   isGeneratingTodayAiSummary: boolean;
   generateTodayAiSummary: () => Promise<void>;
 
+  // Hermes Memories & Telegram Integration
+  memories: AiMemoryItem[];
+  telegramConfig: TelegramBotConfig;
+  telegramStatus: TelegramBotStatus;
+  telegramBotName: string | null;
+  showTelegramModal: boolean;
+  setTelegramModal: (open: boolean) => void;
+  updateTelegramConfig: (patch: Partial<TelegramBotConfig>) => Promise<void>;
+  startTelegramBot: () => Promise<void>;
+  stopTelegramBot: () => void;
+  syncHermesMemoriesAction: () => Promise<void>;
+
   // Spaces
   spaces: SpaceItem[];
   activeSpaceId: string | null;
@@ -538,6 +560,12 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   gitHubTargetRepoUrl: null,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
+  memories: [],
+  telegramConfig: { bot_token: '', allowed_user_ids: '', is_active: false, last_update_id: 0 },
+  telegramStatus: 'stopped',
+  telegramBotName: null,
+  showTelegramModal: false,
+  setTelegramModal: (open) => set({ showTelegramModal: open }),
 
   // Notion Notes initial
   notesDocs: loadStoredNotesDocs(),
@@ -1423,17 +1451,19 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   sendAiDrawerMessage: async (promptText) => {
     const trimmed = promptText.trim();
     if (!trimmed) return;
-    const { tasks, roadmaps, projectIdeas, aiDrawerMessages } = get();
+    const { tasks, roadmaps, projectIdeas, aiDrawerMessages, memories } = get();
 
     const userMsg: AiDrawerMessage = {
       id: 'msg-' + Date.now(),
       role: 'user',
       content: trimmed,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      source: 'ui',
     };
 
     const updated = [...aiDrawerMessages, userMsg];
     set({ aiDrawerMessages: updated, isAiDrawerThinking: true });
+    insertChatMessage(userMsg).catch(() => {});
 
     try {
       const completedTasks = tasks.filter((t) => t.status === 'completed');
@@ -1444,9 +1474,14 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       const currentUserName = userProfile?.full_name || 'Dasturchi';
       const currentUserTitle = userProfile?.title || 'Software Engineer';
       const currentDate = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
+      const memoriesContext = formatMemoriesForPrompt(memories);
+
       const systemPrompt = `Siz CogniDev ilovasida ${currentUserName}ning shaxsiy, aqlli va professional AI yordamchisisiz.
 Foydalanuvchi: ${currentUserName} (${currentUserTitle}).
 Bugungi sana: ${currentDate}.
+
+${memoriesContext}
+
 Haqiqiy ma'lumotlar:
 - Faol vazifalar (${activeTasks.length}): ${activeTasks.slice(0, 8).map((t) => t.title).join('; ') || "Hozircha yo'q"}
 - Bajarilgan vazifalar (${completedTasks.length}): ${completedTasks.slice(0, 5).map((t) => t.title).join('; ') || "Hozircha yo'q"}
@@ -1455,8 +1490,8 @@ Haqiqiy ma'lumotlar:
 - Yo'l xaritasi: ${roadmaps.map((r) => r.title).join('; ') || "Hozircha yo'q"}
 
 MUHIM QOIDALAR:
-1. Javobingiz QISQA, LAKONIK, SAMIMIY VA ANIQ bo'lsin (uzog'i 2-4 ta gap yoki oddiy punktlar).
-2. Hech qachon keraksiz bahaybat jadvallar, soxta SQL/kodlar, o'tmishdagi (masalan 2023) sanalarni yoki g'alati sun'iy so'zlarni to'qimang.
+1. Siz foydalanuvchining Hermes orqali o'rganilgan shaxsiy xususiyatlari, maqsadlari va qiziqishlarini to'liq bilasiz. Maslahat berayotganda uning texnologik steki (Go, Java/Spring Boot, Vue, React, TS, Clean Code, FSD) va Nova Renessans amaliyotiga yo'naltirilganligini inobatga oling.
+2. Javobingiz QISQA, LAKONIK, SAMIMIY VA ANIQ bo'lsin (uzog'i 2-4 ta gap yoki oddiy punktlar).
 3. Foydalanuvchi so'ragan savolga toza, adabiy va tabiiy o'zbek tilida to'g'ridan-to'g'ri javob bering.
 4. Ortiqcha tinish belgilari, sun'iy ASCII jadvallar (|---|---|), panjara belgilari (##, ###) va keraksiz yulduzchalar (**) ishlatmang. Toza va chiroyli o'qiladigan formatda javob qaytaring.`;
 
@@ -1467,23 +1502,27 @@ MUHIM QOIDALAR:
         content: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         model: res.model || res.source,
+        source: 'ui',
       };
 
       const finalMessages = [...updated, botMsg];
       set({ aiDrawerMessages: finalMessages, isAiDrawerThinking: false });
+      insertChatMessage(botMsg).catch(() => {});
       try {
-        localStorage.setItem('cognidev_drawer_messages', JSON.stringify(finalMessages.slice(-20)));
+        localStorage.setItem('cognidev_drawer_messages', JSON.stringify(finalMessages.slice(-30)));
       } catch {}
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMsg: AiDrawerMessage = {
         id: 'err-' + Date.now(),
         role: 'assistant',
-        content: `Kechirasiz, so'rovni bajarishda xatolik yuz berdi: ${err?.message || 'Tarmoq xatosi'}. Sozlamalardan API kalitingizni tekshiring.`,
+        content: `Kechirasiz, so'rovni bajarishda xatolik yuz berdi: ${err instanceof Error ? err.message : 'Tarmoq xatosi'}. Sozlamalardan API kalitingizni tekshiring.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         model: 'xatolik',
+        source: 'ui',
       };
       const finalMessages = [...updated, errorMsg];
       set({ aiDrawerMessages: finalMessages, isAiDrawerThinking: false });
+      insertChatMessage(errorMsg).catch(() => {});
     }
   },
 
@@ -1491,6 +1530,7 @@ MUHIM QOIDALAR:
     try {
       localStorage.removeItem('cognidev_drawer_messages');
     } catch {}
+    clearChatMessagesInDb().catch(() => {});
     const currentUserName = get().userProfile?.full_name || 'Dasturchi';
     set({
       aiDrawerMessages: [
@@ -1502,6 +1542,100 @@ MUHIM QOIDALAR:
         },
       ],
     });
+  },
+
+  startTelegramBot: async () => {
+    const { telegramConfig } = get();
+    if (!telegramConfig.bot_token?.trim()) return;
+
+    telegramBotManager.subscribeStatus((status, botName) => {
+      set({ telegramStatus: status, telegramBotName: botName ?? null });
+    });
+
+    await telegramBotManager.start(
+      telegramConfig,
+      async (incomingText, _fromId, _chatId, fromName) => {
+        const { tasks, roadmaps, projectIdeas, memories, userProfile } = get();
+
+        const userMsg: AiDrawerMessage = {
+          id: 'tg-user-' + Date.now(),
+          role: 'user',
+          content: incomingText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          source: 'telegram',
+        };
+
+        set((state) => ({
+          aiDrawerMessages: [...state.aiDrawerMessages, userMsg],
+        }));
+        insertChatMessage(userMsg).catch(() => {});
+
+        const completedTasks = tasks.filter((t) => t.status === 'completed');
+        const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
+        const activeTasks = tasks.filter((t) => t.status === 'active');
+
+        const currentUserName = fromName || userProfile?.full_name || 'Farhod';
+        const currentDate = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
+        const memoriesContext = formatMemoriesForPrompt(memories);
+
+        const systemPrompt = `Siz CogniDev ilovasining Telegram AI yordamchisisiz.
+Foydalanuvchi: ${currentUserName}.
+Bugungi sana: ${currentDate}.
+Muloqot kanali: Telegram Bot.
+
+${memoriesContext}
+
+Hozirgi CogniDev ma'lumotlari:
+- Faol vazifalar (${activeTasks.length}): ${activeTasks.slice(0, 8).map((t) => t.title).join('; ') || "Yo'q"}
+- Bajarilgan vazifalar: ${completedTasks.slice(0, 5).map((t) => t.title).join('; ') || "Yo'q"}
+- To'siqlar: ${blockers.map((t) => t.title).join('; ') || "Yo'q"}
+- Loyihalar: ${projectIdeas.map((p) => p.title).join('; ') || "Yo'q"}
+- Yo'l xaritasi: ${roadmaps.map((r) => r.title).join('; ') || "Yo'q"}
+
+MUHIM QOIDALAR:
+1. Foydalanuvchi sizga Telegram'dan yozmoqda.
+2. Javobingiz Telegram formati uchun ixcham, samimiy va lo‘nda bo‘lsin.
+3. Foydalanuvchining Hermes orqali o‘rganilgan xotiralariga (texnologiyalari, maqsadlari) to‘liq mos yondashing.`;
+
+        const res = await callAi(incomingText, systemPrompt);
+        const replyText = res.text;
+
+        const botMsg: AiDrawerMessage = {
+          id: 'tg-bot-' + Date.now(),
+          role: 'assistant',
+          content: replyText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          model: res.model || res.source,
+          source: 'telegram',
+        };
+
+        set((state) => ({
+          aiDrawerMessages: [...state.aiDrawerMessages, botMsg],
+        }));
+        insertChatMessage(botMsg).catch(() => {});
+
+        return replyText;
+      },
+      (newOffset) => {
+        upsertTelegramSettings({ ...get().telegramConfig, last_update_id: newOffset }).catch(() => {});
+      },
+    );
+  },
+
+  stopTelegramBot: () => {
+    telegramBotManager.stop();
+    set({ telegramStatus: 'stopped' });
+  },
+
+  updateTelegramConfig: async (patch) => {
+    const updated = { ...get().telegramConfig, ...patch };
+    set({ telegramConfig: updated });
+    await upsertTelegramSettings(updated);
+  },
+
+  syncHermesMemoriesAction: async () => {
+    const synced = await syncHermesMemoriesToDb();
+    set({ memories: synced });
   },
 
   todayAiSummary: (() => {
@@ -1604,20 +1738,43 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   },
 
   refresh: async () => {
-    const [ws, rawTasks, grps, profile, rawNotes, rawRoadmaps, rawLogs, rawIdeas, rawReminders, rawMeetings, rawBlocks] =
-      await Promise.all([
-        fetchWorkspaces().catch(() => []),
-        fetchTasks().catch(() => []),
-        fetchGroups().catch(() => []),
-        fetchUserProfile().catch(() => DEFAULT_USER_PROFILE),
-        fetchNotes(get().activeWorkspaceId).catch(() => []),
-        fetchRoadmaps().catch(() => []),
-        fetchLearningLogs().catch(() => []),
-        fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
-        fetchReminders().catch(() => []),
-        fetchMeetings().catch(() => []),
-        fetchScheduleBlocks().catch(() => []),
-      ]);
+    const [
+      ws,
+      rawTasks,
+      grps,
+      profile,
+      rawNotes,
+      rawRoadmaps,
+      rawLogs,
+      rawIdeas,
+      rawReminders,
+      rawMeetings,
+      rawBlocks,
+      rawMemories,
+      rawChatMessages,
+      rawTgSettings,
+    ] = await Promise.all([
+      fetchWorkspaces().catch(() => []),
+      fetchTasks().catch(() => []),
+      fetchGroups().catch(() => []),
+      fetchUserProfile().catch(() => DEFAULT_USER_PROFILE),
+      fetchNotes(get().activeWorkspaceId).catch(() => []),
+      fetchRoadmaps().catch(() => []),
+      fetchLearningLogs().catch(() => []),
+      fetchProjectIdeas(get().activeWorkspaceId).catch(() => []),
+      fetchReminders().catch(() => []),
+      fetchMeetings().catch(() => []),
+      fetchScheduleBlocks().catch(() => []),
+      fetchMemories().catch(() => []),
+      fetchChatMessages(100).catch(() => []),
+      fetchTelegramSettings().catch(() => ({ bot_token: '', allowed_user_ids: '', is_active: false, last_update_id: 0 })),
+    ]);
+
+    // Hermes memories: if SQLite is empty, auto-sync and seed
+    let memories = rawMemories;
+    if (memories.length === 0) {
+      memories = await syncHermesMemoriesToDb().catch(() => []);
+    }
 
     // Tasks: Dual-layer persistence
     let tasks = rawTasks;
@@ -1751,7 +1908,14 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       meetings,
       selectedMeetingId: get().selectedMeetingId ?? meetings[0]?.id ?? null,
       scheduleBlocks: scheduleBlocks.length ? scheduleBlocks : get().scheduleBlocks,
+      memories,
+      aiDrawerMessages: rawChatMessages.length > 0 ? rawChatMessages : get().aiDrawerMessages,
+      telegramConfig: rawTgSettings,
     });
+
+    if (rawTgSettings.is_active && rawTgSettings.bot_token?.trim()) {
+      get().startTelegramBot().catch(() => {});
+    }
 
     if (sel) {
       await get().selectTask(sel.id);

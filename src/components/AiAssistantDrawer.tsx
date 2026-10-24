@@ -19,6 +19,7 @@ import { useSynapse } from '../lib/store';
 import { firstEnabledProvider } from '../lib/providers';
 import { formatShortcut } from '../lib/platform';
 import FormattedAiText from './FormattedAiText';
+import TelegramBotModal from './TelegramBotModal';
 
 const QUICK_PROMPTS = [
   { icon: Clock, label: 'Bugungi kunimni tahlil qilib ber', prompt: 'Bugungi kunim va bajargan vazifalarimni tahlil qilib, xulosa va tavsiyalar ber.' },
@@ -37,6 +38,10 @@ export default function AiAssistantDrawer() {
     sendAiDrawerMessage,
     clearAiDrawerMessages,
     setProvidersModal,
+    showTelegramModal,
+    setTelegramModal,
+    telegramStatus,
+    telegramBotName,
   } = useSynapse();
 
   const [input, setInput] = useState('');
@@ -100,6 +105,20 @@ export default function AiAssistantDrawer() {
 
         <div className="flex items-center gap-1">
           <button
+            onClick={() => setTelegramModal(true)}
+            title={telegramStatus === 'running' ? `Telegram Bot faol: ${telegramBotName || ''}` : 'Telegram Bot sozlamalari'}
+            className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition border ${
+              telegramStatus === 'running'
+                ? 'bg-sky-500/15 border-sky-500/30 text-sky-300'
+                : 'text-zinc-400 hover:bg-white/10 hover:text-zinc-200 border-transparent'
+            }`}
+          >
+            <Send size={13} className={telegramStatus === 'running' ? 'text-sky-400' : ''} />
+            {telegramStatus === 'running' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+          <button
             onClick={clearAiDrawerMessages}
             title="Suhbat tarixini tozalash"
             className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition"
@@ -160,6 +179,11 @@ export default function AiAssistantDrawer() {
                     <Bot size={11} className="text-purple-400" />
                     <span>AI {msg.model ? `(${msg.model})` : ''}</span>
                   </>
+                )}
+                {msg.source === 'telegram' && (
+                  <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-400 font-mono text-[9px] border border-sky-500/30">
+                    Telegram
+                  </span>
                 )}
                 <span>• {msg.timestamp}</span>
               </div>
@@ -225,6 +249,7 @@ export default function AiAssistantDrawer() {
         </div>
       </div>
 
+      <TelegramBotModal open={showTelegramModal} onClose={() => setTelegramModal(false)} />
     </aside>
   );
 }

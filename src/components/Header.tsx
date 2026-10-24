@@ -25,6 +25,7 @@ import {
   GitBranch,
   FolderGit2,
   HardDrive,
+  Send,
 } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
@@ -48,6 +49,7 @@ const UpdateModal = lazy(() => import('./UpdateModal'));
 const GitInspectorModal = lazy(() => import('./GitInspectorModal'));
 const GitHubSyncModal = lazy(() => import('./GitHubSyncModal'));
 const BackupModal = lazy(() => import('./BackupModal'));
+const TelegramBotModal = lazy(() => import('./TelegramBotModal'));
 
 export default function Header({ onPalette }: { onPalette: () => void }) {
   const {
@@ -65,6 +67,9 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setProvidersModal,
     showGitHubModal,
     setGitHubModal,
+    showTelegramModal,
+    setTelegramModal,
+    telegramStatus,
     gitHubTargetRepoUrl,
     toggleAiDrawer,
     userProfile,
@@ -402,6 +407,10 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <Bot size={13} className="text-violet-300" /> AI provayderlar va API
                   {enabledCount > 0 && <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[10px] text-emerald-300">{enabledCount}</span>}
                 </button>
+                <button onClick={() => { setTelegramModal(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
+                  <Send size={13} className="text-sky-400" /> Telegram Bot & Hermes Xotirasi
+                  {telegramStatus === 'running' && <span className="ml-auto h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
+                </button>
                 <button onClick={() => { setGuideModal(true); setSettingsOpen(false); }} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition">
                   <BookOpen size={13} className="text-blue-300" /> Qo'llanma va Imkoniyatlar
                 </button>
@@ -595,6 +604,12 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             open={backupModalOpen}
             onClose={() => setBackupModalOpen(false)}
             initialTab={backupModalTab}
+          />
+        )}
+        {showTelegramModal && (
+          <TelegramBotModal
+            open={showTelegramModal}
+            onClose={() => setTelegramModal(false)}
           />
         )}
       </Suspense>

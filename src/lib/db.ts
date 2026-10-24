@@ -16,6 +16,9 @@ import type {
   ScheduleBlock,
   GoalItem,
   HabitItem,
+  AiMemoryItem,
+  AiDrawerMessage,
+  TelegramBotConfig,
 } from './types';
 import { isTauri } from './vault';
 import {
@@ -220,6 +223,32 @@ CREATE TABLE IF NOT EXISTS schedule_blocks (
     meeting_id TEXT,
     date TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS ai_memories (
+    id TEXT PRIMARY KEY,
+    category TEXT DEFAULT 'general',
+    content TEXT NOT NULL,
+    source TEXT DEFAULT 'hermes_import',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS ai_chat_messages (
+    id TEXT PRIMARY KEY,
+    session_id TEXT DEFAULT 'default',
+    role TEXT CHECK(role IN ('user', 'assistant', 'system')) NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT DEFAULT 'ui',
+    timestamp TEXT NOT NULL,
+    model TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS telegram_settings (
+    id TEXT PRIMARY KEY DEFAULT 'current',
+    bot_token TEXT DEFAULT '',
+    allowed_user_ids TEXT DEFAULT '',
+    is_active INTEGER DEFAULT 0,
+    last_update_id INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `;
 
@@ -1129,6 +1158,149 @@ export async function upsertScheduleBlock(b: ScheduleBlock): Promise<void> {
 export async function deleteScheduleBlockFromDb(id: string): Promise<void> {
   const db = await getDb();
   await db.execute('DELETE FROM schedule_blocks WHERE id = $1', [id]);
+}
+
+// ---------------------------------------------------------------------------
+// AI Memories & Context Persistence (Hermes Compatible)
+// ---------------------------------------------------------------------------
+
+export async function fetchMemories(): Promise<AiMemoryItem[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<AiMemoryItem[]>(
+      'SELECT id, category, content, source, created_at, updated_at FROM ai_memories ORDER BY created_at DESC',
+    );
+    return rows ?? [];
+  } catch (err) {
+    console.warn('[db.ts fetchMemories] error:', err);
+    return [];
+  }
+}
+
+export async function upsertMemory(m: Omit<AiMemoryItem, 'created_at' | 'updated_at'>): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO ai_memories (id, category, content, source, updated_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT(id) DO UPDATE SET
+       category = excluded.category,
+       content = excluded.content,
+       source = excluded.source,
+       updated_at = CURRENT_TIMESTAMP`,
+    [m.id, m.category || 'general', m.content, m.source || 'conversation'],
+  );
+}
+
+export async function deleteMemoryFromDb(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM ai_memories WHERE id = $1', [id]);
+}
+
+// ---------------------------------------------------------------------------
+// AI Chat Messages Persistence
+// ---------------------------------------------------------------------------
+
+export async function fetchChatMessages(limit = 100): Promise<AiDrawerMessage[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<
+      Array<{
+        id: string;
+        role: 'user' | 'assistant';
+        content: string;
+        source: 'ui' | 'telegram' | 'hermes';
+        timestamp: string;
+        model?: string;
+      }>
+    >(
+      'SELECT id, role, content, source, timestamp, model FROM ai_chat_messages ORDER BY rowid ASC LIMIT $1',
+      [limit],
+    );
+    return rows ?? [];
+  } catch (err) {
+    console.warn('[db.ts fetchChatMessages] error:', err);
+    return [];
+  }
+}
+
+export async function insertChatMessage(msg: AiDrawerMessage, sessionId = 'default'): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.execute(
+      `INSERT INTO ai_chat_messages (id, session_id, role, content, source, timestamp, model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        msg.id,
+        sessionId,
+        msg.role,
+        msg.content,
+        msg.source || 'ui',
+        msg.timestamp,
+        msg.model || null,
+      ],
+    );
+  } catch (err) {
+    console.warn('[db.ts insertChatMessage] error:', err);
+  }
+}
+
+export async function clearChatMessagesInDb(sessionId = 'default'): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.execute('DELETE FROM ai_chat_messages WHERE session_id = $1', [sessionId]);
+  } catch (err) {
+    console.warn('[db.ts clearChatMessagesInDb] error:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Telegram Bot Settings
+// ---------------------------------------------------------------------------
+
+export async function fetchTelegramSettings(): Promise<TelegramBotConfig> {
+  const fallback: TelegramBotConfig = {
+    bot_token: '',
+    allowed_user_ids: '',
+    is_active: false,
+    last_update_id: 0,
+  };
+  try {
+    const db = await getDb();
+    const rows = await db.select<
+      Array<{
+        bot_token: string;
+        allowed_user_ids: string;
+        is_active: number;
+        last_update_id: number;
+      }>
+    >('SELECT bot_token, allowed_user_ids, is_active, last_update_id FROM telegram_settings WHERE id = "current"');
+    if (rows && rows.length > 0) {
+      return {
+        bot_token: rows[0].bot_token || '',
+        allowed_user_ids: rows[0].allowed_user_ids || '',
+        is_active: Boolean(rows[0].is_active),
+        last_update_id: rows[0].last_update_id || 0,
+      };
+    }
+  } catch (err) {
+    console.warn('[db.ts fetchTelegramSettings] error:', err);
+  }
+  return fallback;
+}
+
+export async function upsertTelegramSettings(cfg: TelegramBotConfig): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO telegram_settings (id, bot_token, allowed_user_ids, is_active, last_update_id, updated_at)
+     VALUES ('current', $1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT(id) DO UPDATE SET
+       bot_token = excluded.bot_token,
+       allowed_user_ids = excluded.allowed_user_ids,
+       is_active = excluded.is_active,
+       last_update_id = excluded.last_update_id,
+       updated_at = CURRENT_TIMESTAMP`,
+    [cfg.bot_token, cfg.allowed_user_ids, cfg.is_active ? 1 : 0, cfg.last_update_id || 0],
+  );
 }
 
 
