@@ -38,3 +38,6 @@ synapse.db
 *.key
 *.key.pub
 .tauri/
+
+# Documents & PDFs
+*.pdf
