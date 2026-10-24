@@ -1,7 +1,8 @@
 import { playNotificationSound, sendDesktopNotification, speakVoiceReminder } from './notifications';
 import { sendTelegramMessage } from './telegramBot';
 import { generateDailyMissedTasksReport } from './dailyReport';
-import type { Task, RoadmapItem, ScheduleBlock, TelegramBotConfig } from './types';
+import type { Task, RoadmapItem, ScheduleBlock, TelegramBotConfig, FlashcardItem } from './types';
+import { getDueFlashcards } from './spacedRepetition';
 
 export type DailyRoutineStage = 'morning_10' | 'midday_14' | 'evening_22';
 
@@ -54,6 +55,7 @@ export interface RoutineContext {
   tasks: Task[];
   roadmaps: RoadmapItem[];
   scheduleBlocks: ScheduleBlock[];
+  flashcards?: FlashcardItem[];
   telegramConfig?: TelegramBotConfig | null;
   soundEnabled?: boolean;
   userName?: string;
@@ -103,6 +105,13 @@ export async function executeDailyRoutineStage(
       body = `Bugun uchun hali aniq vazifalar tanlanmagan. Yo'l xaritangizdan bugungi mavzularni tanlang!`;
       voiceText = `Xayrli tong, ${userName}! Soat 10:00. Yangi kun boshlandi. Bugungi o'rganish rejangizni va maqsadlaringizni tasdiqlang!`;
     }
+
+    // Mention due flashcards if any
+    const dueCards = ctx.flashcards ? getDueFlashcards(ctx.flashcards) : [];
+    if (dueCards.length > 0) {
+      body += ` | 🧠 ${dueCards.length} ta flashcard takrorlash kutilmoqda.`;
+      voiceText += ` Shuningdek, bugun mustahkamlash uchun ${dueCards.length} ta bilim kartochkasi kutilmoqda.`;
+    }
   } else if (stage === 'midday_14') {
     title = '⏱ 14:00 — Oraliq Nazorat (Kunning 2-yarmi)';
     const remainingCount = incompleteTasks.length;
@@ -129,6 +138,12 @@ export async function executeDailyRoutineStage(
     } else {
       body = `Kun yakuni: Bugungi barcha ${completedTasks.length} ta maqsad 100% bajarildi! 🏆`;
       voiceText = `Kechki soat 22:00. Ajoyib g'alaba, ${userName}! Bugungi barcha rejalashtirilgan vazifalar to'liq bajarildi! Kunning samarasi yuqori bo'ldi. Maroqli dam oling!`;
+    }
+
+    const eveningDueCards = ctx.flashcards ? getDueFlashcards(ctx.flashcards) : [];
+    if (eveningDueCards.length > 0) {
+      body += ` | 🧠 ${eveningDueCards.length} ta kartochka takrorlanmadi.`;
+      voiceText += ` Takrorlanmagan ${eveningDueCards.length} ta bilim kartochkasi mavjud.`;
     }
   }
 

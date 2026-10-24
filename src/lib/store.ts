@@ -27,6 +27,7 @@ import type {
   DevLinkItem,
   AiMemoryItem,
   TelegramBotConfig,
+  FlashcardItem,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -101,7 +102,7 @@ import { deleteMeetingAudio } from './audioDb';
 import { parseRoadmapMarkdown } from './roadmapParser';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
-import type { AiSource } from './providers';
+import type { AiSource, CloudProviderId } from './providers';
 import { playNotificationSound, sendDesktopNotification, speakVoiceReminder } from './notifications';
 import { syncHermesMemoriesToDb, formatMemoriesForPrompt } from './hermesMemory';
 import { telegramBotManager, sendTelegramMessage, type TelegramBotStatus } from './telegramBot';
@@ -118,6 +119,10 @@ import {
   executeDailyRoutineStage,
   type DailyRoutineStage,
 } from './dailyRoutineSchedule';
+import {
+  calculateNextReview,
+  generateFlashcardsWithAi,
+} from './spacedRepetition';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -240,6 +245,23 @@ export function saveStoredNotes(notes: Record<string, string>) {
   } catch {}
 }
 
+export function loadStoredFlashcards(): FlashcardItem[] {
+  try {
+    const s = localStorage.getItem('cognidev_flashcards_v1');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+export function saveStoredFlashcards(flashcards: FlashcardItem[]) {
+  try {
+    localStorage.setItem('cognidev_flashcards_v1', JSON.stringify(flashcards));
+  } catch {}
+}
+
 export function loadStoredChecklists(): Record<string, ChecklistItem[]> {
   try {
     const s = localStorage.getItem('cognidev_task_checklists_v2');
@@ -331,6 +353,20 @@ interface SynapseState {
   batchReplaceYearInRoadmaps: (fromYear?: string, toYear?: string) => Promise<number>;
   syncDailyRoadmapFocus: (targetDate?: Date) => Promise<number>;
   triggerDailyRoutineTest: (stage: DailyRoutineStage) => Promise<void>;
+
+  // Spaced Repetition & Flashcards
+  flashcards: FlashcardItem[];
+  addFlashcards: (cards: Omit<FlashcardItem, 'id' | 'created_at'>[]) => Promise<void>;
+  reviewFlashcard: (cardId: string, rating: 1 | 2 | 3) => Promise<void>;
+  deleteFlashcard: (cardId: string) => Promise<void>;
+  generateFlashcardsForTopicAction: (
+    roadmapId: string,
+    topicId: string,
+    topicTitle: string,
+    roadmapTitle?: string,
+    stack?: string,
+    provider?: CloudProviderId
+  ) => Promise<number>;
 
   // Project Ideas
   projectIdeas: ProjectIdea[];
@@ -574,6 +610,7 @@ function ensureSchedulerStarted(
         tasks: currentState.tasks,
         roadmaps: currentState.roadmaps,
         scheduleBlocks: currentState.scheduleBlocks,
+        flashcards: currentState.flashcards,
         telegramConfig: currentState.telegramConfig,
         soundEnabled: currentState.soundEnabled,
         userName: currentState.userProfile?.full_name || 'Muhandis',
@@ -1048,6 +1085,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
         tasks: state.tasks,
         roadmaps: state.roadmaps,
         scheduleBlocks: state.scheduleBlocks,
+        flashcards: state.flashcards,
         telegramConfig: state.telegramConfig,
         soundEnabled: state.soundEnabled,
         userName: state.userProfile?.full_name || 'Muhandis',
@@ -1070,6 +1108,87 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       },
       true // isManualTest = true
     );
+  },
+
+  // Spaced Repetition Flashcards initial
+  flashcards: loadStoredFlashcards(),
+
+  addFlashcards: async (cards) => {
+    const newItems: FlashcardItem[] = cards.map((c) => ({
+      ...c,
+      id: `fc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString(),
+    }));
+    const updated = [...get().flashcards, ...newItems];
+    saveStoredFlashcards(updated);
+    set({ flashcards: updated });
+    get().setHud(`${newItems.length} ta flashcard qo‘shildi ✓`);
+  },
+
+  reviewFlashcard: async (cardId, rating) => {
+    const card = get().flashcards.find((c) => c.id === cardId);
+    if (!card) return;
+    const result = calculateNextReview(card, rating);
+    const updated = get().flashcards.map((c) => {
+      if (c.id === cardId) {
+        return {
+          ...c,
+          ...result,
+          last_reviewed_at: new Date().toISOString(),
+        };
+      }
+      return c;
+    });
+    saveStoredFlashcards(updated);
+    set({ flashcards: updated });
+    const ratingLabels: Record<1 | 2 | 3, string> = {
+      1: '🔴 Qiyin (1 kun)',
+      2: `🟡 Yaxshi (${result.interval_days} kun)`,
+      3: `🟢 Oson (${result.interval_days} kun)`,
+    };
+    get().setHud(`Takrorlandi: ${ratingLabels[rating]} ✓ Keyingi sana: ${result.next_review_date}`);
+  },
+
+  deleteFlashcard: async (cardId) => {
+    const remaining = get().flashcards.filter((c) => c.id !== cardId);
+    saveStoredFlashcards(remaining);
+    set({ flashcards: remaining });
+    get().setHud('Flashcard muvaffaqiyatli o‘chirildi');
+  },
+
+  generateFlashcardsForTopicAction: async (
+    roadmapId,
+    topicId,
+    topicTitle,
+    roadmapTitle = 'Dasturchi Yo‘l Xaritasi',
+    stack = 'Backend',
+    provider
+  ) => {
+    get().setHud(`AI: "${topicTitle}" mavzusi uchun flashcardlar yaratilmoqda...`);
+    try {
+      const drafts = await generateFlashcardsWithAi(topicTitle, roadmapTitle, stack, provider);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const itemsToAdd: Omit<FlashcardItem, 'id' | 'created_at'>[] = drafts.map((d) => ({
+        roadmap_id: roadmapId,
+        topic_id: topicId,
+        topic_title: d.topic_title || topicTitle,
+        question: d.question,
+        answer: d.answer,
+        explanation: d.explanation,
+        code_snippet: d.code_snippet,
+        interval_days: 1,
+        repetition_count: 0,
+        ease_factor: 2.5,
+        next_review_date: todayStr,
+      }));
+      await get().addFlashcards(itemsToAdd);
+      get().setHud(`AI: "${topicTitle}" bo‘yicha ${itemsToAdd.length} ta flashcard tayyor bo‘ldi ✓`);
+      return itemsToAdd.length;
+    } catch (err) {
+      console.error(err);
+      get().setHud('Flashcard yaratishda xatolik yuz berdi');
+      return 0;
+    }
   },
 
   // Project Ideas initial

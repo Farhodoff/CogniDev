@@ -294,6 +294,24 @@ export interface LearningLog {
   created_at: string;
 }
 
+export interface FlashcardItem {
+  id: string;
+  roadmap_id: string;
+  milestone_id?: string;
+  topic_id?: string;
+  topic_title: string;
+  question: string;
+  answer: string;
+  explanation?: string;
+  code_snippet?: string;
+  interval_days: number;
+  repetition_count: number;
+  ease_factor: number;
+  next_review_date: string; // 'YYYY-MM-DD'
+  last_reviewed_at?: string;
+  created_at: string;
+}
+
 export interface ProjectIdeaTask {
   id: string;
   title: string;

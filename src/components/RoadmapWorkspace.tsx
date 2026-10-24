@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   BookOpen,
   Calendar,
@@ -17,12 +17,22 @@ import {
   Pencil,
   FileEdit,
   RefreshCw,
+  ExternalLink,
+  Search,
+  RotateCcw,
+  CheckCircle2,
+  Layers,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { analyzeLearningLog } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 import { exportRoadmapToMarkdown } from '../lib/roadmapParser';
 import type { RoadmapMilestone } from '../lib/types';
+import {
+  getDueFlashcards,
+  getCuratedTopicResources,
+  type CuratedTopicResource,
+} from '../lib/spacedRepetition';
 import FormattedAiText from './FormattedAiText';
 
 /** Helper to trigger browser download for markdown file */
@@ -60,9 +70,14 @@ export default function RoadmapWorkspace() {
     batchReplaceYearInRoadmaps,
     syncDailyRoadmapFocus,
     setHud,
+    flashcards,
+    addFlashcards,
+    reviewFlashcard,
+    deleteFlashcard,
+    generateFlashcardsForTopicAction,
   } = useSynapse();
 
-  const [activeTab, setActiveTab] = useState<'milestones' | 'log' | 'coach'>('milestones');
+  const [activeTab, setActiveTab] = useState<'milestones' | 'log' | 'coach' | 'flashcards'>('milestones');
   const [selectedProvider, setSelectedProvider] = useState<CloudProviderId>('gemini');
 
   // Modals state
@@ -120,6 +135,20 @@ export default function RoadmapWorkspace() {
 
   const [todayStr] = useState(() => new Date().toLocaleDateString('uz-UZ'));
 
+  // Flashcards & Spaced Repetition state
+  const [studyFilter, setStudyFilter] = useState<'due' | 'all'>('due');
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [cardSearchQuery, setCardSearchQuery] = useState('');
+  const [curatedResources, setCuratedResources] = useState<Record<string, CuratedTopicResource[]>>({});
+  const [generatingTopicId, setGeneratingTopicId] = useState<string | null>(null);
+  const [showManualCardModal, setShowManualCardModal] = useState(false);
+  const [manualCardQuestion, setManualCardQuestion] = useState('');
+  const [manualCardAnswer, setManualCardAnswer] = useState('');
+  const [manualCardExplanation, setManualCardExplanation] = useState('');
+  const [manualCardCode, setManualCardCode] = useState('');
+  const [manualCardTopicTitle, setManualCardTopicTitle] = useState('');
+
   // Hidden file input for .md upload
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,6 +157,110 @@ export default function RoadmapWorkspace() {
     () => roadmaps.find((r) => r.id === selectedRoadmapId) ?? roadmaps[0] ?? null,
     [roadmaps, selectedRoadmapId],
   );
+
+  // Flashcards for current roadmap (or all if no roadmap selected)
+  const roadmapFlashcards = useMemo(() => {
+    if (!currentRoadmap) return flashcards;
+    return flashcards.filter((c) => c.roadmap_id === currentRoadmap.id);
+  }, [flashcards, currentRoadmap]);
+
+  const dueCards = useMemo(() => {
+    return getDueFlashcards(roadmapFlashcards);
+  }, [roadmapFlashcards]);
+
+  const matureCards = useMemo(() => {
+    return roadmapFlashcards.filter((c) => c.interval_days >= 7);
+  }, [roadmapFlashcards]);
+
+  const activeStudyCards = useMemo(() => {
+    return studyFilter === 'due' ? dueCards : roadmapFlashcards;
+  }, [studyFilter, dueCards, roadmapFlashcards]);
+
+  const filteredCardsCatalog = useMemo(() => {
+    if (!cardSearchQuery.trim()) return roadmapFlashcards;
+    const q = cardSearchQuery.toLowerCase();
+    return roadmapFlashcards.filter(
+      (c) =>
+        c.question.toLowerCase().includes(q) ||
+        c.topic_title.toLowerCase().includes(q) ||
+        c.answer.toLowerCase().includes(q)
+    );
+  }, [roadmapFlashcards, cardSearchQuery]);
+
+  // Load curated resources when active card changes
+  useEffect(() => {
+    const card = activeStudyCards[currentCardIndex];
+    if (card && !curatedResources[card.topic_title]) {
+      getCuratedTopicResources(card.topic_title, currentRoadmap?.stack || 'Backend').then((res) => {
+        setCuratedResources((prev) => ({ ...prev, [card.topic_title]: res }));
+      });
+    }
+  }, [activeStudyCards, currentCardIndex, currentRoadmap?.stack, curatedResources]);
+
+  const handleReviewCard = async (rating: 1 | 2 | 3) => {
+    if (!activeStudyCards[currentCardIndex]) return;
+    const cardId = activeStudyCards[currentCardIndex].id;
+    await reviewFlashcard(cardId, rating);
+    setIsFlipped(false);
+    if (currentCardIndex >= activeStudyCards.length - 1) {
+      setCurrentCardIndex(0);
+    }
+  };
+
+  const handleGenerateTopicCards = async (topicId: string, topicTitle: string) => {
+    if (!currentRoadmap) return;
+    setGeneratingTopicId(topicId);
+    try {
+      const count = await generateFlashcardsForTopicAction(
+        currentRoadmap.id,
+        topicId,
+        topicTitle,
+        currentRoadmap.title,
+        currentRoadmap.stack,
+        selectedProvider
+      );
+      if (count > 0) {
+        setActiveTab('flashcards');
+        setStudyFilter('all');
+        setCardSearchQuery(topicTitle);
+      }
+    } finally {
+      setGeneratingTopicId(null);
+    }
+  };
+
+  const handleGenerateAllRoadmapCards = async () => {
+    if (!currentRoadmap) return;
+    const existingTitles = new Set(roadmapFlashcards.map((c) => c.topic_title.toLowerCase()));
+    const allTopics = currentRoadmap.milestones.flatMap((m) => m.topics);
+    const targetTopics = allTopics.filter((t) => !existingTitles.has(t.title.toLowerCase())).slice(0, 5);
+
+    if (targetTopics.length === 0) {
+      setHud('Barcha mavzular uchun flashcardlar allaqachon mavjud yoki xaritada mavzu yo‘q');
+      return;
+    }
+
+    setAiLoading(true);
+    setHud(`AI: ${targetTopics.length} ta mavzu uchun flashcardlar to‘plami generatsiya qilinmoqda...`);
+    try {
+      let totalCreated = 0;
+      for (const t of targetTopics) {
+        const count = await generateFlashcardsForTopicAction(
+          currentRoadmap.id,
+          t.id,
+          t.title,
+          currentRoadmap.title,
+          currentRoadmap.stack,
+          selectedProvider
+        );
+        totalCreated += count;
+      }
+      setHud(`AI: Jami ${totalCreated} ta yangi texnik flashcard muvaffaqiyatli yaratildi! ✓`);
+      setActiveTab('flashcards');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   // Calculate progress
   const progressStats = useMemo(() => {
@@ -514,6 +647,22 @@ export default function RoadmapWorkspace() {
             >
               <Sparkles size={13} className="text-purple-400" /> AI Murabbiy
             </button>
+            <button
+              onClick={() => setActiveTab('flashcards')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
+                activeTab === 'flashcards'
+                  ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Brain size={13} className={dueCards.length > 0 ? 'text-amber-400 animate-pulse' : 'text-zinc-400'} />
+              <span>Flashcards</span>
+              {dueCards.length > 0 && (
+                <span className="rounded-full bg-amber-500/30 text-amber-300 font-bold px-1.5 py-0.2 text-[10px]">
+                  {dueCards.length}
+                </span>
+              )}
+            </button>
           </div>
 
           <select
@@ -847,6 +996,28 @@ export default function RoadmapWorkspace() {
 
                                 {/* Topic action buttons */}
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                                  {(() => {
+                                    const topicCardCount = flashcards.filter(
+                                      (c) =>
+                                        c.topic_id === topic.id ||
+                                        c.topic_title.toLowerCase() === topic.title.toLowerCase()
+                                    ).length;
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleGenerateTopicCards(topic.id, topic.title);
+                                        }}
+                                        disabled={generatingTopicId === topic.id}
+                                        title="Ushbu mavzu bo‘yicha AI Flashcard (Quiz) tuzish yoki takrorlash"
+                                        className="flex items-center gap-1 rounded bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 border border-amber-500/30 transition disabled:opacity-50"
+                                      >
+                                        <Brain size={10} className={generatingTopicId === topic.id ? 'animate-spin' : ''} />
+                                        <span>{topicCardCount > 0 ? `Quiz (${topicCardCount})` : 'Quiz'}</span>
+                                      </button>
+                                    );
+                                  })()}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1078,6 +1249,437 @@ export default function RoadmapWorkspace() {
                   );
                 })()}
               </div>
+            </div>
+          )}
+
+          {/* ── TAB 4: FLASHCARDS & SPACED REPETITION ── */}
+          {activeTab === 'flashcards' && (
+            <div className="space-y-6">
+              {/* 1. Header / Metrics Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Total */}
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span className="text-[12px] font-medium">Jami Kartochkalar</span>
+                    <Layers size={15} className="text-zinc-500" />
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-white font-mono">
+                    {roadmapFlashcards.length}
+                  </div>
+                  <div className="mt-1 text-[11px] text-zinc-500 truncate">
+                    {currentRoadmap ? currentRoadmap.title : 'Barcha xaritalar'}
+                  </div>
+                </div>
+
+                {/* Due Today */}
+                <div className={`rounded-2xl border p-4 transition ${
+                  dueCards.length > 0
+                    ? 'border-amber-500/40 bg-amber-500/[0.08] shadow-[0_0_20px_rgba(245,158,11,0.12)]'
+                    : 'border-white/[0.08] bg-white/[0.02]'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[12px] font-medium ${dueCards.length > 0 ? 'text-amber-300' : 'text-zinc-400'}`}>
+                      Bugun Takrorlash
+                    </span>
+                    <Calendar size={15} className={dueCards.length > 0 ? 'text-amber-400 animate-pulse' : 'text-zinc-500'} />
+                  </div>
+                  <div className="mt-2 text-2xl font-bold font-mono text-white flex items-center gap-2">
+                    <span>{dueCards.length}</span>
+                    {dueCards.length > 0 && (
+                      <span className="text-[10px] font-sans font-semibold rounded-full bg-amber-500/20 text-amber-300 px-2 py-0.5">
+                        Kutilmoqda
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-[11px] text-zinc-400">
+                    SM-2 intervali bo‘yicha
+                  </div>
+                </div>
+
+                {/* Mature Cards */}
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span className="text-[12px] font-medium">Mustahkamlangan</span>
+                    <CheckCircle2 size={15} className="text-emerald-400" />
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-white font-mono">
+                    {matureCards.length}
+                  </div>
+                  <div className="mt-1 text-[11px] text-emerald-400/80">
+                    Interval &ge; 7 kun (Uzoq muddatli xotira)
+                  </div>
+                </div>
+
+                {/* Ease factor */}
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span className="text-[12px] font-medium">O‘rtacha Osonlik</span>
+                    <TrendingUp size={15} className="text-sky-400" />
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-white font-mono">
+                    {roadmapFlashcards.length > 0
+                      ? (roadmapFlashcards.reduce((acc, c) => acc + c.ease_factor, 0) / roadmapFlashcards.length).toFixed(2)
+                      : '2.50'}
+                  </div>
+                  <div className="mt-1 text-[11px] text-zinc-500">
+                    Standart SM-2: 2.50
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Mode & Actions bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-y border-white/[0.06] py-3">
+                {/* Mode Switcher */}
+                <div className="flex items-center rounded-xl border border-white/[0.08] bg-black/40 p-0.5">
+                  <button
+                    onClick={() => {
+                      setStudyFilter('due');
+                      setCurrentCardIndex(0);
+                      setIsFlipped(false);
+                    }}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
+                      studyFilter === 'due'
+                        ? 'bg-amber-500/20 text-amber-300 font-semibold'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Calendar size={13} /> Bugun kutilayotgan ({dueCards.length})
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStudyFilter('all');
+                      setCurrentCardIndex(0);
+                      setIsFlipped(false);
+                    }}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
+                      studyFilter === 'all'
+                        ? 'bg-white/10 text-white font-semibold'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Layers size={13} /> Barcha kartochkalar ({roadmapFlashcards.length})
+                  </button>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleGenerateAllRoadmapCards}
+                    disabled={aiLoading || !currentRoadmap}
+                    className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 text-[12px] font-semibold text-amber-300 transition disabled:opacity-50"
+                  >
+                    <Sparkles size={13} className={aiLoading ? 'animate-spin text-amber-400' : 'text-amber-400'} />
+                    <span>{aiLoading ? 'AI generatsiya qilmoqda...' : 'AI bilan kartochkalar yaratish'}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowManualCardModal(true)}
+                    className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-[12px] font-medium text-white transition"
+                  >
+                    <Plus size={13} />
+                    <span>Qo‘lda qo‘shish</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Study Interactive Player (Flip Card) */}
+              {activeStudyCards.length > 0 ? (
+                (() => {
+                  const currentCard = activeStudyCards[currentCardIndex] || activeStudyCards[0];
+                  const currentResources = curatedResources[currentCard.topic_title] || [];
+                  return (
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#181922] to-[#121319] p-6 shadow-2xl space-y-5">
+                      {/* Player Header */}
+                      <div className="flex items-center justify-between text-[12px]">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold px-2.5 py-1 text-[11px]">
+                            ⚡ {currentCard.topic_title}
+                          </span>
+                          <span className="text-zinc-400">
+                            Interval: <strong className="text-zinc-200">{currentCard.interval_days} kun</strong> · Takrorlash: <strong className="text-zinc-200">{currentCard.repetition_count}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-zinc-400">
+                            {currentCardIndex + 1} / {activeStudyCards.length}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setCurrentCardIndex((prev) => (prev > 0 ? prev - 1 : activeStudyCards.length - 1));
+                              setIsFlipped(false);
+                            }}
+                            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-400 hover:text-white"
+                          >
+                            &larr; Oldingi
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCurrentCardIndex((prev) => (prev + 1 < activeStudyCards.length ? prev + 1 : 0));
+                              setIsFlipped(false);
+                            }}
+                            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-400 hover:text-white"
+                          >
+                            Keyingi &rarr;
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* The 3D Flip Card Container */}
+                      <div
+                        onClick={() => setIsFlipped((prev) => !prev)}
+                        className="group cursor-pointer select-none rounded-2xl border border-white/15 bg-black/40 p-6 sm:p-8 min-h-[220px] flex flex-col justify-between hover:border-amber-500/40 transition duration-300 shadow-inner"
+                      >
+                        {!isFlipped ? (
+                          /* FRONT (SAVOL) */
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between text-zinc-500 text-[11px] uppercase tracking-wider font-semibold">
+                              <span>❓ Savol (Front)</span>
+                              <span className="text-amber-400/80 group-hover:text-amber-300 transition">
+                                Javobni ko‘rish uchun bosing (Flip) &rarr;
+                              </span>
+                            </div>
+                            <h3 className="text-[17px] sm:text-[19px] font-bold text-white leading-relaxed">
+                              {currentCard.question}
+                            </h3>
+                            {currentCard.code_snippet && (
+                              <div className="mt-3 rounded-xl border border-white/10 bg-black/60 p-3 font-mono text-[12px] text-emerald-300 overflow-x-auto">
+                                <pre>{currentCard.code_snippet}</pre>
+                              </div>
+                            )}
+                            <div className="pt-2 text-center">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-4 py-1.5 text-[12px] text-zinc-400 group-hover:text-white group-hover:bg-amber-500/20 group-hover:text-amber-300 transition">
+                                <RotateCcw size={13} />
+                                <span>Javobni ochish (Aylantirish)</span>
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          /* BACK (JAVOB VA TUSHUNTIRISH) */
+                          <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold">
+                              <span className="text-emerald-400 flex items-center gap-1.5">
+                                <CheckCircle2 size={13} /> Javob & Tushuntirish
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setIsFlipped(false)}
+                                className="text-zinc-500 hover:text-zinc-300 text-[11px] underline"
+                              >
+                                Savolga qaytish &larr;
+                              </button>
+                            </div>
+
+                            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                              <p className="text-[14px] sm:text-[15px] font-medium text-emerald-200 leading-relaxed">
+                                {currentCard.answer}
+                              </p>
+                            </div>
+
+                            {currentCard.explanation && (
+                              <div className="text-[13px] text-zinc-300 leading-relaxed pl-1">
+                                <strong className="text-white">Izoh: </strong>
+                                {currentCard.explanation}
+                              </div>
+                            )}
+
+                            {/* Curated Resources */}
+                            {currentResources.length > 0 && (
+                              <div className="pt-2 border-t border-white/[0.08]">
+                                <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+                                  📚 Rasmiy manbalar va tavsiyalar:
+                                </span>
+                                <div className="flex flex-wrap gap-2">
+                                  {currentResources.map((res, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={res.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-sky-300 hover:bg-sky-500/10 hover:border-sky-500/30 transition"
+                                    >
+                                      <span>{res.title}</span>
+                                      <ExternalLink size={10} />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SM-2 Rating Evaluation Buttons */}
+                      {isFlipped && (
+                        <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4 space-y-3">
+                          <div className="flex items-center justify-between text-[12px] text-zinc-400">
+                            <span>Ushbu mavzuni qanchalik yaxshi esladingiz? (SM-2 algoritmi)</span>
+                            <span className="text-[11px] text-zinc-500">Keyingi takrorlash sanasi avtomatik hisoblanadi</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <button
+                              onClick={() => handleReviewCard(1)}
+                              className="flex flex-col items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 p-3 hover:bg-red-500/20 hover:border-red-500/50 transition group"
+                            >
+                              <span className="text-[14px] font-bold text-red-400 group-hover:scale-105 transition">
+                                🔴 Qiyin (Again)
+                              </span>
+                              <span className="text-[11px] text-zinc-400 mt-0.5">
+                                Ertaga qayta takrorlash (1 kun)
+                              </span>
+                            </button>
+
+                            <button
+                              onClick={() => handleReviewCard(2)}
+                              className="flex flex-col items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 hover:bg-amber-500/20 hover:border-amber-500/50 transition group"
+                            >
+                              <span className="text-[14px] font-bold text-amber-300 group-hover:scale-105 transition">
+                                🟡 Yaxshi (Good)
+                              </span>
+                              <span className="text-[11px] text-zinc-400 mt-0.5">
+                                Normal intervalli surilish
+                              </span>
+                            </button>
+
+                            <button
+                              onClick={() => handleReviewCard(3)}
+                              className="flex flex-col items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition group"
+                            >
+                              <span className="text-[14px] font-bold text-emerald-400 group-hover:scale-105 transition">
+                                🟢 Oson (Easy)
+                              </span>
+                              <span className="text-[11px] text-zinc-400 mt-0.5">
+                                Tezkor progress + Ease bonus
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              ) : (
+                /* Empty State when no cards due */
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-10 text-center space-y-4">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400">
+                    <Brain size={28} />
+                  </div>
+                  <h3 className="text-[16px] font-bold text-white">
+                    {studyFilter === 'due'
+                      ? '🎉 Bugungi barcha kartochkalar takrorlandi!'
+                      : 'Hozircha flashcardlar mavjud emas'}
+                  </h3>
+                  <p className="mx-auto max-w-md text-[13px] text-zinc-400">
+                    {studyFilter === 'due'
+                      ? 'Ajoyib natija! Bugungi kutilgan barcha savol-javoblar xotirada mustahkamlandi. Barcha kartochkalarni ko‘rish yoki yangilarini generatsiya qilish mumkin.'
+                      : 'Yo‘l xaritasidagi mavzular asosida AI avtomatik tarzda professional texnik savol-javob kartochkalarini tuzib beradi.'}
+                  </p>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    {studyFilter === 'due' && roadmapFlashcards.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setStudyFilter('all');
+                          setCurrentCardIndex(0);
+                          setIsFlipped(false);
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 text-[12.5px] font-medium text-white transition"
+                      >
+                        Barcha kartochkalarni ko‘rish ({roadmapFlashcards.length})
+                      </button>
+                    )}
+                    <button
+                      onClick={handleGenerateAllRoadmapCards}
+                      disabled={aiLoading || !currentRoadmap}
+                      className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg hover:brightness-110 transition disabled:opacity-50"
+                    >
+                      {aiLoading ? 'Generatsiya qilinmoqda...' : '✨ AI bilan kartochkalar yaratish'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Full Cards Catalog & Manager */}
+              {roadmapFlashcards.length > 0 && (
+                <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Layers size={16} className="text-amber-400" />
+                      <h4 className="text-[14px] font-bold text-white">
+                        Kartochkalar Ro‘yxati ({filteredCardsCatalog.length})
+                      </h4>
+                    </div>
+                    <div className="relative w-full sm:w-64">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <input
+                        type="text"
+                        value={cardSearchQuery}
+                        onChange={(e) => setCardSearchQuery(e.target.value)}
+                        placeholder="Qidiruv (mavzu, savol)..."
+                        className="w-full rounded-xl border border-white/10 bg-black/40 pl-8 pr-3 py-1.5 text-[12px] text-white placeholder:text-zinc-600 focus:border-amber-500/40 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {filteredCardsCatalog.map((card) => {
+                      const isDue = card.next_review_date <= new Date().toISOString().split('T')[0];
+                      return (
+                        <div
+                          key={card.id}
+                          className="group flex items-start justify-between gap-3 rounded-xl border border-white/[0.05] bg-white/[0.015] p-3 hover:border-white/10 hover:bg-white/[0.03] transition"
+                        >
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                              <span className="font-semibold text-amber-300 rounded bg-amber-500/10 px-2 py-0.5">
+                                {card.topic_title}
+                              </span>
+                              <span className="text-zinc-500">
+                                Keyingi takrorlash: <strong className={isDue ? 'text-amber-400' : 'text-zinc-400'}>{card.next_review_date}</strong>
+                              </span>
+                              <span className="text-zinc-500">
+                                Interval: {card.interval_days} kun (Ease: {card.ease_factor})
+                              </span>
+                            </div>
+                            <div className="text-[13px] font-medium text-white line-clamp-2">
+                              {card.question}
+                            </div>
+                            <div className="text-[12px] text-zinc-400 line-clamp-1">
+                              {card.answer}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 pt-1">
+                            <button
+                              onClick={() => {
+                                const idx = activeStudyCards.findIndex((c) => c.id === card.id);
+                                if (idx !== -1) {
+                                  setCurrentCardIndex(idx);
+                                  setIsFlipped(false);
+                                } else {
+                                  setStudyFilter('all');
+                                  const allIdx = roadmapFlashcards.findIndex((c) => c.id === card.id);
+                                  setCurrentCardIndex(allIdx !== -1 ? allIdx : 0);
+                                  setIsFlipped(false);
+                                }
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              title="Ushbu kartochkani hozir takrorlash"
+                              className="rounded-lg border border-white/10 bg-white/5 hover:bg-amber-500/20 hover:border-amber-500/30 px-2.5 py-1 text-[11px] font-medium text-amber-300 transition"
+                            >
+                              Ochish
+                            </button>
+                            <button
+                              onClick={() => deleteFlashcard(card.id)}
+                              title="Kartochkani o‘chirish"
+                              className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1650,6 +2252,136 @@ export default function RoadmapWorkspace() {
                   className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg transition"
                 >
                   Barcha Xaritalarda Almashtirish
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 7: MANUAL FLASHCARD MODAL ── */}
+      {showManualCardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121318] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Brain size={18} className="text-amber-400" />
+                <h3 className="text-[15px] font-bold text-white">Yangi Flashcard Qo‘shish</h3>
+              </div>
+              <button onClick={() => setShowManualCardModal(false)} className="text-zinc-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!manualCardQuestion.trim() || !manualCardAnswer.trim()) return;
+                const todayIso = new Date().toISOString().split('T')[0];
+                await addFlashcards([
+                  {
+                    roadmap_id: currentRoadmap?.id || 'manual',
+                    topic_title: manualCardTopicTitle.trim() || currentRoadmap?.title || 'Umumiy Mavzu',
+                    question: manualCardQuestion.trim(),
+                    answer: manualCardAnswer.trim(),
+                    explanation: manualCardExplanation.trim() || undefined,
+                    code_snippet: manualCardCode.trim() || undefined,
+                    interval_days: 1,
+                    repetition_count: 0,
+                    ease_factor: 2.5,
+                    next_review_date: todayIso,
+                  },
+                ]);
+                setShowManualCardModal(false);
+                setManualCardQuestion('');
+                setManualCardAnswer('');
+                setManualCardExplanation('');
+                setManualCardCode('');
+                setManualCardTopicTitle('');
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-[11px] font-semibold uppercase text-zinc-400 mb-1">
+                  Mavzu / Texnologiya Nomi *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={manualCardTopicTitle}
+                  onChange={(e) => setManualCardTopicTitle(e.target.value)}
+                  placeholder="Masalan: Goroutines & Channels"
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase text-zinc-400 mb-1">
+                  Savol *
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={manualCardQuestion}
+                  onChange={(e) => setManualCardQuestion(e.target.value)}
+                  placeholder="Texnik savol matnini kiriting..."
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase text-zinc-400 mb-1">
+                  Javob *
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={manualCardAnswer}
+                  onChange={(e) => setManualCardAnswer(e.target.value)}
+                  placeholder="Aniq va lo‘nda javob..."
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase text-zinc-400 mb-1">
+                  Izoh / Tushuntirish (Ixtiyoriy)
+                </label>
+                <input
+                  type="text"
+                  value={manualCardExplanation}
+                  onChange={(e) => setManualCardExplanation(e.target.value)}
+                  placeholder="Qo‘shimcha arxitektura yoki ishlash mexanizmi..."
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase text-zinc-400 mb-1">
+                  Kod Namunasi (Ixtiyoriy)
+                </label>
+                <textarea
+                  rows={2}
+                  value={manualCardCode}
+                  onChange={(e) => setManualCardCode(e.target.value)}
+                  placeholder="// Misol kod..."
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[12px] font-mono text-emerald-300 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowManualCardModal(false)}
+                  className="rounded-xl px-4 py-2 text-[12px] font-medium text-zinc-400 hover:text-white"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-2 text-[12.5px] font-semibold text-black transition"
+                >
+                  Kartochkani Saqlash
                 </button>
               </div>
             </form>
