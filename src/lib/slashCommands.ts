@@ -1,5 +1,6 @@
-import type { Task, AiMemoryItem } from './types';
+import type { Task, AiMemoryItem, ScheduleBlock } from './types';
 import { firstEnabledProvider, getActiveModelOverride, setActiveModelOverride } from './providers';
+import { generateDailyMissedTasksReport } from './dailyReport';
 
 export interface SlashCommandDef {
   command: string;
@@ -10,6 +11,8 @@ export interface SlashCommandDef {
 export const SLASH_COMMANDS: SlashCommandDef[] = [
   { command: '/model', label: '/model', description: 'AI modelini ko‘rish yoki o‘zgartirish' },
   { command: '/usage', label: '/usage', description: 'Foydalanish statistikasi va tizim holati' },
+  { command: '/report', label: '/report', description: 'Kunlik qilinmagan va kechikkan ishlar auditi' },
+  { command: '/overdue', label: '/overdue', description: 'O‘tkazib yuborilgan vazifalar va AI tavsiyasi' },
   { command: '/tasks', label: '/tasks', description: 'CogniDev faol vazifalar ro‘yxati' },
   { command: '/memory', label: '/memory', description: 'Hermes uzoq muddatli xotiralari' },
   { command: '/clear', label: '/clear', description: 'Yozishmalar tarixini tozalash' },
@@ -18,6 +21,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
 
 export interface SlashCommandContext {
   tasks: Task[];
+  scheduleBlocks?: ScheduleBlock[];
   memories: AiMemoryItem[];
   messagesCount: number;
   roadmapsCount: number;
@@ -48,12 +52,25 @@ export async function executeSlashCommand(
         `📌 *Mavjud buyruqlar:*\n` +
         `• \`/model\` — Joriy AI modelini ko‘rish yoki almashtirish\n` +
         `• \`/usage\` — Foydalanish statistikasi, faol vazifalar va xotira\n` +
+        `• \`/report\` — Kunlik qilinmagan va kechikkan ishlar auditi\n` +
+        `• \`/overdue\` — O‘tkazib yuborilgan vazifalar va AI tavsiyasi\n` +
         `• \`/tasks\` — Faol muhandislik vazifalari ro‘yxati\n` +
         `• \`/memory\` — Hermes uzoq muddatli xotira faktlari\n` +
         `• \`/clear\` — Suhbat tarixini tozalash\n` +
         `• \`/help\` — Ushbu buyruqlar ro‘yxati\n\n` +
         `💡 *Maslahat:* Oddiy xabar yozsangiz, AI to‘g‘ridan-to‘g‘ri javob beradi!`
       );
+    }
+
+    case 'report':
+    case 'overdue':
+    case 'missed': {
+      const summary = await generateDailyMissedTasksReport(
+        context.tasks,
+        context.scheduleBlocks || [],
+        context.currentUserName
+      );
+      return summary.reportMarkdown;
     }
 
     case 'model':

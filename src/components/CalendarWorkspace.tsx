@@ -15,8 +15,14 @@ import {
   X,
   Bell,
   Radio,
+  Volume2,
+  Send,
+  CalendarPlus,
+  Loader2,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
+import FormattedAiText from './FormattedAiText';
+import type { DailyReportSummary } from '../lib/dailyReport';
 
 const DAY_NAMES_UZ = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
 const MONTH_NAMES_UZ = [
@@ -39,12 +45,74 @@ export default function CalendarWorkspace() {
     setFilter,
     setHud,
     setTaskModal,
+    generateDailyReportAction,
+    speakDailyReportAction,
+    dispatchDailyReportToTelegramAction,
   } = useSynapse();
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month' | 'agenda'>('day');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDailyReportModal, setShowDailyReportModal] = useState(false);
+  const [dailyReportData, setDailyReportData] = useState<DailyReportSummary | null>(null);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [isSpeakingReport, setIsSpeakingReport] = useState(false);
+  const [telegramSentCount, setTelegramSentCount] = useState<number | null>(null);
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+
+  const handleOpenDailyReport = async () => {
+    setShowDailyReportModal(true);
+    setIsLoadingReport(true);
+    setTelegramSentCount(null);
+    try {
+      const rep = await generateDailyReportAction();
+      setDailyReportData(rep);
+    } catch (err) {
+      console.warn('Failed to generate daily report:', err);
+    } finally {
+      setIsLoadingReport(false);
+    }
+  };
+
+  const handleSpeakReport = async () => {
+    if (!dailyReportData) return;
+    setIsSpeakingReport(true);
+    await speakDailyReportAction(dailyReportData.voiceSummary || dailyReportData.reportMarkdown.slice(0, 300));
+    setHud('Ovozli xulosa o‘qib berilmoqda 🔊');
+    setTimeout(() => setIsSpeakingReport(false), 8000);
+  };
+
+  const handleSendTelegramReport = async () => {
+    if (!dailyReportData) return;
+    setIsSendingTelegram(true);
+    const count = await dispatchDailyReportToTelegramAction(dailyReportData.reportMarkdown);
+    setIsSendingTelegram(false);
+    setTelegramSentCount(count);
+    if (count > 0) {
+      setHud(`Hisobot Telegramga yuborildi! (${count} ta qabul qiluvchi) 📲`);
+    } else {
+      setHud('Telegram bot sozlanmagan yoki token kiritilmagan ⚠️');
+    }
+  };
+
+  const handleRescheduleOverdueBlocks = () => {
+    if (!dailyReportData) return;
+    let rescheduled = 0;
+    for (const b of dailyReportData.incompleteBlocks) {
+      addScheduleBlock({
+        title: `${b.title} (Qoldirilgan)`,
+        time_range: b.time_range,
+        category: b.category,
+        tag: b.tag,
+        color: b.color,
+        done: false,
+      });
+      rescheduled++;
+    }
+    setHud(`${rescheduled} ta reja ertangi kalendarga ko‘chirildi! 🔄`);
+    setShowDailyReportModal(false);
+  };
 
   // New Block Form State
   const [newTitle, setNewTitle] = useState('');
@@ -319,6 +387,16 @@ export default function CalendarWorkspace() {
               Jadval
             </button>
           </div>
+
+          {/* AI Daily Missed Tasks Report Button */}
+          <button
+            onClick={handleOpenDailyReport}
+            className="flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11.5px] font-semibold text-purple-300 shadow-sm hover:bg-purple-500/20 transition active:scale-95"
+            title="Qilinmagan va kechikkan ishlar bo'yicha AI kunlik hisoboti"
+          >
+            <Sparkles size={14} className="text-purple-400" />
+            <span>AI Kunlik Audit</span>
+          </button>
 
           {/* Add Block Button */}
           <button
@@ -997,6 +1075,146 @@ export default function CalendarWorkspace() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. AI Daily Missed Tasks Report Modal */}
+      {showDailyReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="flex flex-col w-full max-w-2xl max-h-[85vh] rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/[0.08] px-6 py-4 bg-white/[0.02]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                    AI Kunlik Audit & Qilinmagan Ishlar
+                    <span className="rounded-full bg-purple-500/20 text-purple-300 text-[10px] px-2 py-0.5 border border-purple-500/30 font-medium">
+                      Live AI
+                    </span>
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    O‘tkazib yuborilgan vazifalar tahlili va ertangi kun uchun qayta taqsimlash
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDailyReportModal(false)}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/[0.06] hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin space-y-4">
+              {isLoadingReport ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400">
+                  <Loader2 className="animate-spin text-purple-400" size={32} />
+                  <p className="text-sm font-medium text-zinc-300">
+                    AI barcha vazifalar va kalendar rejalarini tahlil qilmoqda...
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Kechikkan ishlar va blockerlar aniqlanmoqda
+                  </p>
+                </div>
+              ) : dailyReportData ? (
+                <>
+                  {/* Summary Metric Pills */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                      <span className="text-[11px] text-zinc-400 block mb-1">Kechikkan vazifalar</span>
+                      <span className="text-xl font-bold text-red-400">
+                        {dailyReportData.overdueTasks.length} ta
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                      <span className="text-[11px] text-zinc-400 block mb-1">Qolgan vaqt bloklari</span>
+                      <span className="text-xl font-bold text-amber-400">
+                        {dailyReportData.incompleteBlocks.length} ta
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                      <span className="text-[11px] text-zinc-400 block mb-1">Bajarilgan ishlar</span>
+                      <span className="text-xl font-bold text-emerald-400">
+                        {dailyReportData.completedTasks + dailyReportData.completedBlocks.length} ta
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Markdown Content */}
+                  <div className="rounded-xl border border-white/[0.06] bg-black/40 p-5 text-sm leading-relaxed">
+                    <FormattedAiText content={dailyReportData.reportMarkdown} />
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-10 text-zinc-400">
+                  Hisobot ma'lumotlari topilmadi.
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex flex-wrap items-center justify-between border-t border-white/[0.08] px-6 py-4 bg-white/[0.02] gap-3">
+              <div className="flex items-center gap-2">
+                {/* Voice Readout Button */}
+                <button
+                  onClick={handleSpeakReport}
+                  disabled={!dailyReportData || isLoadingReport}
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition ${
+                    isSpeakingReport
+                      ? 'border-purple-500 bg-purple-500/20 text-purple-300 animate-pulse'
+                      : 'border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]'
+                  }`}
+                  title="Hisobot xulosasini ovozli tinglash"
+                >
+                  <Volume2 size={15} className={isSpeakingReport ? 'text-purple-400' : 'text-zinc-400'} />
+                  <span>{isSpeakingReport ? 'O‘qilmoqda...' : 'Ovozli tinglash'}</span>
+                </button>
+
+                {/* Send to Telegram Button */}
+                <button
+                  onClick={handleSendTelegramReport}
+                  disabled={!dailyReportData || isLoadingReport || isSendingTelegram}
+                  className="flex items-center gap-1.5 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-300 hover:bg-sky-500/20 transition disabled:opacity-50"
+                  title="Hisobotni Telegram botingizga yuborish"
+                >
+                  {isSendingTelegram ? (
+                    <Loader2 size={15} className="animate-spin text-sky-400" />
+                  ) : (
+                    <Send size={15} className="text-sky-400" />
+                  )}
+                  <span>
+                    {telegramSentCount !== null && telegramSentCount > 0
+                      ? `Yuborildi (${telegramSentCount}) ✓`
+                      : 'Telegramga yuborish'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {dailyReportData && dailyReportData.incompleteBlocks.length > 0 && (
+                  <button
+                    onClick={handleRescheduleOverdueBlocks}
+                    className="flex items-center gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition"
+                    title="Bajarilmagan rejalarni ertangi kalendarga ko'chirish"
+                  >
+                    <CalendarPlus size={15} className="text-amber-400" />
+                    <span>Ertaga ko‘chirish ({dailyReportData.incompleteBlocks.length})</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setShowDailyReportModal(false)}
+                  className="rounded-xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-2 text-xs font-semibold text-white transition"
+                >
+                  Yopish
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

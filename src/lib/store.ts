@@ -102,10 +102,16 @@ import { parseRoadmapMarkdown } from './roadmapParser';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
 import type { AiSource } from './providers';
-import { playNotificationSound, sendDesktopNotification } from './notifications';
+import { playNotificationSound, sendDesktopNotification, speakVoiceReminder } from './notifications';
 import { syncHermesMemoriesToDb, formatMemoriesForPrompt } from './hermesMemory';
-import { telegramBotManager, type TelegramBotStatus } from './telegramBot';
+import { telegramBotManager, sendTelegramMessage, type TelegramBotStatus } from './telegramBot';
 import { isSlashCommand, executeSlashCommand } from './slashCommands';
+import {
+  generateDailyMissedTasksReport,
+  speakDailyReportVoice,
+  dispatchDailyReportToTelegram,
+  type DailyReportSummary,
+} from './dailyReport';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -351,6 +357,11 @@ interface SynapseState {
   stopTelegramBot: () => void;
   syncHermesMemoriesAction: () => Promise<void>;
 
+  // Daily Missed Tasks AI Report & Voice
+  generateDailyReportAction: () => Promise<DailyReportSummary>;
+  speakDailyReportAction: (summaryText: string) => Promise<boolean>;
+  dispatchDailyReportToTelegramAction: (reportText?: string) => Promise<number>;
+
   // Spaces
   spaces: SpaceItem[];
   activeSpaceId: string | null;
@@ -479,11 +490,27 @@ function ensureSchedulerStarted(
           playNotificationSound();
         }
 
-        // Send OS native notification
+        // Spoken voice reminder out loud via macOS say or Web Speech API
+        speakVoiceReminder(`Eslatma: ${r.title}. ${r.description || ''}`).catch(() => {});
+
+        // Send OS native desktop notification
         sendDesktopNotification(
           `⏰ ${r.title}`,
           r.description ? `${r.time_string}: ${r.description}` : `Rejalashtirilgan vaqt: ${r.time_string}`,
         );
+
+        // Send instant Telegram notification to user's phone if bot is active!
+        const { telegramConfig } = getState();
+        if (telegramConfig?.is_active && telegramConfig.bot_token && telegramConfig.allowed_user_ids) {
+          const userIds = telegramConfig.allowed_user_ids.split(',').map((u) => u.trim()).filter(Boolean);
+          for (const uid of userIds) {
+            sendTelegramMessage(
+              telegramConfig.bot_token,
+              uid,
+              `⏰ *Eslatma (CogniDev):*\n\n📌 *${r.title}*\n⏱ *Vaqti:* ${r.time_string}\n${r.description ? `📝 ${r.description}` : ''}`
+            ).catch(() => {});
+          }
+        }
 
         // Mark as triggered and display interactive in-app alert banner
         const triggeredRem: ScheduledReminder = {
@@ -1468,6 +1495,7 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       const currentUserName = userProfile?.full_name || 'Dasturchi';
       const reply = await executeSlashCommand(trimmed, {
         tasks,
+        scheduleBlocks: get().scheduleBlocks,
         memories,
         messagesCount: aiDrawerMessages.length,
         roadmapsCount: roadmaps.length,
@@ -1610,6 +1638,7 @@ MUHIM QOIDALAR:
         if (isSlashCommand(incomingText)) {
           const reply = await executeSlashCommand(incomingText, {
             tasks,
+            scheduleBlocks: get().scheduleBlocks,
             memories,
             messagesCount: get().aiDrawerMessages.length,
             roadmapsCount: roadmaps.length,
@@ -1700,6 +1729,34 @@ MUHIM QOIDALAR:
   syncHermesMemoriesAction: async () => {
     const synced = await syncHermesMemoriesToDb();
     set({ memories: synced });
+  },
+
+  generateDailyReportAction: async () => {
+    const { tasks, scheduleBlocks, userProfile } = get();
+    return generateDailyMissedTasksReport(tasks, scheduleBlocks, userProfile?.full_name || 'Farhod');
+  },
+
+  speakDailyReportAction: async (summaryText: string) => {
+    return speakDailyReportVoice(summaryText);
+  },
+
+  dispatchDailyReportToTelegramAction: async (reportText?: string) => {
+    const { telegramConfig, tasks, scheduleBlocks, userProfile } = get();
+    if (!telegramConfig.bot_token || !telegramConfig.allowed_user_ids) return 0;
+    let textToSend = reportText;
+    if (!textToSend) {
+      const summary = await generateDailyMissedTasksReport(
+        tasks,
+        scheduleBlocks,
+        userProfile?.full_name || 'Farhod'
+      );
+      textToSend = summary.reportMarkdown;
+    }
+    return dispatchDailyReportToTelegram(
+      telegramConfig.bot_token,
+      telegramConfig.allowed_user_ids,
+      textToSend
+    );
   },
 
   todayAiSummary: (() => {

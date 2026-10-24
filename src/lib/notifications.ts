@@ -1,6 +1,8 @@
+import { isTauri } from './platform';
+
 /**
  * CogniDev Notification & Scheduler Engine
- * Handles audio chimes, native desktop notifications, and time parsing.
+ * Handles audio chimes, native desktop notifications, voice speech synthesis, and time parsing.
  */
 
 /**
@@ -80,6 +82,51 @@ export async function sendDesktopNotification(
     }
   } catch (err) {
     console.warn('[DesktopNotification] error:', err);
+  }
+
+  return false;
+}
+
+/**
+ * Speaks an alert out loud using native OS speech synthesis (macOS `say`)
+ * or Web Speech API fallback.
+ */
+export async function speakVoiceReminder(text: string): Promise<boolean> {
+  const clean = text.replace(/[*_#`~]/g, '').trim();
+  if (!clean) return false;
+
+  // 1. Native macOS `say` or Windows PowerShell speech via Tauri
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('speak_text', { text: clean });
+      return true;
+    } catch (e) {
+      console.warn('[speakVoiceReminder] Native speech failed, falling back:', e);
+    }
+  }
+
+  // 2. Web Speech API fallback in browser/WebView
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find(
+        (v) =>
+          v.lang.startsWith('uz') ||
+          v.lang.startsWith('tr') ||
+          v.lang.startsWith('ru') ||
+          v.lang.startsWith('en')
+      );
+      if (match) utterance.voice = match;
+      window.speechSynthesis.speak(utterance);
+      return true;
+    } catch (err) {
+      console.warn('[speakVoiceReminder] Web Speech synthesis error:', err);
+    }
   }
 
   return false;

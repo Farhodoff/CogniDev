@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 // ── RubaiSTT (local Uzbek STT via whisper.cpp) ────────────
@@ -548,6 +549,39 @@ fn get_gh_cli_auth() -> GhCliAuthStatus {
     status
 }
 
+#[tauri::command]
+fn speak_text(text: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("say")
+            .arg(&text)
+            .spawn()
+            .map_err(|e| format!("Say xatoligi: {e}"))?;
+        Ok(())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let escaped = text.replace('"', "\"\"");
+        let ps_cmd = format!(
+            "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak(\"{}\")",
+            escaped
+        );
+        let _ = std::process::Command::new("powershell")
+            .args(["-Command", &ps_cmd])
+            .spawn()
+            .map_err(|e| format!("Speech xatoligi: {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = std::process::Command::new("spd-say")
+            .arg(&text)
+            .spawn()
+            .map_err(|e| format!("Speech xatoligi: {e}"))?;
+        Ok(())
+    }
+}
+
 fn main() {
     let migrations = vec![
         Migration {
@@ -603,8 +637,27 @@ fn main() {
             reset_mic_permission,
             get_git_repo_info,
             git_commit_changes,
-            get_gh_cli_auth
+            get_gh_cli_auth,
+            speak_text
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                #[cfg(target_os = "macos")]
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        });
 }

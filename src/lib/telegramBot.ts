@@ -127,6 +127,8 @@ export async function registerTelegramCommands(token: string): Promise<boolean> 
   const commands = [
     { command: 'model', description: 'AI modelini ko‘rish yoki o‘zgartirish' },
     { command: 'usage', description: 'Foydalanish statistikasi va xotira holati' },
+    { command: 'report', description: 'Kunlik qilinmagan va kechikkan ishlar auditi' },
+    { command: 'overdue', description: 'O‘tkazib yuborilgan vazifalar va AI tavsiyasi' },
     { command: 'tasks', description: 'CogniDev faol vazifalar ro‘yxati' },
     { command: 'memory', description: 'Hermes uzoq muddatli xotiralari' },
     { command: 'clear', description: 'Yozishmalar tarixini tozalash' },
