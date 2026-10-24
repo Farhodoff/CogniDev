@@ -591,9 +591,18 @@ fn build_tray_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     focus_tasks: &[String],
 ) -> Result<Menu<R>, tauri::Error> {
-    let focus_1_text = focus_tasks.get(0).map(|s| s.as_str()).unwrap_or("Fokus belgilanmagan");
-    let focus_2_text = focus_tasks.get(1).map(|s| s.as_str()).unwrap_or("Fokus belgilanmagan");
-    let focus_3_text = focus_tasks.get(2).map(|s| s.as_str()).unwrap_or("Fokus belgilanmagan");
+    let focus_1_text = focus_tasks
+        .first()
+        .map(|s| s.as_str())
+        .unwrap_or("Fokus belgilanmagan");
+    let focus_2_text = focus_tasks
+        .get(1)
+        .map(|s| s.as_str())
+        .unwrap_or("Fokus belgilanmagan");
+    let focus_3_text = focus_tasks
+        .get(2)
+        .map(|s| s.as_str())
+        .unwrap_or("Fokus belgilanmagan");
 
     let menu = Menu::with_items(
         app,
@@ -609,21 +618,21 @@ fn build_tray_menu<R: tauri::Runtime>(
             &MenuItem::with_id(
                 app,
                 "focus_1",
-                &format!("1. {focus_1_text}"),
+                format!("1. {focus_1_text}"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "focus_2",
-                &format!("2. {focus_2_text}"),
+                format!("2. {focus_2_text}"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "focus_3",
-                &format!("3. {focus_3_text}"),
+                format!("3. {focus_3_text}"),
                 true,
                 None::<&str>,
             )?,
@@ -635,20 +644,8 @@ fn build_tray_menu<R: tauri::Runtime>(
                 true,
                 None::<&str>,
             )?,
-            &MenuItem::with_id(
-                app,
-                "voice_standup",
-                "🎙 Ovozli Standup",
-                true,
-                None::<&str>,
-            )?,
-            &MenuItem::with_id(
-                app,
-                "show_app",
-                "🖥 Bosh Oynani Ochish",
-                true,
-                None::<&str>,
-            )?,
+            &MenuItem::with_id(app, "voice_standup", "🎙 Ovozli Standup", true, None::<&str>)?,
+            &MenuItem::with_id(app, "show_app", "🖥 Bosh Oynani Ochish", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "quit", "🚪 Chiqish", true, None::<&str>)?,
         ],
@@ -767,15 +764,17 @@ fn main() {
             let shortcut_res = "CommandOrControl+Shift+Space".parse::<Shortcut>();
             if let Ok(sc) = shortcut_res {
                 let app_handle = app.handle().clone();
-                let _ = app.global_shortcut().on_shortcut(sc, move |_app, _sc, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        if let Some(w) = app_handle.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
+                let _ = app
+                    .global_shortcut()
+                    .on_shortcut(sc, move |_app, _sc, event| {
+                        if event.state() == ShortcutState::Pressed {
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                            let _ = app_handle.emit("open_quick_capture", ());
                         }
-                        let _ = app_handle.emit("open_quick_capture", ());
-                    }
-                });
+                    });
             }
 
             Ok(())
