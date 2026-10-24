@@ -26,6 +26,8 @@ import {
   FolderGit2,
   HardDrive,
   Send,
+  Zap,
+  Activity,
 } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
@@ -67,6 +69,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     setProvidersModal,
     showGitHubModal,
     setGitHubModal,
+    setQuickCaptureModal,
+    setDeveloperHealthModal,
     showTelegramModal,
     setTelegramModal,
     telegramStatus,
@@ -295,6 +299,16 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                   <span>Focus Sprint</span>
                   <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">{formatShortcut('P')}</kbd>
                 </button>
+                <button
+                  onClick={() => {
+                    setDeveloperHealthModal(true);
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <Activity size={14} className="text-emerald-400" />
+                  <span>Health & Growth Analitika</span>
+                </button>
               </div>
             )}
           </div>
@@ -325,6 +339,27 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
           >
             <GithubIcon size={12} className="text-indigo-400" />
             <span className="hidden sm:inline">GitHub AI</span>
+          </button>
+
+          {/* ⚡️ Quick Capture Spotlight Pill */}
+          <button
+            onClick={() => setQuickCaptureModal(true)}
+            title="Tezkor Qayd & Global Hotkey (⌘⇧Space)"
+            className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[11.5px] font-mono text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shadow-amber-500/10"
+          >
+            <Zap size={12} className="text-amber-400" />
+            <span className="hidden md:inline">Tezkor Qayd</span>
+            <kbd className="hidden lg:inline rounded bg-black/40 px-1 py-0.5 text-[9.5px] text-zinc-400 font-mono">⌘⇧Space</kbd>
+          </button>
+
+          {/* 📊 Developer Health & Growth Pill */}
+          <button
+            onClick={() => setDeveloperHealthModal(true)}
+            title="Developer Health & Growth (O‘rganish matritsasi & Haftalik Infografika)"
+            className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[11.5px] font-mono text-emerald-300 hover:bg-emerald-500/20 hover:text-white transition shadow-sm shadow-emerald-500/10"
+          >
+            <Activity size={12} className="text-emerald-400" />
+            <span className="hidden md:inline">Health & Growth</span>
           </button>
 
           {/* ✨ AI Assistant Button */}

@@ -625,6 +625,29 @@ export async function insertPrompt(p: Omit<PromptEntry, 'created_at'>): Promise<
   );
 }
 
+export async function fetchRetrospectives(): Promise<Retrospective[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.select<Retrospective[]>('SELECT * FROM retrospectives ORDER BY created_at DESC');
+    return rows || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function insertRetrospectiveRecord(r: Retrospective): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    'INSERT OR REPLACE INTO retrospectives (id, date, type, content, blockers_summary, created_at) VALUES ($1,$2,$3,$4,$5,$6)',
+    [r.id, r.date, r.type, r.content, r.blockers_summary || null, r.created_at || new Date().toISOString()]
+  );
+}
+
+export async function deleteRetrospectiveRecord(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM retrospectives WHERE id = $1', [id]);
+}
+
 export async function saveRetrospective(date: string, type: 'standup' | 'weekly_retro', content: string, blockers: string): Promise<void> {
   const db = await getDb();
   await db.execute('INSERT INTO retrospectives (id, date, type, content, blockers_summary) VALUES ($1,$2,$3,$4,$5)', [

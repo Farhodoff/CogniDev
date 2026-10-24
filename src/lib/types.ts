@@ -84,9 +84,22 @@ export interface Retrospective {
   id: string;
   date: string;
   type: RetroType;
+  title?: string;
   content: string;
   blockers_summary: string | null;
+  raw_transcript?: string;
+  stage?: 'morning_10' | 'midday_14' | 'evening_22';
+  tags?: string[];
   created_at: string;
+}
+
+export type DailyRoutineStage = 'morning_10' | 'midday_14' | 'evening_22';
+
+export interface VoiceStandupSession {
+  open: boolean;
+  stage: DailyRoutineStage;
+  promptMessage?: string;
+  spokenPrompt?: string;
 }
 
 export type MainView =

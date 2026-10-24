@@ -1,10 +1,10 @@
 import { playNotificationSound, sendDesktopNotification, speakVoiceReminder } from './notifications';
 import { sendTelegramMessage } from './telegramBot';
 import { generateDailyMissedTasksReport } from './dailyReport';
-import type { Task, RoadmapItem, ScheduleBlock, TelegramBotConfig, FlashcardItem } from './types';
+import type { Task, RoadmapItem, ScheduleBlock, TelegramBotConfig, FlashcardItem, DailyRoutineStage } from './types';
 import { getDueFlashcards } from './spacedRepetition';
 
-export type DailyRoutineStage = 'morning_10' | 'midday_14' | 'evening_22';
+export type { DailyRoutineStage };
 
 export interface DailyRoutineStatus {
   date: string;
@@ -174,7 +174,9 @@ export async function executeDailyRoutineStage(
 
   // 6. Record that this stage ran today (unless manual test)
   if (!isManualTest) {
-    routineStatus[stage] = true;
+    if (stage === 'morning_10') routineStatus.morning_10 = true;
+    else if (stage === 'midday_14') routineStatus.midday_14 = true;
+    else if (stage === 'evening_22') routineStatus.evening_22 = true;
     routineStatus.lastTriggered = {
       stage,
       time: new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),

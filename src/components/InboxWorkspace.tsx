@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Inbox,
   CheckCircle2,
@@ -13,10 +13,14 @@ import {
   Search,
   RefreshCw,
   FolderPlus,
+  GitPullRequest,
+  ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { Task } from '../lib/types';
 import { callAi } from '../lib/ai';
+import { fetchUserPrsAndIssues, getStoredGitHubToken, type GitHubPrOrIssue } from '../lib/github';
 
 interface InboxNotification {
   id: string;
@@ -50,10 +54,63 @@ export default function InboxWorkspace() {
     userProfile,
   } = useSynapse();
 
-  const [filterTab, setFilterTab] = useState<'all' | 'tasks' | 'notifications' | 'ai'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'tasks' | 'notifications' | 'ai' | 'github_pr'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickInput, setQuickInput] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
+
+  // 🐙 GitHub PR & Issue Tracker State
+  const [githubItems, setGithubItems] = useState<GitHubPrOrIssue[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubCategoryFilter, setGithubCategoryFilter] = useState<'all' | 'my_pr' | 'review_requested' | 'assigned_issue'>('all');
+
+  const loadGitHubItems = async () => {
+    setGithubLoading(true);
+    try {
+      const token = getStoredGitHubToken();
+      const username = userProfile?.full_name || null;
+      const items = await fetchUserPrsAndIssues(token, username);
+      setGithubItems(items);
+    } catch (err) {
+      console.warn('GitHub items load error:', err);
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadGitHubItems();
+  }, []);
+
+  const handleConvertPrToTask = (item: GitHubPrOrIssue) => {
+    const priority: Task['priority'] =
+      item.category === 'review_requested'
+        ? 'Critical'
+        : item.category === 'assigned_issue'
+        ? 'High Priority'
+        : 'Normal';
+
+    const newId = 'task-' + Date.now();
+    addTask({
+      id: newId,
+      workspace_id: 'default',
+      title: item.title,
+      status: 'active',
+      priority,
+      git_branch: item.category === 'my_pr' ? `pr/${item.number}` : null,
+      pr_url: item.html_url,
+      ai_source: 'github-pr',
+      assignee_name: userProfile?.full_name || item.author_login,
+      assignee_avatar: (userProfile?.full_name || item.author_login).slice(0, 2).toUpperCase(),
+      assignee_name2: null,
+      assignee_avatar2: null,
+      tags: ['github', item.repo_name.split('/')[1] || item.repo_name, item.category],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    setHud(`"${item.title.slice(0, 35)}..." vazifaga qo‘shildi ✓`);
+  };
 
   // Active / non-completed inbox tasks
   const inboxTasks = useMemo(() => {
@@ -67,6 +124,24 @@ export default function InboxWorkspace() {
       (t) => t.title.toLowerCase().includes(q) || (t.tags || []).some((tag) => tag.toLowerCase().includes(q))
     );
   }, [inboxTasks, searchQuery]);
+
+  const filteredGitHubItems = useMemo(() => {
+    let list = githubItems;
+    if (githubCategoryFilter !== 'all') {
+      list = list.filter((item) => item.category === githubCategoryFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (item) =>
+          item.title.toLowerCase().includes(q) ||
+          item.repo_name.toLowerCase().includes(q) ||
+          item.author_login.toLowerCase().includes(q) ||
+          (item.labels || []).some((l) => l.name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [githubItems, githubCategoryFilter, searchQuery]);
 
   // Dynamic system notifications computed from actual store state
   const [notifications, setNotifications] = useState<InboxNotification[]>(() => {
@@ -356,6 +431,7 @@ Formatga aniq rioya qiling.`;
               { id: 'tasks', label: `Vazifalar (${inboxTasks.length})` },
               { id: 'notifications', label: `Bildirishnomalar (${notifications.length})` },
               { id: 'ai', label: `AI Tavsiyalar (${aiRecommendations.length})` },
+              { id: 'github_pr', label: `🐙 PR & Issues (${githubItems.length})` },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -699,6 +775,203 @@ Formatga aniq rioya qiling.`;
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Tab 5: 🐙 GitHub PR & Issue Tracker */}
+        {filterTab === 'github_pr' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <GitPullRequest size={16} className="text-emerald-400" />
+                  <span>GitHub Pull Requestlar & Issue Tracker</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  GitHub shaxsiy tokeni (PAT) orqali sizga tegishli PR'lar, review so‘rovlari va biriktirilgan issuelar
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={loadGitHubItems}
+                  disabled={githubLoading}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/10 disabled:opacity-40 px-3.5 py-1.5 text-xs font-semibold text-zinc-200 shadow-sm transition"
+                >
+                  <RefreshCw size={13} className={githubLoading ? 'animate-spin text-emerald-400' : 'text-zinc-400'} />
+                  <span>{githubLoading ? 'Yangilanmoqda…' : 'Yangilash'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-filters for categories */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'all', label: `Barchasi (${githubItems.length})` },
+                {
+                  id: 'my_pr',
+                  label: `Mening PR'larim (${githubItems.filter((i) => i.category === 'my_pr').length})`,
+                },
+                {
+                  id: 'review_requested',
+                  label: `Review so‘rovlari (${githubItems.filter((i) => i.category === 'review_requested').length})`,
+                },
+                {
+                  id: 'assigned_issue',
+                  label: `Biriktirilgan Issuelar (${githubItems.filter((i) => i.category === 'assigned_issue').length})`,
+                },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setGithubCategoryFilter(f.id as any)}
+                  className={`rounded-xl px-3 py-1 text-[11.5px] font-medium transition ${
+                    githubCategoryFilter === f.id
+                      ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/40 shadow-sm'
+                      : 'bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 border border-white/5'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* List of items */}
+            {filteredGitHubItems.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-[#121319]/40 p-10 text-center space-y-3">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-zinc-500">
+                  <GitPullRequest size={24} />
+                </div>
+                <h4 className="text-sm font-bold text-white">Hech qanday element topilmadi</h4>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+                  Tanlangan toifada yoki qidiruv so‘rovi bo‘yicha ochiq PR yoki issue mavjud emas.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredGitHubItems.map((item) => {
+                  const isReview = item.category === 'review_requested';
+                  const isIssue = item.category === 'assigned_issue';
+                  const isMyPr = item.category === 'my_pr';
+
+                  const categoryLabel = isMyPr
+                    ? "Mening PR'im"
+                    : isReview
+                    ? "Review so‘rovi"
+                    : 'Biriktirilgan Issue';
+
+                  const badgeClass = isMyPr
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                    : isReview
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                    : 'bg-sky-500/15 border-sky-500/30 text-sky-300';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="group rounded-2xl border border-white/[0.07] bg-[#121319] p-4 hover:border-emerald-500/30 hover:bg-[#141620] transition shadow-md space-y-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${badgeClass}`}
+                          >
+                            {isIssue ? (
+                              <AlertTriangle size={15} />
+                            ) : (
+                              <GitPullRequest size={15} />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider font-mono ${badgeClass}`}
+                              >
+                                {categoryLabel}
+                              </span>
+                              <span className="text-xs font-mono font-medium text-zinc-400">
+                                {item.repo_name}
+                              </span>
+                              <span className="text-xs font-mono text-zinc-500">#{item.number}</span>
+                              {item.draft && (
+                                <span className="rounded bg-zinc-700/50 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                                  Draft
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition">
+                              {item.title}
+                            </h4>
+
+                            {item.body && (
+                              <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                                {item.body}
+                              </p>
+                            )}
+
+                            {/* Labels & Meta */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {item.labels &&
+                                item.labels.map((lbl) => (
+                                  <span
+                                    key={lbl.name}
+                                    style={{
+                                      backgroundColor: `#${lbl.color}20`,
+                                      borderColor: `#${lbl.color}50`,
+                                      color: `#${lbl.color}`,
+                                    }}
+                                    className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                                  >
+                                    {lbl.name}
+                                  </span>
+                                ))}
+
+                              <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                                <img
+                                  src={item.author_avatar}
+                                  alt={item.author_login}
+                                  className="h-4 w-4 rounded-full border border-white/20"
+                                />
+                                <span>@{item.author_login}</span>
+                              </div>
+
+                              {item.comments_count !== undefined && item.comments_count > 0 && (
+                                <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-mono">
+                                  <MessageSquare size={12} />
+                                  <span>{item.comments_count}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <a
+                            href={item.html_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 transition"
+                          >
+                            <ExternalLink size={13} />
+                            <span>GitHub</span>
+                          </a>
+
+                          <button
+                            onClick={() => handleConvertPrToTask(item)}
+                            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-emerald-600/20 transition"
+                          >
+                            <Plus size={13} />
+                            <span>Taskga aylantirish</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

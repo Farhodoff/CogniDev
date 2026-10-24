@@ -28,6 +28,8 @@ import type {
   AiMemoryItem,
   TelegramBotConfig,
   FlashcardItem,
+  Retrospective,
+  VoiceStandupSession,
 } from './types';
 import {
   DEFAULT_CHECKLISTS,
@@ -62,6 +64,9 @@ import {
   migrate,
   purgeMockDataIfPresent,
   saveRetrospective,
+  fetchRetrospectives,
+  insertRetrospectiveRecord,
+  deleteRetrospectiveRecord,
   uid,
   updateTaskMeta,
   updateTaskTags,
@@ -123,6 +128,25 @@ import {
   calculateNextReview,
   generateFlashcardsWithAi,
 } from './spacedRepetition';
+import {
+  processMorningVoiceStandup,
+  processEveningVoiceStandup,
+  type MorningVoiceStandupResult,
+  type EveningVoiceStandupResult,
+} from './voiceStandup';
+import {
+  fetchGitRepoInfo,
+  syncTasksWithGitCommits,
+  generateStandupFromGitDiff,
+} from './git';
+import {
+  syncTrayFocusTasks,
+  extractTop3FocusTasks,
+} from './quickCapture';
+import {
+  contextSwitchTracker,
+  type ContextSwitchReport,
+} from './contextSwitching';
 
 export type SortOrder = 'newest' | 'oldest' | 'priority' | 'title';
 
@@ -175,6 +199,11 @@ export function saveStoredTasks(tasks: Task[]) {
   } catch (e) {
     console.warn('Failed to save tasks to localStorage:', e);
   }
+  // Sync the top 3 focus tasks with macOS Menu Bar Tray
+  try {
+    const top3 = extractTop3FocusTasks(tasks);
+    syncTrayFocusTasks(top3).catch(() => {});
+  } catch {}
 }
 
 export function loadStoredNotesDocs(): NoteDoc[] {
@@ -279,6 +308,23 @@ export function saveStoredChecklists(checklists: Record<string, ChecklistItem[]>
   } catch {}
 }
 
+export function loadStoredRetrospectives(): Retrospective[] {
+  try {
+    const s = localStorage.getItem('cognidev_retrospectives_v1');
+    if (s) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+export function saveStoredRetrospectives(retros: Retrospective[]) {
+  try {
+    localStorage.setItem('cognidev_retrospectives_v1', JSON.stringify(retros));
+  } catch {}
+}
+
 /** Fire-and-forget write-through of a task's note + checklist with dual persistence. */
 function persistResolution(taskId: string) {
   const { dbMode, notes, checklists } = useSynapse.getState();
@@ -323,6 +369,13 @@ interface SynapseState {
   setGitHubTargetRepoUrl: (url: string | null) => void;
   weeklyCoach: WeeklyCoachInsight | null;
   showWeeklyCoachModal: boolean;
+  showQuickCaptureModal: boolean;
+  setQuickCaptureModal: (open: boolean) => void;
+  showDeveloperHealthModal: boolean;
+  setDeveloperHealthModal: (open: boolean) => void;
+  contextSwitchWarning: ContextSwitchReport | null;
+  dismissContextSwitchWarning: () => void;
+  checkContextSwitchThrashing: () => ContextSwitchReport;
 
   // Notion Notes
   notesDocs: NoteDoc[];
@@ -353,6 +406,16 @@ interface SynapseState {
   batchReplaceYearInRoadmaps: (fromYear?: string, toYear?: string) => Promise<number>;
   syncDailyRoadmapFocus: (targetDate?: Date) => Promise<number>;
   triggerDailyRoutineTest: (stage: DailyRoutineStage) => Promise<void>;
+
+  // Retrospectives & Interactive Voice Standup
+  retrospectives: Retrospective[];
+  addRetrospective: (retro: Retrospective) => Promise<void>;
+  deleteRetrospective: (id: string) => Promise<void>;
+  activeVoiceStandup: VoiceStandupSession | null;
+  openVoiceStandup: (stage: DailyRoutineStage, promptMessage?: string, spokenPrompt?: string) => void;
+  closeVoiceStandup: () => void;
+  submitMorningVoiceStandup: (transcript: string) => Promise<MorningVoiceStandupResult>;
+  submitEveningVoiceStandup: (transcript: string) => Promise<EveningVoiceStandupResult>;
 
   // Spaced Repetition & Flashcards
   flashcards: FlashcardItem[];
@@ -514,9 +577,12 @@ interface SynapseState {
   createWorkspace: (name: string, type: 'personal' | 'team') => Promise<void>;
   addPrompt: (p: PromptEntry) => void;
   triggerStandup: () => Promise<void>;
+  syncGitTasks: () => Promise<{ completedTasks: Task[]; matchedCommits: string[] }>;
+  generateGitStandup: () => Promise<void>;
 }
 
 let schedulerIntervalId: ReturnType<typeof setInterval> | null = null;
+let gitTickCounter = 0;
 
 function ensureSchedulerStarted(
   getState: () => SynapseState,
@@ -634,6 +700,28 @@ function ensureSchedulerStarted(
     } catch (routineErr) {
       console.warn('[Scheduler] daily routine tick error:', routineErr);
     }
+
+    // 🐙 Git Commit -> Avtomatik Task Done: Background monitoring of local Git commits
+    try {
+      gitTickCounter++;
+      if (gitTickCounter % 4 === 0) {
+        const currentState = getState();
+        fetchGitRepoInfo()
+          .then((gitInfo) => {
+            if (gitInfo && gitInfo.recent_commits && gitInfo.recent_commits.length > 0) {
+              syncTasksWithGitCommits(
+                gitInfo.recent_commits,
+                currentState.tasks,
+                (taskId, status) => currentState.updateTaskStatus(taskId, status),
+                (msg) => currentState.setHud(msg),
+              );
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // Ignore background git check errors
+    }
   }, 4000);
 }
 
@@ -668,6 +756,12 @@ export const useSynapse = create<SynapseState>((set, get) => ({
   gitHubTargetRepoUrl: null,
   weeklyCoach: null,
   showWeeklyCoachModal: false,
+  showQuickCaptureModal: false,
+  showDeveloperHealthModal: false,
+  setDeveloperHealthModal: (open) => set({ showDeveloperHealthModal: open }),
+  contextSwitchWarning: null,
+  dismissContextSwitchWarning: () => set({ contextSwitchWarning: null }),
+  checkContextSwitchThrashing: () => contextSwitchTracker.getReport(),
   memories: [],
   telegramConfig: { bot_token: '', allowed_user_ids: '', is_active: false, last_update_id: 0 },
   telegramStatus: 'stopped',
@@ -1108,6 +1202,120 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       },
       true // isManualTest = true
     );
+  },
+
+  // Retrospectives state & actions
+  retrospectives: loadStoredRetrospectives(),
+  addRetrospective: async (retro) => {
+    const updated = [retro, ...get().retrospectives.filter((r) => r.id !== retro.id)];
+    saveStoredRetrospectives(updated);
+    set({ retrospectives: updated });
+    if (get().dbMode === 'sqlite') {
+      await insertRetrospectiveRecord(retro).catch(() => {});
+    }
+    get().setHud("Retrospektiv qayd saqlandi ✓");
+  },
+
+  deleteRetrospective: async (id) => {
+    const updated = get().retrospectives.filter((r) => r.id !== id);
+    saveStoredRetrospectives(updated);
+    set({ retrospectives: updated });
+    if (get().dbMode === 'sqlite') {
+      await deleteRetrospectiveRecord(id).catch(() => {});
+    }
+    get().setHud("Retrospektiv qayd o'chirildi");
+  },
+
+  activeVoiceStandup: null,
+  openVoiceStandup: (stage, promptMessage, spokenPrompt) => {
+    set({
+      activeVoiceStandup: {
+        open: true,
+        stage,
+        promptMessage,
+        spokenPrompt,
+      },
+    });
+  },
+  closeVoiceStandup: () => {
+    set({ activeVoiceStandup: null });
+  },
+
+  submitMorningVoiceStandup: async (transcript) => {
+    const res = await processMorningVoiceStandup(transcript);
+    const now = new Date().toISOString();
+    const state = get();
+
+    for (const t of res.tasks) {
+      const newId = nextTaskId(get().tasks);
+      const newTask: Task = {
+        id: newId,
+        workspace_id: state.activeSpaceId || 'personal',
+        group_id: null,
+        space_id: state.activeSpaceId || null,
+        title: t.title,
+        status: 'active',
+        priority: t.priority || 'High Priority',
+        git_branch: null,
+        pr_url: null,
+        ai_source: 'morning_voice_standup',
+        assignee_name: state.userProfile?.full_name || 'Men',
+        assignee_avatar: state.userProfile?.avatar_initials || 'ME',
+        assignee_name2: null,
+        assignee_avatar2: null,
+        tags: Array.from(new Set(['focus', ...(t.tags || [])])),
+        created_at: now,
+        updated_at: now,
+      };
+      state.addTask(newTask);
+    }
+
+    if (res.spokenReply) {
+      speakVoiceReminder(res.spokenReply).catch(() => {});
+    }
+
+    state.setHud(`🎙 Standup: ${res.tasks.length} ta vazifa Joriy Fokusga kiritildi ✓`);
+    return res;
+  },
+
+  submitEveningVoiceStandup: async (transcript) => {
+    const state = get();
+    const incompleteTasks = state.tasks.filter((t) => t.status !== 'completed' && (t.tags?.includes('focus') || t.status === 'active'));
+    const res = await processEveningVoiceStandup(transcript, incompleteTasks);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const roadmapId = state.roadmaps[0]?.id || 'general';
+
+    // 1. Save to Daily Log
+    await state.addLearningLog(
+      roadmapId,
+      res.dailyLog.learned,
+      res.dailyLog.solvedProblem,
+      res.dailyLog.nextGoal,
+      res.dailyLog.aiFeedback
+    );
+
+    // 2. Save to Retro blocks
+    const newRetro: Retrospective = {
+      id: uid('retro'),
+      date: todayStr,
+      type: 'standup',
+      title: res.retroBlock.title,
+      content: res.retroBlock.content,
+      blockers_summary: res.retroBlock.blockersSummary,
+      raw_transcript: transcript,
+      stage: 'evening_22',
+      tags: ['evening_standup', 'blocker_audit'],
+      created_at: new Date().toISOString(),
+    };
+    await state.addRetrospective(newRetro);
+
+    if (res.spokenReply) {
+      speakVoiceReminder(res.spokenReply).catch(() => {});
+    }
+
+    state.setHud('🎙 Kechki standup: Daily Log va Retro sahifasiga saqlandi ✓');
+    return res;
   },
 
   // Spaced Repetition Flashcards initial
@@ -2243,6 +2451,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       rawMemories,
       rawChatMessages,
       rawTgSettings,
+      rawRetrospectives,
     ] = await Promise.all([
       fetchWorkspaces().catch(() => []),
       fetchTasks().catch(() => []),
@@ -2258,6 +2467,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       fetchMemories().catch(() => []),
       fetchChatMessages(100).catch(() => []),
       fetchTelegramSettings().catch(() => ({ bot_token: '', allowed_user_ids: '', is_active: false, last_update_id: 0 })),
+      fetchRetrospectives().catch(() => []),
     ]);
 
     // Hermes memories: if SQLite is empty, auto-sync and seed
@@ -2401,6 +2611,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       memories,
       aiDrawerMessages: rawChatMessages.length > 0 ? rawChatMessages : get().aiDrawerMessages,
       telegramConfig: rawTgSettings,
+      retrospectives: rawRetrospectives && rawRetrospectives.length ? rawRetrospectives : get().retrospectives,
     });
 
     if (rawTgSettings.is_active && rawTgSettings.bot_token?.trim()) {
@@ -2476,6 +2687,11 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   },
 
   setWorkspace: async (id) => {
+    const ws = get().workspaces.find((w) => w.id === id);
+    const report = contextSwitchTracker.recordSwitch('workspace', id, ws?.name || id);
+    if (report.isHighThrashing) {
+      set({ contextSwitchWarning: report });
+    }
     set({ activeWorkspaceId: id, quickFilter: null, activeTag: null, search: '' });
     const { dbMode } = get();
     if (dbMode === 'sqlite') {
@@ -2513,6 +2729,11 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   },
 
   selectTask: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    const report = contextSwitchTracker.recordSwitch('task', id, task?.title || id);
+    if (report.isHighThrashing) {
+      set({ contextSwitchWarning: report });
+    }
     set({ selectedTaskId: id });
     const { dbMode, notes, checklists } = get();
     if (dbMode === 'sqlite') {
@@ -2615,6 +2836,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
   setGitHubModal: (showGitHubModal) => set({ showGitHubModal }),
   setGitHubTargetRepoUrl: (gitHubTargetRepoUrl) => set({ gitHubTargetRepoUrl }),
   setWeeklyCoachModal: (showWeeklyCoachModal) => set({ showWeeklyCoachModal }),
+  setQuickCaptureModal: (showQuickCaptureModal) => set({ showQuickCaptureModal }),
 
   triggerWeeklyCoach: async () => {
     const { tasks, notes } = get();
@@ -2980,6 +3202,54 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       }
     } catch {
       set({ hudMessage: 'Standup generatsiya qilishda xatolik yuz berdi' });
+    }
+  },
+
+  syncGitTasks: async () => {
+    try {
+      const gitInfo = await fetchGitRepoInfo();
+      const { tasks, updateTaskStatus, setHud } = get();
+      const res = syncTasksWithGitCommits(
+        gitInfo.recent_commits,
+        tasks,
+        (id, st) => updateTaskStatus(id, st),
+        (msg) => setHud(msg)
+      );
+      if (res.completedTasks.length > 0) {
+        set({ hudMessage: `🐙 ${res.completedTasks.length} ta vazifa Git commitlar orqali completed qilindi ✓` });
+      } else {
+        set({ hudMessage: "Git commitlar tekshirildi: yangi bajarilgan vazifalar yo'q." });
+      }
+      return res;
+    } catch (err) {
+      console.warn('[syncGitTasks] error:', err);
+      return { completedTasks: [], matchedCommits: [] };
+    }
+  },
+
+  generateGitStandup: async () => {
+    set({ hudMessage: "🐙 Git Diff va so'nggi commitlar tahlil qilinmoqda..." });
+    try {
+      const gitInfo = await fetchGitRepoInfo();
+      const { tasks, dbMode } = get();
+      const res = await generateStandupFromGitDiff(tasks, gitInfo);
+      set({
+        standup: res.content,
+        standupSource: (res.source as any) || 'ai',
+        showStandupModal: true,
+        hudMessage: `🐙 Standup Git diff & commitlar asosida tuzildi ✓`,
+      });
+      if (dbMode === 'sqlite') {
+        saveRetrospective(
+          new Date().toISOString().slice(0, 10),
+          'standup',
+          res.content,
+          analyzeBlockers(tasks)
+        ).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[generateGitStandup] error:', err);
+      set({ hudMessage: 'Git diff standup tuzishda xatolik yuz berdi' });
     }
   },
 }));

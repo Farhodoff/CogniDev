@@ -8,6 +8,10 @@ import {
   ArrowUpRight,
   Brain,
   FileCheck,
+  Mic,
+  Trash2,
+  Calendar,
+  GitBranch,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi, isBlocker } from '../lib/ai';
@@ -19,6 +23,10 @@ export default function RetroWorkspace() {
     tasks,
     notesDocs,
     learningLogs,
+    retrospectives,
+    deleteRetrospective,
+    openVoiceStandup,
+    generateGitStandup,
     setHud,
     setMainView,
     selectTask,
@@ -114,6 +122,24 @@ Iltimos, o'zbek tilida 3 ta aniq bo'limda xulosa bering:
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => openVoiceStandup('evening_22')}
+            className="flex items-center gap-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 px-3 py-1.5 text-[12px] font-semibold text-purple-300 border border-purple-500/30 transition shadow-sm"
+            title="22:00 Kechki Ovozli Standupni boshlash"
+          >
+            <Mic size={13} className="text-purple-400" />
+            <span>🎙 22:00 Kechki Standup</span>
+          </button>
+
+          <button
+            onClick={() => generateGitStandup()}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 px-3 py-1.5 text-[12px] font-semibold text-emerald-300 border border-emerald-500/30 transition shadow-sm"
+            title="Oxirgi 24 soatdagi real Git commitlar va diff statistikasi asosida standup tuzish"
+          >
+            <GitBranch size={13} className="text-emerald-400" />
+            <span>🐙 Git Standup</span>
+          </button>
+
           <select
             value={selectedProvider}
             onChange={(e) => setSelectedProvider(e.target.value as CloudProviderId)}
@@ -203,6 +229,91 @@ Iltimos, o'zbek tilida 3 ta aniq bo'limda xulosa bering:
               </p>
             </div>
           )}
+
+          {/* Daily Voice Standup & Evening Retro Blocks */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[13px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Mic size={14} /> Kunlik Ovozli Standup & Kechki Retrospektiv Jurnali ({retrospectives.length})
+              </h4>
+              <button
+                onClick={() => openVoiceStandup('evening_22')}
+                className="text-[11.5px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold transition"
+              >
+                <span>+ 22:00 Standup Yozish</span>
+              </button>
+            </div>
+
+            {retrospectives.length > 0 ? (
+              <div className="space-y-3">
+                {retrospectives.map((r) => (
+                  <div
+                    key={r.id}
+                    className="rounded-2xl border border-purple-500/25 bg-purple-500/[0.03] p-5 space-y-3.5 hover:border-purple-500/40 transition shadow-sm"
+                  >
+                    <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 font-mono text-[10.5px] font-bold text-purple-300 flex items-center gap-1">
+                          <Calendar size={11} /> {r.date}
+                        </span>
+                        <span className="font-semibold text-[13.5px] text-white">
+                          {r.title || '🌙 22:00 Kechki Standup & Sabablar Bloki'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => deleteRetrospective(r.id)}
+                          className="p-1 text-zinc-500 hover:text-rose-400 rounded-lg hover:bg-white/5 transition"
+                          title="O'chirish"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Blocker summary if present */}
+                    {r.blockers_summary && (
+                      <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 flex items-start gap-2.5">
+                        <AlertTriangle size={15} className="text-rose-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-rose-300">
+                            Aniqlangan Sabab & To‘siq:
+                          </p>
+                          <p className="text-[12.5px] text-zinc-200 mt-0.5">
+                            {r.blockers_summary}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI analysis content */}
+                    <div className="rounded-xl bg-black/40 border border-white/5 p-4 text-[13px] text-zinc-300">
+                      <FormattedAiText content={r.content} />
+                    </div>
+
+                    {/* Raw transcript */}
+                    {r.raw_transcript && (
+                      <div className="flex items-center gap-2 text-[11.5px] text-zinc-400 bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-lg">
+                        <Mic size={12} className="text-purple-400 shrink-0" />
+                        <span className="italic">Ovozli xabar: «{r.raw_transcript}»</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.01] p-5 text-center space-y-2">
+                <Mic size={20} className="mx-auto text-purple-400" />
+                <p className="text-[12.5px] text-zinc-400">
+                  Hozircha saqlangan kunlik ovozli retrospektivlar mavjud emas.
+                </p>
+                <p className="text-[11.5px] text-zinc-500 max-w-md mx-auto">
+                  Soat 22:00 da bildirishnoma kelganda yoki yuqoridagi "22:00 Kechki Standup" tugmasini bosib, ovoz bilan sababni aytsangiz, AI uni Daily Log va ushbu bo‘limga avtomatik blok sifatida saqlaydi.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Solved Problems & Completed Tasks */}
           <div className="space-y-3">

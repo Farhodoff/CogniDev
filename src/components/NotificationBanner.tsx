@@ -1,5 +1,6 @@
-import { Bell, CheckCircle2, Clock, Volume2, VolumeX, X } from 'lucide-react';
+import { Bell, CheckCircle2, Clock, Mic, Volume2, VolumeX, X } from 'lucide-react';
 import { useSynapse } from '../lib/store';
+import type { DailyRoutineStage } from '../lib/types';
 
 export default function NotificationBanner() {
   const {
@@ -10,9 +11,28 @@ export default function NotificationBanner() {
     soundEnabled,
     toggleSoundEnabled,
     setHud,
+    openVoiceStandup,
   } = useSynapse();
 
   if (!activeAlertReminder) return null;
+
+  const isRoutine = activeAlertReminder.id?.startsWith('routine-');
+  const routineStage: DailyRoutineStage | null = isRoutine
+    ? activeAlertReminder.id.includes('morning_10')
+      ? 'morning_10'
+      : activeAlertReminder.id.includes('midday_14')
+      ? 'midday_14'
+      : activeAlertReminder.id.includes('evening_22')
+      ? 'evening_22'
+      : 'morning_10'
+    : null;
+
+  const handleOpenVoiceStandup = () => {
+    if (routineStage) {
+      openVoiceStandup(routineStage, activeAlertReminder.title);
+      dismissAlertReminder();
+    }
+  };
 
   const handleComplete = () => {
     if (activeAlertReminder.source_type === 'task' && activeAlertReminder.source_id) {
@@ -84,6 +104,22 @@ export default function NotificationBanner() {
 
         {/* Action buttons */}
         <div className="mt-3.5 flex items-center justify-end gap-2 border-t border-white/[0.08] pt-3">
+          {isRoutine && routineStage && (
+            <button
+              onClick={handleOpenVoiceStandup}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 px-3.5 py-1.5 text-[11.5px] font-bold text-white shadow-[0_0_20px_rgba(244,63,94,0.35)] hover:brightness-110 transition animate-pulse mr-auto"
+            >
+              <Mic size={13} />
+              <span>
+                {routineStage === 'morning_10'
+                  ? '🎙 Ovoz bilan javob berish (Joriy Fokus)'
+                  : routineStage === 'evening_22'
+                  ? '🎙 Ovozli sabab va xulosa (Retro & Log)'
+                  : '🎙 Ovoz bilan javob berish'}
+              </span>
+            </button>
+          )}
+
           <button
             onClick={handleSnooze}
             className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"

@@ -1166,9 +1166,16 @@ export default function RoadmapWorkspace() {
                     className="rounded-2xl border border-white/[0.06] bg-[#121318]/60 p-5 space-y-3"
                   >
                     <div className="flex items-center justify-between border-b border-white/[0.04] pb-2">
-                      <span className="font-mono text-[12px] text-sky-400 font-semibold">
-                        🗓 {log.date}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[12px] text-sky-400 font-semibold">
+                          🗓 {log.date}
+                        </span>
+                        {log.solved_problem && (log.solved_problem.toLowerCase().includes('sabab') || log.solved_problem.toLowerCase().includes('to‘siq') || log.solved_problem.toLowerCase().includes("to'siq")) && (
+                          <span className="rounded-md bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 font-mono text-[10px] text-purple-300">
+                            🎙 Kechki Standup Qaydi
+                          </span>
+                        )}
+                      </div>
                       <span className="rounded-md bg-white/[0.05] px-2 py-0.5 font-mono text-[10.5px] text-zinc-500">
                         Qayd #{log.id.slice(-4)}
                       </span>

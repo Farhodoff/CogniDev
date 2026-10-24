@@ -2,7 +2,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Emitter, Manager};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 // ── RubaiSTT (local Uzbek STT via whisper.cpp) ────────────
@@ -582,6 +585,87 @@ fn speak_text(text: String) -> Result<(), String> {
     }
 }
 
+// ── macOS Menu Bar Tray & Focus Syncer ──────────────
+
+fn build_tray_menu<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    focus_tasks: &[String],
+) -> Result<Menu<R>, tauri::Error> {
+    let focus_1_text = focus_tasks.get(0).map(|s| s.as_str()).unwrap_or("Fokus belgilanmagan");
+    let focus_2_text = focus_tasks.get(1).map(|s| s.as_str()).unwrap_or("Fokus belgilanmagan");
+    let focus_3_text = focus_tasks.get(2).map(|s| s.as_str()).unwrap_or("Fokus belgilanmagan");
+
+    let menu = Menu::with_items(
+        app,
+        &[
+            &MenuItem::with_id(
+                app,
+                "header",
+                "⚡️ CogniDev · Bugungi 3 Asosiy Fokus",
+                false,
+                None::<&str>,
+            )?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(
+                app,
+                "focus_1",
+                &format!("1. {focus_1_text}"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "focus_2",
+                &format!("2. {focus_2_text}"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "focus_3",
+                &format!("3. {focus_3_text}"),
+                true,
+                None::<&str>,
+            )?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(
+                app,
+                "quick_capture",
+                "✨ Tezkor Qayd (Cmd+Shift+Space)",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "voice_standup",
+                "🎙 Ovozli Standup",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "show_app",
+                "🖥 Bosh Oynani Ochish",
+                true,
+                None::<&str>,
+            )?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "quit", "🚪 Chiqish", true, None::<&str>)?,
+        ],
+    )?;
+    Ok(menu)
+}
+
+#[tauri::command]
+fn update_tray_focus(app: tauri::AppHandle, focus_tasks: Vec<String>) -> Result<(), String> {
+    if let Some(tray) = app.tray_by_id("main_tray") {
+        if let Ok(new_menu) = build_tray_menu(&app, &focus_tasks) {
+            let _ = tray.set_menu(Some(new_menu));
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     let migrations = vec![
         Migration {
@@ -626,6 +710,76 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            // Build initial tray menu
+            let empty_focus: Vec<String> = Vec::new();
+            if let Ok(menu) = build_tray_menu(app.handle(), &empty_focus) {
+                let mut builder = TrayIconBuilder::with_id("main_tray")
+                    .tooltip("CogniDev — Developer Command Center")
+                    .menu(&menu)
+                    .show_menu_on_left_click(true)
+                    .on_menu_event(|app, event| {
+                        let id_str = event.id().as_ref();
+                        match id_str {
+                            "quit" => {
+                                app.exit(0);
+                            }
+                            "quick_capture" => {
+                                if let Some(w) = app.get_webview_window("main") {
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                }
+                                let _ = app.emit("open_quick_capture", ());
+                            }
+                            "voice_standup" => {
+                                if let Some(w) = app.get_webview_window("main") {
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                }
+                                let _ = app.emit("open_voice_standup", ());
+                            }
+                            "show_app" => {
+                                if let Some(w) = app.get_webview_window("main") {
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                }
+                            }
+                            "focus_1" | "focus_2" | "focus_3" => {
+                                if let Some(w) = app.get_webview_window("main") {
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                }
+                                let _ = app.emit("tray_focus_selected", id_str);
+                            }
+                            _ => {}
+                        }
+                    });
+
+                if let Some(icon) = app.default_window_icon() {
+                    builder = builder.icon(icon.clone());
+                }
+
+                let _ = builder.build(app);
+            }
+
+            // Register global hotkey: Cmd + Shift + Space
+            let shortcut_res = "CommandOrControl+Shift+Space".parse::<Shortcut>();
+            if let Ok(sc) = shortcut_res {
+                let app_handle = app.handle().clone();
+                let _ = app.global_shortcut().on_shortcut(sc, move |_app, _sc, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        if let Some(w) = app_handle.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                        let _ = app_handle.emit("open_quick_capture", ());
+                    }
+                });
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             stt_status,
             transcribe_audio,
@@ -638,7 +792,8 @@ fn main() {
             get_git_repo_info,
             git_commit_changes,
             get_gh_cli_auth,
-            speak_text
+            speak_text,
+            update_tray_focus
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

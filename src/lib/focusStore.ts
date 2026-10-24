@@ -1,10 +1,10 @@
 import { create } from 'zustand';
-import { focusAudio } from './focusAudio';
+import { focusAudio, type AmbientType } from './focusAudio';
 import { sendDesktopNotification } from './notifications';
 
+export type { AmbientType } from './focusAudio';
 export type FocusMode = 'focus' | 'short_break' | 'long_break';
 export type FocusStatus = 'idle' | 'running' | 'paused';
-export type AmbientType = 'none' | 'brown' | 'rain';
 
 interface FocusSessionRecord {
   id: string;
@@ -23,6 +23,7 @@ interface FocusState {
   completedPomodorosToday: number;
   totalDeepWorkMinutesToday: number;
   ambientSound: AmbientType;
+  volume: number;
   soundEnabled: boolean;
   showModal: boolean;
   history: FocusSessionRecord[];
@@ -36,6 +37,7 @@ interface FocusState {
   skipStep: () => void;
   tick: () => void;
   setAmbientSound: (ambient: AmbientType) => void;
+  setVolume: (vol: number) => void;
   toggleSound: () => void;
   setShowModal: (show: boolean) => void;
   linkTask: (taskId?: string, taskTitle?: string) => void;
@@ -104,15 +106,17 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   linkedTaskTitle: undefined,
   completedPomodorosToday: initialPersisted.completedPomodorosToday,
   totalDeepWorkMinutesToday: initialPersisted.totalDeepWorkMinutesToday,
-  ambientSound: 'none',
+  ambientSound: 'cyberpunk',
+  volume: 0.6,
   soundEnabled: true,
   showModal: false,
   history: initialPersisted.history,
 
   startFocus: (durationMins = 25, taskId, taskTitle) => {
     const secs = durationMins * 60;
-    const { soundEnabled, ambientSound } = get();
+    const { soundEnabled, ambientSound, volume } = get();
 
+    focusAudio.setVolume(volume);
     if (soundEnabled) {
       focusAudio.playStartBell();
     }
@@ -148,7 +152,8 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   resumeTimer: () => {
-    const { ambientSound, mode } = get();
+    const { ambientSound, mode, volume } = get();
+    focusAudio.setVolume(volume);
     if (mode === 'focus' && ambientSound !== 'none') {
       focusAudio.startAmbient(ambientSound);
     }
@@ -238,6 +243,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   setAmbientSound: (ambient: AmbientType) => {
     set({ ambientSound: ambient });
+    focusAudio.setVolume(get().volume);
     if (get().status === 'running' && get().mode === 'focus') {
       if (ambient === 'none') {
         focusAudio.stopAmbient();
@@ -247,6 +253,12 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     } else {
       focusAudio.stopAmbient();
     }
+  },
+
+  setVolume: (vol: number) => {
+    const clamped = Math.max(0, Math.min(1, vol));
+    set({ volume: clamped });
+    focusAudio.setVolume(clamped);
   },
 
   toggleSound: () => {

@@ -9,6 +9,7 @@ export default function WeeklyCoachModal() {
     setWeeklyCoachModal,
     weeklyCoach,
     triggerWeeklyCoach,
+    setDeveloperHealthModal,
     setHud,
   } = useSynapse();
 
@@ -157,6 +158,16 @@ export default function WeeklyCoachModal() {
           </button>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setWeeklyCoachModal(false);
+                setDeveloperHealthModal(true);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-[12.5px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+            >
+              <TrendingUp size={14} />
+              <span>Infografika & Heatmap</span>
+            </button>
             <button
               onClick={handleCopy}
               className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-[12.5px] font-semibold text-zinc-200 hover:bg-white/10 transition"

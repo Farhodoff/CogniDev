@@ -6,6 +6,7 @@ import TaskStream from './components/TaskStream';
 import WorkspaceEditor from './components/WorkspaceEditor';
 import FloatingHud from './components/FloatingHud';
 import NotificationBanner from './components/NotificationBanner';
+import ContextSwitchBanner from './components/ContextSwitchBanner';
 import WorkspaceLoading from './components/WorkspaceLoading';
 import { useSynapse } from './lib/store';
 
@@ -28,7 +29,11 @@ const StandupModal = lazy(() => import('./components/StandupModal'));
 const WeeklyCoachModal = lazy(() => import('./components/WeeklyCoachModal'));
 const CommandPalette = lazy(() => import('./components/CommandPalette'));
 const FocusModal = lazy(() => import('./components/FocusModal'));
+const VoiceStandupModal = lazy(() => import('./components/VoiceStandupModal'));
+const QuickCaptureSpotlightModal = lazy(() => import('./components/QuickCaptureSpotlightModal'));
+const DeveloperHealthModal = lazy(() => import('./components/DeveloperHealthModal'));
 import { useFocusStore } from './lib/focusStore';
+import { initGlobalQuickCaptureListener } from './lib/quickCapture';
 
 export default function App() {
   const {
@@ -36,6 +41,10 @@ export default function App() {
     setSearch,
     setTaskModal,
     setGitHubModal,
+    setQuickCaptureModal,
+    showDeveloperHealthModal,
+    setDeveloperHealthModal,
+    openVoiceStandup,
     selectedTaskId,
     tasks,
     mainView,
@@ -103,8 +112,20 @@ export default function App() {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [init, setTaskModal, setGitHubModal, setMainView, toggleAiDrawer]);
+
+    const cleanupQuickCapture = initGlobalQuickCaptureListener(
+      () => setQuickCaptureModal(true),
+      () => openVoiceStandup('morning_10'),
+      (_focusId) => {
+        setMainView('dashboard');
+      }
+    );
+
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      cleanupQuickCapture();
+    };
+  }, [init, setTaskModal, setGitHubModal, setMainView, setQuickCaptureModal, openVoiceStandup, toggleAiDrawer]);
 
   // Escape clears the header search when the palette is closed.
   useEffect(() => {
@@ -185,10 +206,17 @@ export default function App() {
       </div>
       <FloatingHud />
       <NotificationBanner />
+      <ContextSwitchBanner />
       <Suspense fallback={null}>
         <StandupModal />
         <WeeklyCoachModal />
         <FocusModal />
+        <VoiceStandupModal />
+        <QuickCaptureSpotlightModal />
+        <DeveloperHealthModal
+          open={showDeveloperHealthModal}
+          onClose={() => setDeveloperHealthModal(false)}
+        />
         {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
       </Suspense>
     </div>

@@ -28,6 +28,7 @@ import {
   Zap,
   Activity,
   Volume2,
+  Mic,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi } from '../lib/ai';
@@ -63,6 +64,7 @@ export default function DashboardWorkspace() {
     toggleTopicDone,
     syncDailyRoadmapFocus,
     triggerDailyRoutineTest,
+    openVoiceStandup,
     setTaskModal,
     setMainView,
     selectNote,
@@ -1437,6 +1439,14 @@ ${realContext}`;
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
+                    onClick={() => openVoiceStandup('morning_10')}
+                    className="flex items-center gap-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 text-[11px] font-semibold text-amber-300 border border-amber-500/30 transition shadow-sm"
+                    title="10:00 Ovozli Standup orqali bugungi rejalarni aytish va fokusga kiritish"
+                  >
+                    <Mic size={11} className="text-amber-400" />
+                    <span>🎙 Ovozli Standup</span>
+                  </button>
+                  <button
                     onClick={async () => {
                       const count = await syncDailyRoadmapFocus(new Date());
                       setHud(`AI: Bugungi kun uchun ${count} ta yo‘l xaritasi maqsadi fokusga joylashtirildi ✓`);
@@ -1574,13 +1584,22 @@ ${realContext}`;
                       <p className="text-[10.5px] text-zinc-500 truncate">Bugungi kun vazifalari boshlanishi va AI tekshiruvi</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => triggerDailyRoutineTest('morning_10')}
-                    className="flex items-center gap-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 text-[10.5px] font-semibold text-amber-300 border border-amber-500/20 transition shrink-0"
-                    title="10:00 ovozli bildirishnomasini eshitish"
-                  >
-                    <Volume2 size={11} /> 🔊 Sinash
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => openVoiceStandup('morning_10')}
+                      className="flex items-center gap-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-300 border border-amber-500/30 transition shadow-sm"
+                      title="10:00 Ovozli Standupni boshlash"
+                    >
+                      <Mic size={11} /> 🎙 Standup Boshlash
+                    </button>
+                    <button
+                      onClick={() => triggerDailyRoutineTest('morning_10')}
+                      className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-amber-300 transition"
+                      title="10:00 ovozli bildirishnomasini eshitish"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* 14:00 Mid-day check */}
@@ -1592,13 +1611,22 @@ ${realContext}`;
                       <p className="text-[10.5px] text-zinc-500 truncate">Belgilanmagan maqsadlar bo‘yicha oraliq ovozli eslatma</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => triggerDailyRoutineTest('midday_14')}
-                    className="flex items-center gap-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 px-2 py-1 text-[10.5px] font-semibold text-sky-300 border border-sky-500/20 transition shrink-0"
-                    title="14:00 ovozli bildirishnomasini eshitish"
-                  >
-                    <Volume2 size={11} /> 🔊 Sinash
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => openVoiceStandup('midday_14')}
+                      className="flex items-center gap-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 px-2.5 py-1 text-[11px] font-bold text-sky-300 border border-sky-500/30 transition shadow-sm"
+                      title="14:00 Oraliq Ovozli Standupni boshlash"
+                    >
+                      <Mic size={11} /> 🎙 Oraliq Nazorat
+                    </button>
+                    <button
+                      onClick={() => triggerDailyRoutineTest('midday_14')}
+                      className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-sky-300 transition"
+                      title="14:00 ovozli bildirishnomasini eshitish"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* 22:00 Evening missed tasks audit */}
@@ -1610,13 +1638,22 @@ ${realContext}`;
                       <p className="text-[10.5px] text-zinc-500 truncate">Bugungi qilinmagan ishlar hisoboti va AI tavsiyasi</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => triggerDailyRoutineTest('evening_22')}
-                    className="flex items-center gap-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 px-2 py-1 text-[10.5px] font-semibold text-purple-300 border border-purple-500/20 transition shrink-0"
-                    title="22:00 ovozli bildirishnomasini eshitish"
-                  >
-                    <Volume2 size={11} /> 🔊 Sinash
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => openVoiceStandup('evening_22')}
+                      className="flex items-center gap-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 px-2.5 py-1 text-[11px] font-bold text-purple-300 border border-purple-500/30 transition shadow-sm"
+                      title="22:00 Kechki Ovozli Standupni boshlash"
+                    >
+                      <Mic size={11} /> 🎙 Kechki Xulosa (Retro)
+                    </button>
+                    <button
+                      onClick={() => triggerDailyRoutineTest('evening_22')}
+                      className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-purple-300 transition"
+                      title="22:00 ovozli bildirishnomasini eshitish"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
