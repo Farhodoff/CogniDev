@@ -35,12 +35,23 @@ type usizeNumber = number;
  * Fetch live git repository status, branch, uncommitted files, and recent commit history
  */
 export async function fetchGitRepoInfo(repoPath?: string): Promise<GitRepoInfo> {
+  const effectivePath =
+    repoPath?.trim() ||
+    (typeof window !== 'undefined' ? localStorage.getItem('cognidev_last_git_repo_path') || undefined : undefined);
+
+  if (effectivePath && (effectivePath.startsWith('http://') || effectivePath.startsWith('https://'))) {
+    throw new Error("Ko'rsatilgan manzil veb-havola (URL). Iltimos, kompyuteringizdagi lokal Git katalogini tanlang.");
+  }
+
   if (isTauri) {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const data = await invoke<GitRepoInfo>('get_git_repo_info', {
-        repoPath: repoPath || null,
+        repoPath: effectivePath || null,
       });
+      if (data && data.repo_root && typeof window !== 'undefined') {
+        localStorage.setItem('cognidev_last_git_repo_path', data.repo_root);
+      }
       return data;
     } catch (err: unknown) {
       console.warn('Native get_git_repo_info error:', err);
@@ -82,6 +93,28 @@ export async function fetchGitRepoInfo(repoPath?: string): Promise<GitRepoInfo> 
 }
 
 /**
+ * Initialize a new Git repository in the target path
+ */
+export async function initGitRepo(repoPath?: string): Promise<string> {
+  const effectivePath =
+    repoPath?.trim() ||
+    (typeof window !== 'undefined' ? localStorage.getItem('cognidev_last_git_repo_path') || undefined : undefined);
+
+  if (effectivePath && (effectivePath.startsWith('http://') || effectivePath.startsWith('https://'))) {
+    throw new Error("Ko'rsatilgan manzil veb-havola (URL). Iltimos, kompyuteringizdagi lokal Git katalogini tanlang.");
+  }
+
+  if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return await invoke<string>('git_init_repo', {
+      repoPath: effectivePath || null,
+    });
+  }
+
+  return '[Mock] Git repository initialized';
+}
+
+/**
  * Stage all modified/untracked files and commit with a verified message
  */
 export async function commitGitChanges(message: string, repoPath?: string): Promise<string> {
@@ -89,10 +122,14 @@ export async function commitGitChanges(message: string, repoPath?: string): Prom
     throw new Error('Commit xabari bo‘sh bo‘lishi mumkin emas.');
   }
 
+  const effectivePath =
+    repoPath?.trim() ||
+    (typeof window !== 'undefined' ? localStorage.getItem('cognidev_last_git_repo_path') || undefined : undefined);
+
   if (isTauri) {
     const { invoke } = await import('@tauri-apps/api/core');
     return await invoke<string>('git_commit_changes', {
-      repoPath: repoPath || null,
+      repoPath: effectivePath || null,
       message: message.trim(),
     });
   }

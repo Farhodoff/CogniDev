@@ -364,9 +364,30 @@ fn run_git_cmd(dir: &str, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+fn resolve_repo_dir(input: Option<String>) -> Result<String, String> {
+    let raw = input.unwrap_or_else(|| ".".to_string());
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(".".to_string());
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Err("Ko'rsatilgan manzil veb-havola (URL). Iltimos, kompyuteringizdagi lokal Git katalogini tanlang.".to_string());
+    }
+    if trimmed.starts_with("~/") || trimmed == "~" {
+        if let Some(home) = std::env::var_os("HOME") {
+            let mut path = std::path::PathBuf::from(home);
+            if trimmed.len() > 2 {
+                path.push(&trimmed[2..]);
+            }
+            return Ok(path.to_string_lossy().to_string());
+        }
+    }
+    Ok(trimmed.to_string())
+}
+
 #[tauri::command]
 fn get_git_repo_info(repo_path: Option<String>) -> Result<GitRepoInfo, String> {
-    let dir = repo_path.unwrap_or_else(|| ".".to_string());
+    let dir = resolve_repo_dir(repo_path)?;
     let path = std::path::Path::new(&dir);
     if !path.exists() {
         return Err(format!("Katalog topilmadi: {dir}"));
@@ -455,12 +476,23 @@ fn get_git_repo_info(repo_path: Option<String>) -> Result<GitRepoInfo, String> {
 
 #[tauri::command]
 fn git_commit_changes(repo_path: Option<String>, message: String) -> Result<String, String> {
-    let dir = repo_path.unwrap_or_else(|| ".".to_string());
+    let dir = resolve_repo_dir(repo_path)?;
     if message.trim().is_empty() {
         return Err("Commit xabari bo'sh bo'lishi mumkin emas.".to_string());
     }
     run_git_cmd(&dir, &["add", "-A"])?;
     let out = run_git_cmd(&dir, &["commit", "-m", &message])?;
+    Ok(out)
+}
+
+#[tauri::command]
+fn git_init_repo(repo_path: Option<String>) -> Result<String, String> {
+    let dir = resolve_repo_dir(repo_path)?;
+    let path = std::path::Path::new(&dir);
+    if !path.exists() {
+        return Err(format!("Katalog topilmadi: {dir}"));
+    }
+    let out = run_git_cmd(&dir, &["init"])?;
     Ok(out)
 }
 
@@ -790,6 +822,7 @@ fn main() {
             reset_mic_permission,
             get_git_repo_info,
             git_commit_changes,
+            git_init_repo,
             get_gh_cli_auth,
             speak_text,
             update_tray_focus
