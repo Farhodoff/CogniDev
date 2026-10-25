@@ -177,32 +177,33 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
         </div>
 
         {/* Center: Search bar (⌘ K) */}
-        <div className="flex-1 max-w-[420px] mx-4">
+        <div className="flex-1 max-w-[240px] md:max-w-[300px] lg:max-w-[360px] mx-2 md:mx-3">
           <button
             onClick={() => {
               if (onPalette) onPalette();
             }}
-            className="flex w-full items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-left text-zinc-400 hover:border-white/20 hover:bg-white/[0.06] transition shadow-inner group"
-            title={`Search anything... (${formatShortcut('K')})`}
+            className="flex w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.2 text-left text-zinc-400 hover:border-white/20 hover:bg-white/[0.06] transition shadow-inner group"
+            title={`Qidirish (${formatShortcut('K')})`}
           >
             <Search size={13} className="text-zinc-500 group-hover:text-zinc-300 transition shrink-0" />
-            <span className="w-full truncate text-[12px] text-zinc-400 font-normal">
-              {search || `Search anything... (${formatShortcut('K', true)})`}
+            <span className="w-full truncate text-[11.5px] text-zinc-400 font-normal">
+              {search || `Qidirish (${formatShortcut('K', true)})`}
             </span>
           </button>
         </div>
 
-        {/* Right Side: + Quick Add, ✨ AI Assistant, Profile Avatar, Settings */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* + Quick Add Button */}
+        {/* Right Side: + Add, Tools, Git, AI & Settings */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* + Add Button */}
           <div className="relative">
             <button
               onClick={() => setQuickAddOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-full bg-white/[0.08] border border-white/10 px-3 py-1.2 text-[12px] font-medium text-zinc-200 hover:bg-white/[0.12] hover:text-white transition"
+              className="flex items-center gap-1 rounded-full bg-white/[0.08] border border-white/10 px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:bg-white/[0.12] hover:text-white transition shrink-0"
+              title="Yangi element qo‘shish (+ Add)"
             >
-              <Plus size={13} />
-              <span>Quick Add</span>
-              <ChevronDown size={11} className={`opacity-60 transition-transform ${quickAddOpen ? 'rotate-180' : ''}`} />
+              <Plus size={12} />
+              <span className="hidden sm:inline">Add</span>
+              <ChevronDown size={10} className={`opacity-60 transition-transform ${quickAddOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {quickAddOpen && (
@@ -336,72 +337,72 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             )}
           </div>
 
-          {/* 🍅 Pomodoro & Deep Work Focus Pill */}
+          {/* 🍅 Pomodoro Focus Pill */}
           <FocusTimerPill />
 
           {/* 🌿 Git Branch & Status Pill */}
           <button
             onClick={() => setGitModalOpen(true)}
             title="Git Repozitoriy va Commitlar"
-            className="flex items-center gap-1.5 rounded-full bg-white/[0.06] border border-white/10 px-2.5 py-1 text-[11.5px] font-mono text-zinc-300 hover:bg-white/10 hover:text-white transition"
+            className="flex items-center gap-1.5 rounded-full bg-white/[0.06] border border-white/10 px-2.5 py-1 text-[11px] font-mono text-zinc-300 hover:bg-white/10 hover:text-white transition shrink-0"
           >
             <GitBranch size={12} className="text-orange-400" />
-            <span className="truncate max-w-[100px]">{gitBranch || 'git'}</span>
+            <span className="truncate max-w-[70px] sm:max-w-[90px]">{gitBranch || 'git'}</span>
             {gitChangesCount > 0 && (
-              <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.2 text-[10px] font-bold text-amber-300">
+              <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.2 text-[9.5px] font-bold text-amber-300">
                 {gitChangesCount}
               </span>
             )}
           </button>
 
-          {/* 🐙 GitHub Hub & AI Task Synthesizer Pill */}
+          {/* 🐙 GitHub Hub Pill */}
           <button
             onClick={() => setGitHubModal(true)}
-            title={`GitHub Repositories & AI Task Engine (${formatShortcut('G')})`}
-            className="flex items-center gap-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 px-2.5 py-1 text-[11.5px] font-mono text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition shadow-sm shadow-indigo-500/10"
+            title={`GitHub AI Tasks & Commits (${formatShortcut('G')})`}
+            className="flex items-center gap-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition shadow-sm shrink-0"
           >
             <GithubIcon size={12} className="text-indigo-400" />
-            <span className="hidden sm:inline">GitHub AI</span>
+            <span className="hidden xl:inline">GitHub</span>
           </button>
 
-          {/* ⚡️ Quick Capture Spotlight Pill */}
+          {/* ⚡️ Quick Capture Pill */}
           <button
             onClick={() => setQuickCaptureModal(true)}
             title="Tezkor Qayd & Global Hotkey (⌘⇧Space)"
-            className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[11.5px] font-mono text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shadow-amber-500/10"
+            className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-1 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shrink-0"
           >
             <Zap size={12} className="text-amber-400" />
-            <span className="hidden md:inline">Tezkor Qayd</span>
-            <kbd className="hidden lg:inline rounded bg-black/40 px-1 py-0.5 text-[9.5px] text-zinc-400 font-mono">⌘⇧Space</kbd>
+            <span className="hidden xl:inline">Qayd</span>
           </button>
 
-          {/* 📊 Developer Health & Growth Pill */}
+          {/* 📊 Developer Health Pill */}
           <button
             onClick={() => setDeveloperHealthModal(true)}
-            title="Developer Health & Growth (O‘rganish matritsasi & Haftalik Infografika)"
-            className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[11.5px] font-mono text-emerald-300 hover:bg-emerald-500/20 hover:text-white transition shadow-sm shadow-emerald-500/10"
+            title="Developer Health & Growth Analitika"
+            className="flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 hover:text-white transition shadow-sm shrink-0"
           >
             <Activity size={12} className="text-emerald-400" />
-            <span className="hidden md:inline">Health & Growth</span>
+            <span className="hidden xl:inline">Health</span>
           </button>
 
           {/* 🦆 Rubber Duck Debugger Pill */}
           <button
             onClick={() => setRubberDuckModal(true)}
-            title={`AI Rubber Duck Debugger & Error Explainer (${formatShortcut('D')})`}
-            className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[11.5px] font-mono text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shadow-amber-500/10"
+            title={`AI Rubber Duck Debugger (${formatShortcut('D')})`}
+            className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-1 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shrink-0"
           >
-            <span>🦆</span>
-            <span className="hidden sm:inline">Rubber Duck</span>
+            <span className="text-[12px] leading-none">🦆</span>
+            <span className="hidden xl:inline">Duck</span>
           </button>
 
           {/* ✨ AI Assistant Button */}
           <button
             onClick={toggleAiDrawer}
-            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-600/80 to-indigo-600/80 border border-purple-500/30 px-3 py-1.2 text-[12px] font-medium text-white shadow-sm hover:brightness-110 active:scale-95 transition"
+            title="CogniDev AI Assistant & Agent"
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-600/90 to-indigo-600/90 border border-purple-500/30 px-2.5 py-1 text-[11.5px] font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition shrink-0"
           >
-            <Sparkles size={13} className="text-purple-200" />
-            <span>AI Assistant</span>
+            <Sparkles size={12} className="text-purple-200" />
+            <span>AI</span>
           </button>
 
           {/* Auto-updater button if update is available */}

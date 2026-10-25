@@ -2,6 +2,10 @@ import { Component, type ReactNode, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
+import { setupGlobalExternalLinkHandler } from './lib/opener'
+
+// Set up global interception for all external links across the app
+setupGlobalExternalLinkHandler();
 
 interface ErrorBoundaryProps {
   children: ReactNode;

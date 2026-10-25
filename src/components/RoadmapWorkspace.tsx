@@ -33,6 +33,7 @@ import {
   getCuratedTopicResources,
   type CuratedTopicResource,
 } from '../lib/spacedRepetition';
+import { openExternalUrl } from '../lib/opener';
 import FormattedAiText from './FormattedAiText';
 
 /** Helper to trigger browser download for markdown file */
@@ -1501,7 +1502,11 @@ export default function RoadmapWorkspace() {
                                       href={res.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-sky-300 hover:bg-sky-500/10 hover:border-sky-500/30 transition"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        openExternalUrl(res.url);
+                                      }}
+                                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-sky-300 hover:bg-sky-500/10 hover:border-sky-500/30 transition cursor-pointer"
                                     >
                                       <span>{res.title}</span>
                                       <ExternalLink size={10} />
