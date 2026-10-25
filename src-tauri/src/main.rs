@@ -496,6 +496,42 @@ fn git_init_repo(repo_path: Option<String>) -> Result<String, String> {
     Ok(out)
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let clean = url.trim();
+    if clean.is_empty() {
+        return Err("URL bo'sh bo'lishi mumkin emas".to_string());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(clean)
+            .spawn()
+            .map_err(|e| format!("URLni ochib bo'lmadi: {e}"))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", "start", "", clean]);
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        cmd.spawn()
+            .map_err(|e| format!("URLni ochib bo'lmadi: {e}"))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(clean)
+            .spawn()
+            .map_err(|e| format!("URLni ochib bo'lmadi: {e}"))?;
+    }
+
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GhCliAuthStatus {
     pub is_installed: bool,
@@ -823,6 +859,7 @@ fn main() {
             get_git_repo_info,
             git_commit_changes,
             git_init_repo,
+            open_external_url,
             get_gh_cli_auth,
             speak_text,
             update_tray_focus

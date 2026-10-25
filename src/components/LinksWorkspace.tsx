@@ -24,6 +24,7 @@ import {
 import { useSynapse } from '../lib/store';
 import type { DevLinkItem, LinkCategory } from '../lib/types';
 import { callAi } from '../lib/ai';
+import { openExternalUrl } from '../lib/opener';
 import {
   cleanDisplayUrl,
   formatUrl,
@@ -91,7 +92,7 @@ export default function LinksWorkspace() {
 
   const handleOpenLink = (url: string) => {
     const targetUrl = formatUrl(url);
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    openExternalUrl(targetUrl);
   };
 
   const handleSaveForm = (e: React.FormEvent) => {

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { Task, SpaceItem } from '../lib/types';
+import { openExternalUrl } from '../lib/opener';
 import { callAi } from '../lib/ai';
 
 const SPACE_ICON_MAP: Record<string, any> = {
@@ -638,8 +639,7 @@ Hozir bu bo'limda ${spaceTasks.length} ta vazifa va ${spaceProjects.length} ta l
                   <div
                     key={l.id}
                     onClick={() => {
-                      const target = l.url.startsWith('http') ? l.url : `https://${l.url}`;
-                      window.open(target, '_blank', 'noopener,noreferrer');
+                      openExternalUrl(l.url);
                     }}
                     className="group rounded-2xl border border-white/[0.08] bg-[#121319] p-4 hover:border-white/20 transition cursor-pointer flex flex-col justify-between space-y-2.5"
                   >
