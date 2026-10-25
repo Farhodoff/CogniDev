@@ -824,7 +824,7 @@ Javobni toza va aniq formatda bering. Ortiqcha tinish belgilari, sun'iy ASCII ja
                         )}
                         <button
                           onClick={() => {
-                            setGitModalPath(p.github_url || undefined);
+                            setGitModalPath(undefined);
                             setShowGitModal(true);
                           }}
                           className="flex items-center gap-1 rounded-lg bg-orange-500/10 px-2 py-1 text-[10.5px] font-semibold text-orange-300 border border-orange-500/20 hover:bg-orange-500/20 transition"
