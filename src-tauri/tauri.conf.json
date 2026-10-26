@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CogniDev",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "identifier": "com.cognidev.desktop",
   "build": {
     "devUrl": "http://127.0.0.1:1420",
