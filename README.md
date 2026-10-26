@@ -59,30 +59,37 @@ curl -L -o ~/.cognidev/models/ggml-rubaistt.bin \
 
 ---
 
-## ✨ Asosiy Imkoniyatlar (Core Features)
+## 🌟 To'liq Imkoniyatlar & Modullar (All Features)
 
-### 1. 🎙️ Mahalliy O'zbekcha Ovozli Standup & Diktovka
-Ovoz bilan fikrlarni, rejalarni va kundalik hisobotlarni yozish. Ma'lumotlar tashqi bulutga yuborilmaydi — barchasi kompyuteringizning o'zida (Apple Silicon / Metal) tez va xavfsiz transkripsiya qilinadi.
+### 1. 🎙️ Mahalliy O'zbekcha Ovozli Standup & AI Meetings
+Ovoz bilan fikrlarni, rejalarni va kundalik hisobotlarni yozish. Barcha hisoblashlar to'g'ridan-to'g'ri kompyuteringizning o'zida (Apple Silicon Metal / CPU) amalga oshadi, ovoz hech qanday tashqi serverga yuborilmaydi.
 
 <div align="center">
   <img src="./docs/images/cognidev-voice-standup.png" alt="CogniDev Ovozli Standup Modali" width="94%" style="border-radius: 12px; margin: 16px 0;" />
 </div>
 
-* **Kunlik 3 bosqichli standup**: Ertalabki rejalar (10:00), oraliq nazorat (14:00) va kechki retro auditi (22:00).
-* **AI Murabbiy bilan ovozli muloqot**: Gapirishingiz bilan ovoz matnga aylanadi va joriy kunlik fokus vazifalariga biriktiriladi.
-* **AI Meetings & Konspektlar**: Uchrashuvlar audio yozuvlarini matnga aylantirish va xulosalar chiqarish.
+* **Kunlik 3 bosqichli standup**:
+  * 🌅 `10:00` — **Ertalabki Start**: Bugungi asosiy vazifalar va rejalarni belgilash.
+  * ☀️ `14:00` — **Oraliq Nazorat**: Kun o'rtasidagi progress va kutilmagan to'siqlar auditi.
+  * 🌙 `22:00` — **Kun Yakuni (Retro)**: Bajarilgan ishlarni sarhisob qilish va ertangi kunga fokus qoldirish.
+* **AI Murabbiy ovozli savollari**: Gapirishingiz bilan ovoz sekund ichida matnga aylanadi va to'g'ridan-to'g'ri **Joriy Fokus** ro'yxatiga tushadi.
+* **AI Meetings (Uchrashuvlar audio yozuvi & tahlili)**:
+  * Uchrashuvlarni bevosita mikrofondan yozib olish yoki audio fayl (`.wav`, `.mp3`, `.m4a`) yuklash.
+  * To'liq avtomatik transkript, asosiy konspekt va bajarilishi kerak bo'lgan vazifalar (Action Items) ekstraksiyasi.
 
 ---
 
-### 2. 📂 Loyihalar Portfeli & AI Git Inspector
-Barcha faol dasturiy ta'minot loyihalarini bir joyda monitoring qilish va rivojlanish progressini kuzatish.
+### 2. 📂 Loyihalar Portfeli & AI Git Inspector (`⌘J`)
+Dasturchining barcha faol repositoriyalarini va rivojlanish progressini bir joyda boshqarish.
 
 <div align="center">
   <img src="./docs/images/cognidev-projects-showcase.png" alt="Loyihalar Portfeli" width="94%" style="border-radius: 12px; margin: 16px 0;" />
 </div>
 
-* **Loyihalar boshqaruvi**: Har bir loyiha bo'yicha progress (foizlarda), texnologik steklar teglari (#Rust, #Tauri, #React, #Go va h.k.).
-* **Git Inspector & AI Commit Generator (`⌘J`)**: Mahalliy repozitoriy o'zgarishlari (diff) tahlili asosida xalqaro `feat(...)`, `fix(...)` standarti bo'yicha aniq commit xabarlarini bir bosishda generatsiya qilish.
+* **Loyihalar boshqaruvi**: Har bir loyiha uchun progress bar (0–100%), stek teglari (`#Rust`, `#Tauri`, `#React`, `#Next.js`, `#Docker`, `#Go` va h.k.) hamda bog'langan vazifalar hisobi.
+* **Git Inspector & AI Commit Generator (`⌘J`)**:
+  * Mahalliy Git repozitoriyasidagi o'zgargan fayllar va diff tahlili.
+  * Xalqaro Conventional Commits (`feat(...)`, `fix(...)`, `refactor(...)`) standarti bo'yicha aniq commit xabarlarini bitta tugma bilan yaratish va xavfsiz commit qilish.
 
 <div align="center">
   <img src="./docs/images/cognidev-git-inspector.png" alt="Git Repozitoriy & AI Commit Generator" width="94%" style="border-radius: 12px; margin: 16px 0;" />
@@ -90,12 +97,81 @@ Barcha faol dasturiy ta'minot loyihalarini bir joyda monitoring qilish va rivojl
 
 ---
 
-### 3. 🎯 Kundalik Fokus (Deep Work) & Tezkor Qidiruv (`⌘K`)
-Dasturchini chalg'itmaydigan qulay interfeys:
+### 3. 📋 Vazifalar Oqimi (Task Stream), Inbox & Resolution Editor
+Oddiy va chalg'itmaydigan vazifalar boshqaruvi:
 
-* **Spotlight HUD (`⌘K`)**: Raycast/Alfred uslubidagi tezkor qidiruv, vazifalar ochish va buyruqlar paneli.
-* **Pomodoro & Fokus taymeri (`⌘P`)**: Deep work sessiyalarini boshqarish, sarflangan vaqt statistikasi.
-* **Spaces (Mavzuiy maydonlar)**: Personal, Education, Work/Backend, AI & ML, Finance bo'limlari bo'yicha tartiblash.
+* **Inbox (Kiruvchi quti)**: Xom g'oyalar, shoshilinch fikrlar va qaydlarni bir zumda yozib qoldirish (Triage).
+* **Task Stream**: Holatlar (`Todo`, `In Progress`, `Blocked`, `Done`) va ustuvorliklar bo'yicha filtrlash (`P0 Blocker`, `High`, `Medium`, `Low`).
+* **Resolution Editor**: Har bir vazifa uchun texnik yechim tafsilotlari, muammo ildizi (Root Cause) va kod parchalarini saqlash.
+
+---
+
+### 4. 📅 Kalendar & Vaqt Bloklari (Calendar Workspace)
+Muhandislik vaqtingizni aniq rejalashtiring:
+* Kunlik va haftalik vazifalar taqvimi.
+* Deadlinelar, sprint muddatlari va Deep Work (uzluksiz kod yozish) bloklarini ko'rgazmali kuzatish.
+
+---
+
+### 5. 📝 Notion-uslubidagi Texnik Qaydlar (Notes Workspace)
+* Texnik arxitektura hujjatlari, dasturlash qaydlari va muammolarni bartaraf etish qo'llanmalari.
+* Markdown sintaksisi, sintaksis yorug'lantirish (syntax highlighting) va tezkor qidiruv.
+
+---
+
+### 6. 🎓 Texnologik Roadmap & O'rganish Jurnali (Learning)
+Dasturchining professional o'sish xaritasi:
+* Frontend, Backend, AI/ML, DevOps va yangi dasturlash tillari bo'yicha interaktiv bosqichli xaritalar.
+* O'rganilgan mavzular, o'qilgan maqolalar va sertifikatlar progressini qayd etish.
+
+---
+
+### 7. 💡 G'oyalar Inkubatori (Ideas Workspace)
+* Yangi startup, open-source yoki pet-project g'oyalarini to'plash.
+* G'oyaning dolzarbligi, murakkablik darajasi va talab qilinadigan texnologiyalar teglari.
+
+---
+
+### 8. 🔥 Odatlar Nazorati & Consistency (Habit Tracker)
+Dasturchining kunlik intizomini shakllantirish:
+* Odatlar ro'yxati (masalan, *Code Review*, *LeetCode / Algoritm*, *Texnik kitob o'qish*, *Jismoniy mashq*).
+* Kunlik bajarilishini belgilash, streak hisoblagichi va haftalik faollik issiqlik xaritasi (consistency heatmaps).
+
+---
+
+### 9. 📊 Hisobotlar va AI Haftalik Murabbiy (Reports & Retro)
+* **Weekly Engineering Review**: Hafta davomida bajarilgan vazifalar, kechiktirilgan ishlar va sarflangan vaqt balansi.
+* **AI Coach Tavsiyalari**: Kod tezligini oshirish, to'siqlarni yechish va sprint samaradorligini tahlil qilish.
+
+---
+
+### 10. 🔗 Dasturchi Resurslari & Havolalar Bazasi (Links)
+* Tez-tez ishlatiladigan API hujjatlari, GitHub repo havolalari, server panellari va dasturlash vositalarini bir joyda saqlash va qidirish.
+* Teglar va toifalar bo'yicha tartiblash.
+
+---
+
+### 11. 👥 Team Cockpit (Jamoaviy Standup)
+* Jamoa a'zolari bilan sprint maqsadlari, joriy fokuslar va P0 to'siqlarni sinxronlashtirish.
+
+---
+
+### 12. 🏷️ Maydonlar (Spaces Konteksti)
+Hayotingiz va ishingizni aniq chegaralarga ajrating:
+* `💼 Work / Backend` — Asosiy ish va backend vazifalari.
+* `🧠 AI & ML` — Neyrotarmoqlar va modellar ustida tajribalar.
+* `🎓 Education & Study` — Yangi texnologiyalar va til o'rganish.
+* `👤 Personal` — Shaxsiy ishlar va maqsadlar.
+* *(Yangi shaxsiy maydonlarni xohlagan rang va ikonka bilan yaratish mumkin)*.
+
+---
+
+### 13. ⚡️ Klaviatura Yorliqlari & Chuqur Fokus Vositalari
+* **Spotlight HUD (`⌘K`)**: Raycast/Alfred uslubidagi global tezkor buyruqlar va vazifalar qidiruvi.
+* **Pomodoro & Deep Work taymeri (`⌘P`)**: Chalg'imasdan ishlash, orqa fon muhiti va ish vaqti hisobi.
+* **AI Rubber Duck Debugger (`⌘D`)**: Kod xatoliklarini tushuntirish va muammoli joylarni aniqlash bo'yicha AI suhbatdoshi.
+* **📡 Real-Time Metrics Push API**: `/api/v1/metrics` orqali tashqi skriptlardan ilovaga jonli metrikalarni yuborish imkoniyati.
+* **🔒 100% Local-First Maxfiylik**: Barcha ma'lumotlar mahalliy SQLite WAL bazasida saqlanadi. Istalgan paytda JSON orqali to'liq zaxira (Backup / Export) olish mumkin.
 
 ---
 
