@@ -108,7 +108,13 @@ import { parseRoadmapMarkdown } from './roadmapParser';
 import { analyzeBlockers, generateStandup, generateWeeklyCoachReview, callAi, type ParsedAiIngestion } from './ai';
 import { isTauri } from './vault';
 import type { AiSource, CloudProviderId } from './providers';
-import { playNotificationSound, sendDesktopNotification, speakVoiceReminder } from './notifications';
+import {
+  playNotificationSound,
+  sendDesktopNotification,
+  speakVoiceReminder,
+  scheduleSystemNotification,
+  cancelSystemNotification,
+} from './notifications';
 import { syncHermesMemoriesToDb, formatMemoriesForPrompt } from './hermesMemory';
 import { telegramBotManager, sendTelegramMessage, type TelegramBotStatus } from './telegramBot';
 import { isSlashCommand, executeSlashCommand } from './slashCommands';
@@ -591,6 +597,34 @@ function ensureSchedulerStarted(
   setState: (patch: Partial<SynapseState> | ((state: SynapseState) => Partial<SynapseState>)) => void,
 ) {
   if (schedulerIntervalId) return;
+
+  // Listen to native Rust background notification triggers (fires even when window is hidden/minimized)
+  if (isTauri) {
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<{ id: string; title: string; body: string }>('notification_triggered', (event) => {
+        const payload = event.payload;
+        if (!payload?.id) return;
+        const { reminders, soundEnabled } = getState();
+        const match = reminders.find((r) => r.id === payload.id);
+        if (match && match.status === 'pending') {
+          if (soundEnabled && match.sound_enabled) {
+            playNotificationSound();
+          }
+          speakVoiceReminder(`Eslatma: ${match.title}. ${match.description || ''}`).catch(() => {});
+          const triggeredRem: ScheduledReminder = {
+            ...match,
+            status: 'triggered',
+            triggered_at: new Date().toISOString(),
+          };
+          const updated = getState().reminders.map((r) => (r.id === match.id ? triggeredRem : r));
+          setState({ reminders: updated, activeAlertReminder: triggeredRem });
+          try {
+            localStorage.setItem('cognidev_reminders', JSON.stringify(updated));
+          } catch {}
+        }
+      }).catch(() => {});
+    }).catch(() => {});
+  }
 
   schedulerIntervalId = setInterval(() => {
     const { reminders, soundEnabled, dbMode } = getState();
@@ -1973,6 +2007,18 @@ export const useSynapse = create<SynapseState>((set, get) => ({
     try {
       localStorage.setItem('cognidev_reminders', JSON.stringify(next));
     } catch {}
+
+    // Schedule native OS notification (works even if app is closed/hidden)
+    const targetEpoch = new Date(newRem.target_time).getTime() / 1000;
+    if (!isNaN(targetEpoch) && targetEpoch > Date.now() / 1000) {
+      scheduleSystemNotification(
+        newRem.id,
+        targetEpoch,
+        `⏰ ${newRem.title}`,
+        newRem.description ? `${newRem.time_string}: ${newRem.description}` : `Rejalashtirilgan vaqt: ${newRem.time_string}`
+      );
+    }
+
     if (get().dbMode === 'sqlite') {
       await upsertReminder(newRem).catch(() => {});
     }
@@ -1991,8 +2037,8 @@ export const useSynapse = create<SynapseState>((set, get) => ({
       if (target) await upsertReminder(target).catch(() => {});
     }
   },
-
   deleteReminder: async (id) => {
+    cancelSystemNotification(id);
     const next = get().reminders.filter((r) => r.id !== id);
     set({ reminders: next });
     try {
@@ -2617,6 +2663,23 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       telegramConfig: rawTgSettings,
       retrospectives: rawRetrospectives && rawRetrospectives.length ? rawRetrospectives : get().retrospectives,
     });
+
+    // Schedule all active pending reminders into Rust native background queue
+    const activeReminders = rawReminders.length ? rawReminders : get().reminders;
+    const nowSecs = Date.now() / 1000;
+    for (const r of activeReminders) {
+      if (r.status === 'pending') {
+        const ep = new Date(r.target_time).getTime() / 1000;
+        if (!isNaN(ep) && ep > nowSecs) {
+          scheduleSystemNotification(
+            r.id,
+            ep,
+            `⏰ ${r.title}`,
+            r.description ? `${r.time_string}: ${r.description}` : `Rejalashtirilgan vaqt: ${r.time_string}`
+          );
+        }
+      }
+    }
 
     if (rawTgSettings.is_active && rawTgSettings.bot_token?.trim()) {
       get().startTelegramBot().catch(() => {});

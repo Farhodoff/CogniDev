@@ -25,11 +25,10 @@ export default function StandupModal() {
       setLoadingGit(false);
     }
   }
-
   const isGitSource = String(standupSource).includes('git');
   const sourceLabel = isGitSource
     ? '🐙 Real Git Diff & Commitlar'
-    : (standupSource && SOURCE_LABELS[standupSource]) || 'Oflayn shablon';
+    : (standupSource && (SOURCE_LABELS as Record<string, string>)[standupSource]) || 'Oflayn shablon';
 
   return (
     <div

@@ -14,6 +14,8 @@ export default function FocusTimerPill() {
     pauseTimer,
   } = useFocusStore();
 
+  const syncWithTargetTime = useFocusStore((s) => s.syncWithTargetTime);
+
   // Run 1-second interval while running
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -22,10 +24,36 @@ export default function FocusTimerPill() {
         tick();
       }, 1000);
     }
+
+    // Immediately resync time on visibility change or window focus
+    const handleSync = () => {
+      syncWithTargetTime();
+    };
+
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+
+    // Tauri native second_tick event listener (keeps ticking even in background)
+    let unlistenTick: (() => void) | null = null;
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => {
+        listen('second_tick', () => {
+          if (useFocusStore.getState().status === 'running') {
+            useFocusStore.getState().tick();
+          }
+        }).then((unlisten) => {
+          unlistenTick = unlisten;
+        });
+      })
+      .catch(() => {});
+
     return () => {
       if (interval) clearInterval(interval);
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+      if (unlistenTick) unlistenTick();
     };
-  }, [status, tick]);
+  }, [status, tick, syncWithTargetTime]);
 
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;

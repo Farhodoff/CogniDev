@@ -16,11 +16,13 @@ import {
   GitPullRequest,
   ExternalLink,
   MessageSquare,
+  Clock,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import type { Task } from '../lib/types';
 import { callAi } from '../lib/ai';
 import { fetchUserPrsAndIssues, getStoredGitHubToken, type GitHubPrOrIssue } from '../lib/github';
+import { parseNaturalTimeToIso } from '../lib/notifications';
 
 interface InboxNotification {
   id: string;
@@ -52,11 +54,16 @@ export default function InboxWorkspace() {
     setMainView,
     activeProjects,
     userProfile,
+    reminders,
+    deleteReminder,
+    testNotification,
+    addReminder,
   } = useSynapse();
 
   const [filterTab, setFilterTab] = useState<'all' | 'tasks' | 'notifications' | 'ai' | 'github_pr'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickInput, setQuickInput] = useState('');
+  const [reminderInput, setReminderInput] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
 
   // 🐙 GitHub PR & Issue Tracker State
@@ -239,6 +246,21 @@ export default function InboxWorkspace() {
     setQuickInput('');
   };
 
+  const handleCreateReminder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reminderInput.trim()) return;
+    const parsed = parseNaturalTimeToIso(reminderInput.trim());
+    await addReminder({
+      title: reminderInput.trim(),
+      description: '',
+      target_time: parsed.iso,
+      time_string: parsed.timeString,
+      source_type: 'custom',
+      sound_enabled: true,
+    });
+    setReminderInput('');
+  };
+
   // Convert notification to Task
   const handleConvertNotificationToTask = (n: InboxNotification) => {
     const title = n.actionableTaskTitle || n.title;
@@ -359,8 +381,9 @@ Formatga aniq rioya qiling.`;
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
-  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+  const unreadNotifCount = notifications.filter((n) => !n.read).length + reminders.filter((r) => r.status === 'pending').length;
   const totalInboxBadge = inboxTasks.length + unreadNotifCount;
+  const totalNotificationsCount = notifications.length + reminders.length;
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#0a0b0f] p-6 text-zinc-100 select-none scrollbar-thin">
@@ -388,6 +411,14 @@ Formatga aniq rioya qiling.`;
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={testNotification}
+              title="Native desktop bildirishnomani va ovozni sinash"
+              className="flex items-center gap-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 text-[12px] font-semibold text-amber-300 transition shadow-sm"
+            >
+              <Bell size={13} className="text-amber-400" />
+              <span>Test Bildirishnoma</span>
+            </button>
             <button
               onClick={markAllAsRead}
               className="flex items-center gap-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 px-3 py-1.5 text-[12px] font-medium text-zinc-300 transition"
@@ -429,7 +460,7 @@ Formatga aniq rioya qiling.`;
             {[
               { id: 'all', label: `Barchasi (${totalInboxBadge})` },
               { id: 'tasks', label: `Vazifalar (${inboxTasks.length})` },
-              { id: 'notifications', label: `Bildirishnomalar (${notifications.length})` },
+              { id: 'notifications', label: `Bildirishnomalar (${totalNotificationsCount})` },
               { id: 'ai', label: `AI Tavsiyalar (${aiRecommendations.length})` },
               { id: 'github_pr', label: `🐙 PR & Issues (${githubItems.length})` },
             ].map((tab) => (
@@ -530,14 +561,66 @@ Formatga aniq rioya qiling.`;
 
             {/* Right: Notifications & AI Preview */}
             <div className="md:col-span-5 space-y-5">
-              {/* Notifications List */}
+              {/* Notifications & Reminders List */}
               <div className="space-y-3">
-                <h2 className="text-[13px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
-                  <Bell size={15} className="text-amber-400" />
-                  <span>Bildirishnomalar ({notifications.length})</span>
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[13px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                    <Bell size={15} className="text-amber-400" />
+                    <span>Bildirishnomalar ({totalNotificationsCount})</span>
+                  </h2>
+                  <button
+                    onClick={testNotification}
+                    className="text-[11px] font-medium text-amber-400 hover:text-amber-300 hover:underline"
+                  >
+                    Sinash 🔔
+                  </button>
+                </div>
+
+                {/* Quick Add Reminder Form */}
+                <form onSubmit={handleCreateReminder} className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121319] p-1.5">
+                  <Clock size={13} className="text-amber-400 ml-1.5 shrink-0" />
+                  <input
+                    type="text"
+                    value={reminderInput}
+                    onChange={(e) => setReminderInput(e.target.value)}
+                    placeholder="Tezkor eslatma (masalan: 15 minutdan keyin standup)..."
+                    className="flex-1 bg-transparent px-2 py-1 text-[11px] text-white placeholder:text-zinc-500 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!reminderInput.trim()}
+                    className="rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 px-2 py-1 text-[10.5px] font-semibold text-amber-300 disabled:opacity-40 transition"
+                  >
+                    + Qo‘shish
+                  </button>
+                </form>
 
                 <div className="space-y-2.5">
+                  {/* Scheduled Reminders */}
+                  {reminders.map((r) => (
+                    <div
+                      key={r.id}
+                      className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-1.5 transition"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Clock size={14} className="text-amber-400" />
+                          <span className="text-xs font-bold text-zinc-100">{r.title}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[9.5px] font-mono font-bold text-amber-300">
+                            {r.status === 'pending' ? r.time_string : 'Yetkazildi ✓'}
+                          </span>
+                          <button onClick={() => deleteReminder(r.id)} className="text-zinc-500 hover:text-rose-400 p-0.5" title="O‘chirish">
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                      {r.description && <p className="text-[11px] text-zinc-400 pl-5">{r.description}</p>}
+                    </div>
+                  ))}
+
+                  {/* System & Blocker Notifications */}
                   {notifications.map((n) => (
                     <div
                       key={n.id}
@@ -665,16 +748,70 @@ Formatga aniq rioya qiling.`;
           </div>
         )}
 
-        {/* Tab 3: Only Notifications */}
+        {/* Tab 3: Only Notifications & Reminders */}
         {filterTab === 'notifications' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-zinc-400">Jami bildirishnomalar: {notifications.length} ta</p>
-              <button onClick={markAllAsRead} className="text-xs text-blue-400 hover:underline">
-                Barchasini o‘qilgan qilish
-              </button>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-zinc-400">Jami faol bildirishnomalar va eslatmalar: {totalNotificationsCount} ta</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={testNotification}
+                  className="flex items-center gap-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 text-xs font-semibold text-amber-300 transition"
+                >
+                  <Bell size={13} className="text-amber-400" />
+                  <span>Test Bildirishnoma</span>
+                </button>
+                <button onClick={markAllAsRead} className="text-xs text-blue-400 hover:underline">
+                  Barchasini o‘qilgan qilish
+                </button>
+              </div>
             </div>
+
+            {/* Quick Add Reminder Form */}
+            <form onSubmit={handleCreateReminder} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#121319] p-3 shadow-md">
+              <Clock size={16} className="text-amber-400 ml-1 shrink-0" />
+              <input
+                type="text"
+                value={reminderInput}
+                onChange={(e) => setReminderInput(e.target.value)}
+                placeholder="Tezkor eslatma yozing (masalan: 10 minutdan keyin, yoki soat 17:00 da code review)..."
+                className="flex-1 bg-transparent px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!reminderInput.trim()}
+                className="rounded-xl bg-amber-500 hover:bg-amber-400 px-3.5 py-1.5 text-xs font-bold text-black disabled:opacity-40 transition shadow-sm"
+              >
+                Eslatma Saqlash
+              </button>
+            </form>
+
             <div className="space-y-3">
+              {/* Scheduled Reminders */}
+              {reminders.map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.04] p-4 space-y-2 transition shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Clock size={16} className="text-amber-400" />
+                      <h4 className="text-xs font-bold text-white">{r.title}</h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-300">
+                        {r.status === 'pending' ? `⏰ ${r.time_string}` : 'Yetkazildi ✓'}
+                      </span>
+                      <button onClick={() => deleteReminder(r.id)} className="text-zinc-500 hover:text-rose-400 p-1" title="O‘chirish">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  {r.description && <p className="text-xs text-zinc-300 pl-6 leading-relaxed">{r.description}</p>}
+                </div>
+              ))}
+
+              {/* System notices */}
               {notifications.map((n) => (
                 <div
                   key={n.id}

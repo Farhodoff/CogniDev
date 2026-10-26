@@ -55,18 +55,28 @@ export function playNotificationSound(): void {
 
 /**
  * Sends a native desktop notification.
- * Works seamlessly in Tauri desktop environments and modern web browsers.
+ * Uses native OS notification center (via AppleScript on macOS, PowerShell toast on Windows)
+ * when running in Tauri desktop environment, or browser Notification API as fallback.
  */
 export async function sendDesktopNotification(
   title: string,
   body: string,
   icon = '/icons/icon.png'
 ): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
+  // 1. If running inside Tauri desktop app, use native OS notification (works even in background/hidden window)
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('show_system_notification', { title, body });
+      return true;
+    } catch (err) {
+      console.warn('[DesktopNotification] Tauri native notification error:', err);
+    }
+  }
 
-  try {
-    // If running in browser or Tauri WebView with window.Notification
-    if ('Notification' in window) {
+  // 2. Browser Notification API fallback
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    try {
       if (Notification.permission === 'granted') {
         new Notification(title, { body, icon });
         return true;
@@ -79,11 +89,54 @@ export async function sendDesktopNotification(
           return true;
         }
       }
+    } catch (err) {
+      console.warn('[DesktopNotification] error:', err);
     }
-  } catch (err) {
-    console.warn('[DesktopNotification] error:', err);
   }
 
+  return false;
+}
+
+/**
+ * Schedules a background notification in the native Rust backend.
+ * Guaranteed to fire even if the app window is hidden, minimized, or in background.
+ */
+export async function scheduleSystemNotification(
+  id: string,
+  targetEpochSecs: number,
+  title: string,
+  body: string
+): Promise<boolean> {
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('schedule_system_notification', {
+        id,
+        targetEpochSecs: Math.floor(targetEpochSecs),
+        title,
+        body,
+      });
+      return true;
+    } catch (e) {
+      console.warn('[scheduleSystemNotification] error:', e);
+    }
+  }
+  return false;
+}
+
+/**
+ * Cancels a scheduled background notification by its ID.
+ */
+export async function cancelSystemNotification(id: string): Promise<boolean> {
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('cancel_scheduled_notification', { id });
+      return true;
+    } catch (e) {
+      console.warn('[cancelSystemNotification] error:', e);
+    }
+  }
   return false;
 }
 

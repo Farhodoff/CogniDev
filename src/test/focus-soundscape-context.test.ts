@@ -111,4 +111,43 @@ describe('🎧 Focus Soundscapes & Deep Work Timer', () => {
       expect(report.isHighThrashing).toBe(true);
     });
   });
+
+  describe('3. Timestamp-based Pomodoro State & Background Persistence', () => {
+    it('initializes focus timer and sets targetEndTime in future', async () => {
+      const { useFocusStore } = await import('../lib/focusStore');
+      useFocusStore.getState().resetTimer();
+
+      useFocusStore.getState().startFocus(25, 'task-test', 'Unit Test Task');
+      const state = useFocusStore.getState();
+
+      expect(state.mode).toBe('focus');
+      expect(state.status).toBe('running');
+      expect(state.targetEndTime).toBeGreaterThan(Date.now());
+      expect(state.timeRemaining).toBe(25 * 60);
+
+      // syncWithTargetTime calculates correct timeRemaining
+      useFocusStore.getState().syncWithTargetTime();
+      expect(useFocusStore.getState().timeRemaining).toBeGreaterThanOrEqual(24 * 60);
+
+      useFocusStore.getState().resetTimer();
+      expect(useFocusStore.getState().status).toBe('idle');
+      expect(useFocusStore.getState().targetEndTime).toBeNull();
+    });
+
+    it('pauses and preserves remaining seconds accurately', async () => {
+      const { useFocusStore } = await import('../lib/focusStore');
+      useFocusStore.getState().startFocus(10);
+      expect(useFocusStore.getState().status).toBe('running');
+
+      useFocusStore.getState().pauseTimer();
+      expect(useFocusStore.getState().status).toBe('paused');
+      expect(useFocusStore.getState().targetEndTime).toBeNull();
+
+      useFocusStore.getState().resumeTimer();
+      expect(useFocusStore.getState().status).toBe('running');
+      expect(useFocusStore.getState().targetEndTime).toBeGreaterThan(Date.now());
+
+      useFocusStore.getState().resetTimer();
+    });
+  });
 });

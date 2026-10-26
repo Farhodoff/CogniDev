@@ -167,11 +167,8 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
 
           {/* App title: MySpace */}
           <div className="flex items-center gap-2">
-            <span className="text-[13.5px] font-bold tracking-tight text-white">
+            <span className="text-[14px] font-bold tracking-tight text-white">
               MySpace
-            </span>
-            <span className="hidden sm:inline-block rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[9.5px] font-medium text-zinc-400 border border-white/[0.06]">
-              build a better life
             </span>
           </div>
         </div>
@@ -272,6 +269,17 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 </button>
                 <button
                   onClick={() => {
+                    setQuickCaptureModal(true);
+                    setQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 transition"
+                >
+                  <Zap size={14} className="text-amber-400" />
+                  <span>Tezkor Qayd</span>
+                  <kbd className="ml-auto text-[10px] text-zinc-500 font-mono">⌘⇧Space</kbd>
+                </button>
+                <button
+                  onClick={() => {
                     setGitModalOpen(true);
                     setQuickAddOpen(false);
                   }}
@@ -355,51 +363,11 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
             )}
           </button>
 
-          {/* 🐙 GitHub Hub Pill */}
-          <button
-            onClick={() => setGitHubModal(true)}
-            title={`GitHub AI Tasks & Commits (${formatShortcut('G')})`}
-            className="flex items-center gap-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition shadow-sm shrink-0"
-          >
-            <GithubIcon size={12} className="text-indigo-400" />
-            <span className="hidden xl:inline">GitHub</span>
-          </button>
-
-          {/* ⚡️ Quick Capture Pill */}
-          <button
-            onClick={() => setQuickCaptureModal(true)}
-            title="Tezkor Qayd & Global Hotkey (⌘⇧Space)"
-            className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-1 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shrink-0"
-          >
-            <Zap size={12} className="text-amber-400" />
-            <span className="hidden xl:inline">Qayd</span>
-          </button>
-
-          {/* 📊 Developer Health Pill */}
-          <button
-            onClick={() => setDeveloperHealthModal(true)}
-            title="Developer Health & Growth Analitika"
-            className="flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 hover:text-white transition shadow-sm shrink-0"
-          >
-            <Activity size={12} className="text-emerald-400" />
-            <span className="hidden xl:inline">Health</span>
-          </button>
-
-          {/* 🦆 Rubber Duck Debugger Pill */}
-          <button
-            onClick={() => setRubberDuckModal(true)}
-            title={`AI Rubber Duck Debugger (${formatShortcut('D')})`}
-            className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-1 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 hover:text-white transition shadow-sm shrink-0"
-          >
-            <span className="text-[12px] leading-none">🦆</span>
-            <span className="hidden xl:inline">Duck</span>
-          </button>
-
           {/* ✨ AI Assistant Button */}
           <button
             onClick={toggleAiDrawer}
             title="CogniDev AI Assistant & Agent"
-            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-600/90 to-indigo-600/90 border border-purple-500/30 px-2.5 py-1 text-[11.5px] font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition shrink-0"
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 border border-purple-400/30 px-3 py-1 text-[11.5px] font-semibold text-white shadow-md shadow-purple-900/30 active:scale-95 transition shrink-0"
           >
             <Sparkles size={12} className="text-purple-200" />
             <span>AI</span>

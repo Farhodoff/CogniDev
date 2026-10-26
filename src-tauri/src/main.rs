@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::SystemTime;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager};
@@ -653,6 +655,97 @@ fn speak_text(text: String) -> Result<(), String> {
     }
 }
 
+// ── Native OS Notifications & Background Scheduler ───────────
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ScheduledNotificationItem {
+    pub id: String,
+    pub target_epoch_secs: u64,
+    pub title: String,
+    pub body: String,
+}
+
+static SCHEDULED_NOTIFICATIONS: OnceLock<Arc<Mutex<Vec<ScheduledNotificationItem>>>> =
+    OnceLock::new();
+
+fn get_scheduled_notifications() -> &'static Arc<Mutex<Vec<ScheduledNotificationItem>>> {
+    SCHEDULED_NOTIFICATIONS.get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+}
+
+fn trigger_native_os_notification(title: &str, body: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let escaped_title = title.replace('\\', "\\\\").replace('"', "\\\"");
+        let escaped_body = body.replace('\\', "\\\\").replace('"', "\\\"");
+        let script = format!(
+            "display notification \"{}\" with title \"{}\" sound name \"Glass\"",
+            escaped_body, escaped_title
+        );
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let escaped_title = title.replace('"', "`\"");
+        let escaped_body = body.replace('"', "`\"");
+        let ps_cmd = format!(
+            "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null; \
+             $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); \
+             $textNodes = $template.GetElementsByTagName('text'); \
+             $textNodes.Item(0).AppendChild($template.CreateTextNode('{}')) > $null; \
+             $textNodes.Item(1).AppendChild($template.CreateTextNode('{}')) > $null; \
+             $toast = [Windows.UI.Notifications.ToastNotification]::new($template); \
+             [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('CogniDev').Show($toast);",
+            escaped_title, escaped_body
+        );
+        let _ = std::process::Command::new("powershell")
+            .args(["-Command", &ps_cmd])
+            .spawn();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = std::process::Command::new("notify-send")
+            .args([title, body])
+            .spawn();
+    }
+}
+
+#[tauri::command]
+fn show_system_notification(title: String, body: String) -> Result<(), String> {
+    trigger_native_os_notification(&title, &body);
+    Ok(())
+}
+
+#[tauri::command]
+fn schedule_system_notification(
+    id: String,
+    target_epoch_secs: u64,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    let store = get_scheduled_notifications();
+    if let Ok(mut list) = store.lock() {
+        list.retain(|item| item.id != id);
+        list.push(ScheduledNotificationItem {
+            id,
+            target_epoch_secs,
+            title,
+            body,
+        });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_scheduled_notification(id: String) -> Result<(), String> {
+    let store = get_scheduled_notifications();
+    if let Ok(mut list) = store.lock() {
+        list.retain(|item| item.id != id);
+    }
+    Ok(())
+}
+
 // ── macOS Menu Bar Tray & Focus Syncer ──────────────
 
 fn build_tray_menu<R: tauri::Runtime>(
@@ -845,6 +938,39 @@ fn main() {
                     });
             }
 
+            // Continuous background timer thread:
+            // Checks scheduled notifications and emits second_tick even if window is closed/hidden
+            let bg_app_handle = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+
+                let now = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let store = get_scheduled_notifications();
+                let mut triggered_items = Vec::new();
+                if let Ok(mut list) = store.lock() {
+                    let mut remaining = Vec::new();
+                    for item in list.drain(..) {
+                        if item.target_epoch_secs <= now {
+                            triggered_items.push(item);
+                        } else {
+                            remaining.push(item);
+                        }
+                    }
+                    *list = remaining;
+                }
+
+                for item in triggered_items {
+                    trigger_native_os_notification(&item.title, &item.body);
+                    let _ = bg_app_handle.emit("notification_triggered", item);
+                }
+
+                let _ = bg_app_handle.emit("second_tick", ());
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -862,7 +988,10 @@ fn main() {
             open_external_url,
             get_gh_cli_auth,
             speak_text,
-            update_tray_focus
+            update_tray_focus,
+            show_system_notification,
+            schedule_system_notification,
+            cancel_scheduled_notification
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
