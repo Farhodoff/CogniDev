@@ -171,6 +171,7 @@ Hayotingiz va ishingizni aniq chegaralarga ajrating:
 * **Pomodoro & Deep Work taymeri (`⌘P`)**: Chalg'imasdan ishlash, orqa fon muhiti va ish vaqti hisobi.
 * **AI Rubber Duck Debugger (`⌘D`)**: Kod xatoliklarini tushuntirish va muammoli joylarni aniqlash bo'yicha AI suhbatdoshi.
 * **📡 Real-Time Metrics Push API**: `/api/v1/metrics` orqali tashqi skriptlardan ilovaga jonli metrikalarni yuborish imkoniyati.
+* **📊 Haftalik Hisobot Eksporti (Excel / TXT)**: Haftalik bajarilgan vazifalar, to‘siqlar, fokus statistikasi va AI tahlilini bir zumda Microsoft Excel (`.csv`, UTF-8 BOM) yoki Matn (`.txt`) ko‘rinishida yuklab olish.
 * **🔒 100% Local-First Maxfiylik**: Barcha ma'lumotlar mahalliy SQLite WAL bazasida saqlanadi. Istalgan paytda JSON orqali to'liq zaxira (Backup / Export) olish mumkin.
 
 ---
@@ -180,9 +181,11 @@ Hayotingiz va ishingizni aniq chegaralarga ajrating:
 | Tugmalar | Vazifasi | Qayerda ishlaydi |
 |---|---|---|
 | `⌘K` / `Ctrl+K` | Spotlight buyruqlar paneli va tezkor qidiruv | Global |
+| `⌘J` | CogniDev AI Assistant Drawer (O‘ng panel) | Asosiy oyna |
 | `⌘P` | Pomodoro & Deep Work fokus taymeri oynasi | Asosiy oyna |
-| `⌘J` | Git Repozitoriy inspektori va AI Commit generator | Asosiy oyna |
 | `⌘D` | AI Rubber Duck Debugger (Muammolarni tahlil qilish) | Asosiy oyna |
+| `⌘G` | GitHub Hub & AI Task Synthesizer oynasi | Asosiy oyna |
+| `⌘⇧␣` (`Cmd+Shift+Space`) | macOS Menu Bar Spotlight Tezkor Qayd (Quick Capture) | Global OS |
 | `Esc` | Ochiq modal yoki panelni yopish | Global |
 
 ---

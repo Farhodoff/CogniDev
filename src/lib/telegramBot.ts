@@ -223,6 +223,7 @@ class TelegramBotManager {
       : [];
 
     (async () => {
+      let failureCount = 0;
       while (!signal.aborted) {
         try {
           const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=20`;
@@ -232,9 +233,13 @@ class TelegramBotManager {
               this.setStatus('error');
               break;
             }
-            await new Promise((r) => setTimeout(r, 4000));
+            failureCount++;
+            const backoffMs = Math.min(30000, 2000 * Math.pow(1.5, Math.min(failureCount, 6)));
+            await new Promise((r) => setTimeout(r, backoffMs));
             continue;
           }
+
+          failureCount = 0;
 
           const data = await res.json();
           if (data.ok && Array.isArray(data.result)) {
@@ -279,8 +284,10 @@ class TelegramBotManager {
           }
         } catch (err: unknown) {
           if (signal.aborted) break;
-          console.warn('[TelegramBot] Polling network error, retrying in 5s...', err);
-          await new Promise((r) => setTimeout(r, 5000));
+          failureCount++;
+          const backoffMs = Math.min(30000, 2000 * Math.pow(1.5, Math.min(failureCount, 6)));
+          console.warn(`[TelegramBot] Polling network error, retrying in ${Math.round(backoffMs / 1000)}s...`, err);
+          await new Promise((r) => setTimeout(r, backoffMs));
         }
       }
     })();

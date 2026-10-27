@@ -12,15 +12,22 @@ import {
   Trash2,
   Calendar,
   GitBranch,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { callAi, isBlocker } from '../lib/ai';
 import { PROVIDERS, type CloudProviderId } from '../lib/providers';
 import FormattedAiText from './FormattedAiText';
+import { buildWeeklyReportData, exportWeeklyReportToFile } from '../lib/weeklyReportExport';
 
 export default function RetroWorkspace() {
   const {
     tasks,
+    notes,
+    userProfile,
+    weeklyCoach,
     notesDocs,
     learningLogs,
     retrospectives,
@@ -35,6 +42,31 @@ export default function RetroWorkspace() {
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<CloudProviderId>('gemini');
   const [retroAnalysis, setRetroAnalysis] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'csv' | 'txt' | null>(null);
+
+  const handleExport = async (format: 'csv' | 'txt') => {
+    setExportingFormat(format);
+    setExportOpen(false);
+    try {
+      const data = buildWeeklyReportData(tasks, notes, weeklyCoach, {
+        userName: userProfile?.full_name || 'Dasturchi',
+      });
+      const res = await exportWeeklyReportToFile(format, data);
+      if (res.success) {
+        setHud(
+          format === 'csv'
+            ? '📊 Haftalik hisobot Excel (.csv) formatida saqlandi'
+            : '📄 Haftalik hisobot Matn (.txt) formatida saqlandi'
+        );
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      setHud('Hisobotni eksport qilishda xatolik yuz berdi');
+    } finally {
+      setExportingFormat(null);
+    }
+  };
 
   // Group tasks
   const completedTasks = useMemo(
@@ -160,6 +192,46 @@ Iltimos, o'zbek tilida 3 ta aniq bo'limda xulosa bering:
             <Sparkles size={14} />
             {aiLoading ? "Tahlil qilinmoqda..." : "AI dan Feedback Olish"}
           </button>
+
+          {/* Haftalik Hisobotni Eksport Qilish (Excel / TXT) */}
+          <div className="relative">
+            <button
+              onClick={() => setExportOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-3 py-1.5 text-[12px] font-semibold text-sky-300 transition shadow-sm"
+              title="Haftalik hisobotni yuklab olish"
+            >
+              <Download size={13} className="text-sky-400" />
+              <span>{exportingFormat ? 'Yuklanmoqda...' : 'Hisobotni yuklash'}</span>
+            </button>
+
+            {exportOpen && (
+              <div className="absolute right-0 top-10 z-50 w-52 overflow-hidden rounded-xl border border-white/10 bg-[#16171d] shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-1.5 border-b border-white/[0.06] mb-1">
+                  <span className="text-[10.5px] uppercase font-bold text-zinc-400">Formatni tanlang</span>
+                </div>
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-zinc-200 hover:bg-emerald-500/15 hover:text-emerald-300 transition"
+                >
+                  <FileSpreadsheet size={15} className="text-emerald-400 shrink-0" />
+                  <div>
+                    <div className="font-medium">Excel (.csv)</div>
+                    <div className="text-[10px] text-zinc-400">Jadval va hisobotlar uchun</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExport('txt')}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-zinc-200 hover:bg-sky-500/15 hover:text-sky-300 transition"
+                >
+                  <FileText size={15} className="text-sky-400 shrink-0" />
+                  <div>
+                    <div className="font-medium">Matn (.txt / .md)</div>
+                    <div className="text-[10px] text-zinc-400">O‘qishga qulay format</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

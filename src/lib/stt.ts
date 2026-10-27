@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from './vault';
+import { transcribeAudioCloud } from './providers';
 
 export interface SttStatus {
   binaryOk: boolean;
@@ -23,6 +24,22 @@ export async function rubaiStatus(): Promise<SttStatus | null> {
     };
   } catch {
     return null;
+  }
+}
+
+/** Download RubaiSTT model (~140MB) via Tauri into ~/.cognidev/models/ */
+export async function downloadRubaiModel(): Promise<{ ok: boolean; message: string }> {
+  if (!isTauri) {
+    return { ok: false, message: 'Faqat Tauri desktop ilovasida ishlaydi' };
+  }
+  try {
+    const res = await invoke<string>('download_rubai_model');
+    return { ok: true, message: res };
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: typeof err === 'string' ? err : err?.message || 'Modelni yuklab olishda xatolik yuz berdi',
+    };
   }
 }
 
@@ -93,7 +110,7 @@ export type SttLanguage = 'auto' | 'uz' | 'ru' | 'en';
 export interface DetailedTranscriptionResult {
   text: string;
   detectedLang: string;
-  source: 'whisper-local' | 'web-speech' | 'offline-fallback';
+  source: 'whisper-local' | 'cloud-ai' | 'web-speech' | 'offline-fallback';
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -108,7 +125,8 @@ function toBase64(bytes: Uint8Array): string {
 /**
  * High-accuracy multi-language transcription:
  * 1. Native local whisper.cpp with auto-detect or specific language (uz, ru, en)
- * 2. Web Speech API live fallback if native binary not available
+ * 2. Cloud AI Whisper/Gemini fallback if native binary or model is not installed
+ * 3. Web Speech API live fallback if captured during recording
  */
 export async function transcribeAudioDetailed(
   wav: Uint8Array,
@@ -130,11 +148,25 @@ export async function transcribeAudioDetailed(
         };
       }
     } catch (tauriErr) {
-      console.warn('[STT] transcribe_audio_detailed failed, checking fallback:', tauriErr);
+      console.warn('[STT] transcribe_audio_detailed failed, checking cloud/web fallbacks:', tauriErr);
     }
   }
 
-  // 2. Fallback to live speech recognition transcript captured during recording
+  // 2. Cloud AI fallback (Groq whisper-large-v3 / Gemini Multimodal / OpenAI whisper)
+  try {
+    const cloudHit = await transcribeAudioCloud(wav, lang);
+    if (cloudHit && cloudHit.text.trim().length > 0) {
+      return {
+        text: cloudHit.text.trim(),
+        detectedLang: lang === 'auto' ? 'uz' : lang,
+        source: 'cloud-ai',
+      };
+    }
+  } catch (cloudErr) {
+    console.warn('[STT] transcribeAudioCloud fallback error:', cloudErr);
+  }
+
+  // 3. Fallback to live speech recognition transcript captured during recording
   if (liveSpeechFallback && liveSpeechFallback.trim().length > 0) {
     return {
       text: liveSpeechFallback.trim(),
@@ -143,7 +175,7 @@ export async function transcribeAudioDetailed(
     };
   }
 
-  // 3. Fallback message if completely silent or offline without binaries
+  // 4. Fallback message if completely silent or offline without binaries
   return {
     text: '',
     detectedLang: lang === 'auto' ? 'uz' : lang,

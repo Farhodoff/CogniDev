@@ -52,9 +52,12 @@ export async function getDb(): Promise<Database> {
     dbPromise = Promise.race([
       Database.load(DB_URL),
       new Promise<Database>((_, reject) =>
-        setTimeout(() => reject(new Error('SQLite Database.load timed out')), 2500),
+        setTimeout(() => reject(new Error('SQLite Database.load timed out')), 4000),
       ),
-    ]);
+    ]).catch((err) => {
+      dbPromise = null;
+      throw err;
+    });
   }
   return dbPromise;
 }

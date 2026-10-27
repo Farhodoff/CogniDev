@@ -471,3 +471,133 @@ export function setActiveModelOverride(model: string | null): void {
   }
 }
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+/**
+ * Transcribe WAV audio bytes using user's configured cloud AI providers:
+ * 1. Groq whisper-large-v3 (ultra-fast, accurate)
+ * 2. Gemini Multimodal Audio (gemini-2.5-flash / gemini-1.5-flash inlineData)
+ * 3. OpenAI whisper-1
+ */
+export async function transcribeAudioCloud(
+  wav: Uint8Array,
+  lang: string = 'uz'
+): Promise<{ text: string; provider: string } | null> {
+  const groq = getProvider('groq');
+  const gemini = getProvider('gemini');
+  const openai = getProvider('openai');
+
+  // 1. Try Groq Whisper (lightning-fast, supports Uzbek, Russian, English)
+  if (groq.enabled && groq.apiKey.trim()) {
+    try {
+      const { ctrl, done } = await withTimeout(30000);
+      const fd = new FormData();
+      const blob = new Blob([wav as unknown as BlobPart], { type: 'audio/wav' });
+      fd.append('file', blob, 'audio.wav');
+      fd.append('model', 'whisper-large-v3');
+      if (lang && lang !== 'auto') {
+        fd.append('language', lang);
+      }
+      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${groq.apiKey.trim()}` },
+        body: fd,
+        signal: ctrl.signal,
+      });
+      done();
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.text && typeof data.text === 'string' && data.text.trim()) {
+          return { text: data.text.trim(), provider: 'Groq Whisper' };
+        }
+      }
+    } catch (e) {
+      console.warn('[transcribeAudioCloud] Groq Whisper failed:', e);
+    }
+  }
+
+  // 2. Try Gemini 2.5 / 1.5 Flash Multimodal Audio
+  if (gemini.enabled && gemini.apiKey.trim()) {
+    try {
+      const { ctrl, done } = await withTimeout(35000);
+      const b64 = uint8ArrayToBase64(wav);
+      const model = gemini.model.includes('flash') ? gemini.model : 'gemini-2.5-flash';
+      const prompt =
+        'Transcribe this audio clip accurately and verbatim in its original spoken language (primarily Uzbek, Russian, or English). Return ONLY the transcribed text, without any introductory or conversational text.';
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(gemini.apiKey.trim())}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'audio/wav',
+                      data: b64,
+                    },
+                  },
+                  { text: prompt },
+                ],
+              },
+            ],
+          }),
+          signal: ctrl.signal,
+        }
+      );
+      done();
+      if (res.ok) {
+        const data = await res.json();
+        const parts = data?.candidates?.[0]?.content?.parts as Array<{ text?: string }> | undefined;
+        const out = (parts ?? []).map((p) => p.text ?? '').join('').trim();
+        if (out) {
+          return { text: out, provider: 'Gemini Audio' };
+        }
+      }
+    } catch (e) {
+      console.warn('[transcribeAudioCloud] Gemini audio failed:', e);
+    }
+  }
+
+  // 3. Try OpenAI whisper-1
+  if (openai.enabled && openai.apiKey.trim()) {
+    try {
+      const { ctrl, done } = await withTimeout(30000);
+      const fd = new FormData();
+      const blob = new Blob([wav as unknown as BlobPart], { type: 'audio/wav' });
+      fd.append('file', blob, 'audio.wav');
+      fd.append('model', 'whisper-1');
+      if (lang && lang !== 'auto') {
+        fd.append('language', lang);
+      }
+      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openai.apiKey.trim()}` },
+        body: fd,
+        signal: ctrl.signal,
+      });
+      done();
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.text && typeof data.text === 'string' && data.text.trim()) {
+          return { text: data.text.trim(), provider: 'OpenAI Whisper' };
+        }
+      }
+    } catch (e) {
+      console.warn('[transcribeAudioCloud] OpenAI Whisper failed:', e);
+    }
+  }
+
+  return null;
+}
+
+

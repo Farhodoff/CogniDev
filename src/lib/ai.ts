@@ -36,23 +36,24 @@ export function analyzeBlockers(tasks: Task[]): string {
 }
 
 async function tryOllama(prompt: string): Promise<{ text: string; model: string } | null> {
-  for (const model of MODEL_CANDIDATES) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 45000);
-      const res = await fetch(OLLAMA_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt, stream: false }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data?.response) return { text: data.response as string, model };
-    } catch {
-      continue;
-    }
+  const ollama = await checkOllama();
+  if (!ollama.online || !ollama.model) return null;
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const res = await fetch(OLLAMA_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: ollama.model, prompt, stream: false }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data?.response) return { text: data.response as string, model: ollama.model };
+  } catch {
+    return null;
   }
   return null;
 }

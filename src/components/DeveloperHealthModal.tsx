@@ -13,6 +13,8 @@ import {
   Brain,
   CheckCircle2,
   TrendingUp,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { useFocusStore } from '../lib/focusStore';
@@ -21,6 +23,7 @@ import {
   generateWeeklyInfographic,
   type DayActivityCell,
 } from '../lib/developerHealth';
+import { buildWeeklyReportData, exportWeeklyReportToFile } from '../lib/weeklyReportExport';
 
 interface DeveloperHealthModalProps {
   open: boolean;
@@ -28,11 +31,34 @@ interface DeveloperHealthModalProps {
 }
 
 export default function DeveloperHealthModal({ open, onClose }: DeveloperHealthModalProps) {
-  const { tasks, notesDocs } = useSynapse();
+  const { tasks, notes, userProfile, weeklyCoach, notesDocs, setHud } = useSynapse();
   const { totalDeepWorkMinutesToday, history: focusHistory } = useFocusStore();
 
   const [activeTab, setActiveTab] = useState<'matrix' | 'infographic' | 'tech'>('matrix');
   const [hoveredCell, setHoveredCell] = useState<DayActivityCell | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<'csv' | 'txt' | null>(null);
+
+  const handleExport = async (format: 'csv' | 'txt') => {
+    setExportingFormat(format);
+    try {
+      const data = buildWeeklyReportData(tasks, notes, weeklyCoach, {
+        userName: userProfile?.full_name || 'Dasturchi',
+      });
+      const res = await exportWeeklyReportToFile(format, data);
+      if (res.success) {
+        setHud(
+          format === 'csv'
+            ? '📊 Haftalik hisobot Excel (.csv) formatida yuklab olindi'
+            : '📄 Haftalik hisobot Matn (.txt) formatida yuklab olindi'
+        );
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      setHud('Hisobotni eksport qilishda xatolik yuz berdi');
+    } finally {
+      setExportingFormat(null);
+    }
+  };
 
   // Memoized matrix and weekly report
   const matrixSummary = useMemo(() => {
@@ -420,12 +446,32 @@ export default function DeveloperHealthModal({ open, onClose }: DeveloperHealthM
             <span>⏱ Deep Work: {totalDeepWorkMinutesToday} min</span>
           </div>
 
-          <button
-            onClick={onClose}
-            className="rounded-xl bg-white/10 hover:bg-white/15 px-4 py-2 font-semibold text-white transition"
-          >
-            Yopish
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleExport('csv')}
+              disabled={exportingFormat !== null}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition active:scale-95 disabled:opacity-50"
+              title="Haftalik hisobotni Excel (.csv) ko‘rinishida yuklab olish"
+            >
+              <FileSpreadsheet size={13} />
+              <span>{exportingFormat === 'csv' ? 'Yuklanmoqda...' : 'Excel (.csv)'}</span>
+            </button>
+            <button
+              onClick={() => handleExport('txt')}
+              disabled={exportingFormat !== null}
+              className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-3 py-1.5 text-xs font-semibold text-sky-300 transition active:scale-95 disabled:opacity-50"
+              title="Haftalik hisobotni Matn (.txt) ko‘rinishida yuklab olish"
+            >
+              <FileText size={13} />
+              <span>{exportingFormat === 'txt' ? 'Yuklanmoqda...' : 'Matn (.txt)'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-xl bg-white/10 hover:bg-white/15 px-4 py-1.5 font-semibold text-white transition"
+            >
+              Yopish
+            </button>
+          </div>
         </div>
       </div>
     </div>

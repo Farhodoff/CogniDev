@@ -10,7 +10,7 @@ let idbPromise: Promise<IDBDatabase> | null = null;
 
 function getIndexedDb(): Promise<IDBDatabase> {
   if (idbPromise) return idbPromise;
-  idbPromise = new Promise((resolve, reject) => {
+  idbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
       return reject(new Error('IndexedDB is not supported'));
     }
@@ -23,6 +23,9 @@ function getIndexedDb(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  }).catch((err) => {
+    idbPromise = null;
+    throw err;
   });
   return idbPromise;
 }
@@ -89,11 +92,16 @@ export async function persistMeetingAudio(
  * - If saved in IndexedDB, retrieves the Blob and creates Object URL.
  */
 export async function resolveMeetingAudioUrl(meeting: MeetingItem): Promise<string | null> {
-  if (meeting.audio_url && !meeting.audio_url.startsWith('blob:null')) {
-    // Check if playable or still valid
+  // If it's a persistent data URI or external URL, return it directly
+  if (
+    meeting.audio_url &&
+    (meeting.audio_url.startsWith('data:') ||
+      (meeting.audio_url.startsWith('http') && !meeting.audio_url.startsWith('blob:')))
+  ) {
     return meeting.audio_url;
   }
 
+  // If in Tauri desktop and we have a local disk audio_path, read from disk (most reliable across app restarts)
   if (isTauri && meeting.audio_path) {
     try {
       const dataUrl = await invoke<string>('read_meeting_audio', {
@@ -105,7 +113,7 @@ export async function resolveMeetingAudioUrl(meeting: MeetingItem): Promise<stri
     }
   }
 
-  // Check IndexedDB
+  // Check IndexedDB (works in browser and Webview across sessions)
   try {
     const db = await getIndexedDb();
     const blob = await new Promise<Blob | undefined>((resolve, reject) => {
@@ -120,6 +128,11 @@ export async function resolveMeetingAudioUrl(meeting: MeetingItem): Promise<stri
     }
   } catch (err) {
     console.warn('IndexedDB dan audio olishda xatolik:', err);
+  }
+
+  // Fallback to existing audio_url if still in the same session
+  if (meeting.audio_url && !meeting.audio_url.startsWith('blob:null')) {
+    return meeting.audio_url;
   }
 
   return null;

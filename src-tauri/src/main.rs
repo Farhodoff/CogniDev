@@ -84,6 +84,39 @@ fn stt_status() -> SttStatus {
 }
 
 #[tauri::command]
+async fn download_rubai_model() -> Result<String, String> {
+    let home = home_dir();
+    let model_dir = format!("{}/.cognidev/models", home);
+    let model_file = format!("{}/ggml-rubaistt.bin", model_dir);
+
+    if std::path::Path::new(&model_file).is_file() {
+        return Ok("Model allaqachon yuklab olingan".to_string());
+    }
+
+    if let Err(e) = std::fs::create_dir_all(&model_dir) {
+        return Err(format!("Papka yaratishda xatolik: {e}"));
+    }
+
+    let url = "https://github.com/MuhammadMirrr/uzbek-dictation/releases/download/v1.0/ggml-rubaistt.bin";
+    let output = std::process::Command::new("curl")
+        .args(["-L", "-f", "-s", "-S", "-o", &model_file, url])
+        .output()
+        .map_err(|e| format!("curl ishga tushirishda xatolik: {e}"))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let _ = std::fs::remove_file(&model_file);
+        return Err(format!("Modelni yuklab olishda xatolik: {err}"));
+    }
+
+    if !std::path::Path::new(&model_file).is_file() {
+        return Err("Model fayli yaratilmadi".to_string());
+    }
+
+    Ok("Model muvaffaqiyatli yuklab olindi".to_string())
+}
+
+#[tauri::command]
 fn open_mic_settings() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -991,7 +1024,8 @@ fn main() {
             update_tray_focus,
             show_system_notification,
             schedule_system_notification,
-            cancel_scheduled_notification
+            cancel_scheduled_notification,
+            download_rubai_model
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

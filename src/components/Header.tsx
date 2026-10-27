@@ -14,6 +14,7 @@ import {
   X,
   Sparkles,
   FileText,
+  FileSpreadsheet,
   Lightbulb,
   Briefcase,
   Bell,
@@ -34,7 +35,7 @@ import GithubIcon from './GithubIcon';
 import { useSynapse } from '../lib/store';
 import { isTauri } from '../lib/vault';
 import { isMac, formatShortcut } from '../lib/platform';
-import { rubaiStatus } from '../lib/stt';
+import { rubaiStatus, downloadRubaiModel } from '../lib/stt';
 import { enabledProviders } from '../lib/providers';
 import { checkAppUpdate } from '../lib/updater';
 import { fetchGitRepoInfo } from '../lib/git';
@@ -86,6 +87,7 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
     toggleSoundEnabled,
     deleteReminder,
     testNotification,
+    triggerWeeklyCoach,
   } = useSynapse();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -432,6 +434,19 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
                 </button>
                 <button
                   onClick={() => {
+                    triggerWeeklyCoach();
+                    setSettingsOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-zinc-200 hover:bg-white/5 rounded-lg transition"
+                >
+                  <FileSpreadsheet size={13} className="text-emerald-400" />
+                  <span>Haftalik Hisobot (Excel / TXT)</span>
+                  <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-px font-mono text-[9.5px] text-emerald-300">
+                    Eksport
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
                     setBackupModalTab('import');
                     setBackupModalOpen(true);
                     setSettingsOpen(false);
@@ -657,7 +672,10 @@ export default function Header({ onPalette }: { onPalette: () => void }) {
 function SttStatusRow() {
   const [label, setLabel] = useState('RubaiSTT tekshirilmoqda…');
   const [ok, setOk] = useState(false);
-  useEffect(() => {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadMsg, setDownloadMsg] = useState<string | null>(null);
+
+  const check = () => {
     rubaiStatus()
       .then((s) => {
         if (s?.ready) {
@@ -665,18 +683,62 @@ function SttStatusRow() {
           setLabel('RubaiSTT · rubaistt v2 (lokal, tayyor)');
         } else {
           setOk(false);
-          setLabel('RubaiSTT topilmadi (faqat Web Speech)');
+          setLabel('RubaiSTT modeli topilmadi (Cloud/Web STT)');
         }
       })
       .catch(() => {
         setOk(false);
-        setLabel('RubaiSTT topilmadi (faqat Web Speech)');
+        setLabel('RubaiSTT modeli topilmadi (Cloud/Web STT)');
       });
+  };
+
+  useEffect(() => {
+    check();
   }, []);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloading(true);
+    setDownloadMsg('Model yuklanmoqda (~140MB)...');
+    try {
+      const res = await downloadRubaiModel();
+      if (res.ok) {
+        setDownloadMsg('Muvaffaqiyatli yuklandi!');
+        check();
+        setTimeout(() => setDownloadMsg(null), 4000);
+      } else {
+        setDownloadMsg(`Xatolik: ${res.message}`);
+        setTimeout(() => setDownloadMsg(null), 5000);
+      }
+    } catch (err: any) {
+      setDownloadMsg(`Xato: ${err?.message || 'Yuklab bo‘lmadi'}`);
+      setTimeout(() => setDownloadMsg(null), 5000);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
-    <div className="mt-1 flex items-center gap-2 border-t border-white/[0.06] px-3 py-1.5" title={label}>
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ok ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
-      <span className="truncate font-mono text-[10px] text-zinc-500">{label}</span>
+    <div className="mt-1 flex flex-col gap-1 border-t border-white/[0.06] px-3 py-1.5" title={label}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 truncate">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          <span className="truncate font-mono text-[10px] text-zinc-400">{label}</span>
+        </div>
+        {!ok && isTauri && (
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="shrink-0 rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-300 hover:bg-cyan-500/30 disabled:opacity-50 transition"
+          >
+            {downloading ? 'Yuklanmoqda…' : '📥 Yuklash (~140MB)'}
+          </button>
+        )}
+      </div>
+      {downloadMsg && (
+        <span className="font-mono text-[9px] text-cyan-400/90">{downloadMsg}</span>
+      )}
     </div>
   );
 }

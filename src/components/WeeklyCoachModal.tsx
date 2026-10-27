@@ -1,7 +1,21 @@
 import { useState } from 'react';
-import { Sparkles, X, CheckCircle2, AlertTriangle, Lightbulb, RefreshCw, Copy, Check, TrendingUp } from 'lucide-react';
+import {
+  Sparkles,
+  X,
+  CheckCircle2,
+  AlertTriangle,
+  Lightbulb,
+  RefreshCw,
+  Copy,
+  Check,
+  TrendingUp,
+  FileSpreadsheet,
+  FileText,
+  Download,
+} from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { SOURCE_LABELS, type AiSource } from '../lib/providers';
+import { buildWeeklyReportData, exportWeeklyReportToFile } from '../lib/weeklyReportExport';
 
 export default function WeeklyCoachModal() {
   const {
@@ -11,10 +25,14 @@ export default function WeeklyCoachModal() {
     triggerWeeklyCoach,
     setDeveloperHealthModal,
     setHud,
+    tasks,
+    notes,
+    userProfile,
   } = useSynapse();
 
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'csv' | 'txt' | null>(null);
 
   if (!showWeeklyCoachModal || !weeklyCoach) return null;
 
@@ -24,6 +42,29 @@ export default function WeeklyCoachModal() {
       await triggerWeeklyCoach();
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleExport(format: 'csv' | 'txt') {
+    if (!weeklyCoach) return;
+    setExportingFormat(format);
+    try {
+      const data = buildWeeklyReportData(tasks, notes, weeklyCoach, {
+        userName: userProfile?.full_name || 'Dasturchi',
+      });
+      const res = await exportWeeklyReportToFile(format, data);
+      if (res.success) {
+        setHud(
+          format === 'csv'
+            ? '📊 Haftalik hisobot Excel (.csv) formatida yuklab olindi'
+            : '📄 Haftalik hisobot Matn (.txt) formatida yuklab olindi'
+        );
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      setHud('Hisobotni eksport qilishda xatolik yuz berdi');
+    } finally {
+      setExportingFormat(null);
     }
   }
 
@@ -143,6 +184,39 @@ export default function WeeklyCoachModal() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* Haftalik Hisobotni Yuklab Olish (Export) */}
+          <div className="rounded-xl border border-white/[0.08] bg-gradient-to-r from-emerald-500/[0.04] via-sky-500/[0.04] to-violet-500/[0.04] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-[13px] font-bold text-white flex items-center gap-2">
+                <Download size={15} className="text-emerald-400" />
+                <span>Haftalik Hisobotni Yuklab Olish</span>
+              </h4>
+              <p className="text-[11.5px] text-zinc-400 mt-0.5">
+                Bajarilgan ishlar, to‘siqlar va AI tavsiyalarini hisobotingiz uchun faylga saqlang
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => handleExport('csv')}
+                disabled={exportingFormat !== null}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 text-[12px] font-semibold text-emerald-300 transition active:scale-95 disabled:opacity-50"
+                title="Microsoft Excel / Numbers / Google Sheets uchun CSV"
+              >
+                <FileSpreadsheet size={14} />
+                <span>{exportingFormat === 'csv' ? 'Yuklanmoqda...' : 'Excel (.csv)'}</span>
+              </button>
+              <button
+                onClick={() => handleExport('txt')}
+                disabled={exportingFormat !== null}
+                className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-3 py-1.5 text-[12px] font-semibold text-sky-300 transition active:scale-95 disabled:opacity-50"
+                title="Formatlangan matn yoki Markdown hujjati"
+              >
+                <FileText size={14} />
+                <span>{exportingFormat === 'txt' ? 'Yuklanmoqda...' : 'Matn (.txt)'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
