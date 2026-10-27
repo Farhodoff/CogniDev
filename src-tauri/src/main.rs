@@ -97,7 +97,8 @@ async fn download_rubai_model() -> Result<String, String> {
         return Err(format!("Papka yaratishda xatolik: {e}"));
     }
 
-    let url = "https://github.com/MuhammadMirrr/uzbek-dictation/releases/download/v1.0/ggml-rubaistt.bin";
+    let url =
+        "https://github.com/MuhammadMirrr/uzbek-dictation/releases/download/v1.0/ggml-rubaistt.bin";
     let output = std::process::Command::new("curl")
         .args(["-L", "-f", "-s", "-S", "-o", &model_file, url])
         .output()

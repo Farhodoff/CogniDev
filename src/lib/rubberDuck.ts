@@ -143,9 +143,9 @@ export async function diagnoseErrorWithRubberDuck({
 
   const historyContextText = historicalMatches.length
     ? `\nO'tmishda foydalanuvchi hal qilgan o'xshash xatolar:\n` +
-      historicalMatches
-        .map((m) => `- [${m.sourceType.toUpperCase()}] "${m.title}": ${m.matchedSnippet}`)
-        .join('\n')
+    historicalMatches
+      .map((m) => `- [${m.sourceType.toUpperCase()}] "${m.title}": ${m.matchedSnippet}`)
+      .join('\n')
     : '';
 
   const systemPrompt = `Siz professional dasturiy ta'minot muhandisi va o'ta zukko "AI Rubber Duck" (Rezina o'rdak) debaggerisiz.
@@ -195,11 +195,11 @@ ${historyContextText}`;
         recommendedFix: parsed.recommendedFix || 'Tegishli parametrni tekshirib qayta ishga tushiring.',
         codePatch: parsed.codePatch
           ? {
-              language: parsed.codePatch.language || 'typescript',
-              originalSnippet: parsed.codePatch.originalSnippet || codeSnippet,
-              fixedSnippet: parsed.codePatch.fixedSnippet || codeSnippet,
-              diffSummary: parsed.codePatch.diffSummary || 'Xatolik to‘g‘rilandi.',
-            }
+            language: parsed.codePatch.language || 'typescript',
+            originalSnippet: parsed.codePatch.originalSnippet || codeSnippet,
+            fixedSnippet: parsed.codePatch.fixedSnippet || codeSnippet,
+            diffSummary: parsed.codePatch.diffSummary || 'Xatolik to‘g‘rilandi.',
+          }
           : undefined,
         preventiveAdvice: parsed.preventiveAdvice || 'Kodni yozishdan oldin tiplarni qatʼiy tekshiring.',
         tags: parsed.tags || ['bugfix', 'debugging'],
@@ -217,10 +217,10 @@ ${historyContextText}`;
       recommendedFix: text,
       codePatch: codeSnippet.trim()
         ? {
-            language: 'typescript',
-            fixedSnippet: codeSnippet,
-            diffSummary: 'Tavsiya etilgan tuzatish.',
-          }
+          language: 'typescript',
+          fixedSnippet: codeSnippet,
+          diffSummary: 'Tavsiya etilgan tuzatish.',
+        }
         : undefined,
       preventiveAdvice: 'Unit testlar yozish va xatoliklarni oldindan tutish tavsiya etiladi.',
       tags: ['debugging', 'patch'],
@@ -235,10 +235,10 @@ ${historyContextText}`;
     const inferredType = errorMessage.toLowerCase().includes('null') || errorMessage.toLowerCase().includes('undefined')
       ? 'Null / Undefined Pointer Xatoligi'
       : errorMessage.toLowerCase().includes('cors')
-      ? 'CORS Xavfsizlik Siyosati Xatosi'
-      : errorMessage.toLowerCase().includes('borrow') || errorMessage.toLowerCase().includes('lifetime')
-      ? 'Rust Borrow Checker & Xotira Bog‘lanishi'
-      : 'Runtime / Compiler Istisnosi';
+        ? 'CORS Xavfsizlik Siyosati Xatosi'
+        : errorMessage.toLowerCase().includes('borrow') || errorMessage.toLowerCase().includes('lifetime')
+          ? 'Rust Borrow Checker & Xotira Bog‘lanishi'
+          : 'Runtime / Compiler Istisnosi';
 
     return {
       errorType: inferredType,
@@ -247,11 +247,11 @@ ${historyContextText}`;
       recommendedFix: `1. O‘zgaruvchining qiymatini null/undefined ga tekshiring (optional chaining ?.).\n2. Loglarni va stack trace ko‘rsatgan qatorni qayta ko‘rib chiqing.`,
       codePatch: codeSnippet.trim()
         ? {
-            language: 'typescript',
-            originalSnippet: codeSnippet,
-            fixedSnippet: `// Tekshiruv bilan himoyalangan kod:\nif (data) {\n  ${codeSnippet.trim()}\n}`,
-            diffSummary: 'Null-safe tekshiruv qo‘shildi.',
-          }
+          language: 'typescript',
+          originalSnippet: codeSnippet,
+          fixedSnippet: `// Tekshiruv bilan himoyalangan kod:\nif (data) {\n  ${codeSnippet.trim()}\n}`,
+          diffSummary: 'Null-safe tekshiruv qo‘shildi.',
+        }
         : undefined,
       preventiveAdvice: 'TypeScript strict rejimini yoqish yoki mudofaa dasturlash (defensive coding) qoidalariga rioya qilish.',
       tags: ['offline-diagnostic', 'safe-check'],
