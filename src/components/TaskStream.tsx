@@ -6,12 +6,10 @@ import {
   Trash2,
   ArrowUpDown,
   Search,
-  CheckCircle2,
   ListTodo,
   X,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
-import type { Task } from '../lib/types';
 
 export default function TaskStream() {
   const {

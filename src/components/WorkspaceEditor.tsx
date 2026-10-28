@@ -7,8 +7,6 @@ import {
   Trash2,
   ListTodo,
   Circle,
-  Clock,
-  Sparkles,
 } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { useFocusStore } from '../lib/focusStore';
