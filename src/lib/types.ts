@@ -346,7 +346,7 @@ export interface ProjectIdea {
 }
 
 export type EditorTab = 'note' | 'thread';
-export type QuickFilter = 'mine' | 'high' | 'claude' | 'gemini' | 'solved' | 'knowledge' | null;
+export type QuickFilter = 'mine' | 'high' | 'claude' | 'gemini' | 'solved' | 'knowledge' | 'active' | 'completed' | 'all' | null;
 export type NavView = 'stream' | 'solved' | 'knowledge' | 'vault';
 
 export interface WeeklyCoachInsight {

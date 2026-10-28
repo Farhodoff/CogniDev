@@ -1,418 +1,372 @@
-import { useState } from 'react';
-import { ArrowUpDown, SlidersHorizontal, Terminal, Inbox, Check, Send, Bot, Calendar, CheckCircle2 } from 'lucide-react';
-import { filteredTasks, useSynapse } from '../lib/store';
-import type { QuickFilter, Task } from '../lib/types';
-
-const FILTERS: Array<{ id: Exclude<QuickFilter, null>; label: string }> = [
-  { id: 'high', label: "P0 To'siqlar" },
-  { id: 'solved', label: 'Hal qilingan' },
-  { id: 'knowledge', label: 'Bilimlar bazasi' },
-  { id: 'claude', label: 'Claude' },
-  { id: 'gemini', label: 'Gemini' },
-];
+import React, { useState, useMemo } from 'react';
+import {
+  CheckSquare,
+  Plus,
+  Check,
+  Trash2,
+  ArrowUpDown,
+  Search,
+  CheckCircle2,
+  ListTodo,
+  X,
+} from 'lucide-react';
+import { useSynapse } from '../lib/store';
+import type { Task } from '../lib/types';
 
 export default function TaskStream() {
   const {
     tasks,
     selectedTaskId,
     selectTask,
-    quickFilter,
-    setFilter,
+    updateTaskStatus,
+    deleteTask,
+    quickCapture,
+    activeWorkspaceId,
     sortOrder,
     setSortOrder,
-    activeWorkspaceId,
-    search,
-    quickCapture,
-    notes,
-    prompts,
-    activeGroupId,
-    groups,
-    setActiveGroup,
-    activeTag,
-    setActiveTag,
-    userProfile,
   } = useSynapse();
 
-  const [sortOpen, setSortOpen] = useState(false);
   const [quickInput, setQuickInput] = useState('');
+  const [tab, setTab] = useState<'all' | 'active' | 'completed'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOpen, setSortOpen] = useState(false);
 
-  const workspaceTasks = tasks.filter((t) => t.workspace_id === activeWorkspaceId);
-  const visible = filteredTasks(tasks, quickFilter, search, activeWorkspaceId, sortOrder, activeGroupId, activeTag, userProfile?.full_name);
-  const activeCount = workspaceTasks.filter(
-    (t) => t.status === 'active' || t.status === 'blocker' || t.status === 'in_review',
-  ).length;
+  // Faqat joriy ish maydoniga tegishli vazifalar
+  const workspaceTasks = useMemo(() => {
+    return tasks.filter(
+      (t) =>
+        t.workspace_id === activeWorkspaceId ||
+        (!t.workspace_id && activeWorkspaceId === 'personal') ||
+        (t.workspace_id === 'default' && activeWorkspaceId === 'personal'),
+    );
+  }, [tasks, activeWorkspaceId]);
 
-  const activeGroup = groups.find((g) => g.id === activeGroupId);
-
-  const [todayLabel] = useState(
-    () => new Date().toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' }),
+  const activeCount = useMemo(
+    () => workspaceTasks.filter((t) => t.status !== 'completed').length,
+    [workspaceTasks],
+  );
+  const completedCount = useMemo(
+    () => workspaceTasks.filter((t) => t.status === 'completed').length,
+    [workspaceTasks],
   );
 
-  async function handleQuickCapture(e: React.FormEvent) {
+  // Saralash va qidiruv bo'yicha filtrlash
+  const visibleTasks = useMemo(() => {
+    let list = workspaceTasks;
+
+    if (tab === 'active') {
+      list = list.filter((t) => t.status !== 'completed');
+    } else if (tab === 'completed') {
+      list = list.filter((t) => t.status === 'completed');
+    }
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (t) => t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q),
+      );
+    }
+
+    return [...list].sort((a, b) => {
+      if (sortOrder === 'title') {
+        return a.title.localeCompare(b.title);
+      }
+      if (sortOrder === 'oldest') {
+        return Date.parse(a.created_at) - Date.parse(b.created_at);
+      }
+      // default: newest
+      return (
+        Date.parse(b.created_at || b.updated_at) -
+        Date.parse(a.created_at || a.updated_at)
+      );
+    });
+  }, [workspaceTasks, tab, searchQuery, sortOrder]);
+
+  async function handleAddTask(e: React.FormEvent) {
     e.preventDefault();
-    if (!quickInput.trim()) return;
-    await quickCapture(quickInput.trim());
+    const text = quickInput.trim();
+    if (!text) return;
+    await quickCapture(text);
     setQuickInput('');
   }
 
   return (
-    <section className="flex w-[370px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0f1013]/60 relative">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pb-2 pt-3.5 border-b border-white/[0.04]">
-        <div className="flex items-center gap-2">
-          <h2 className="text-[13px] font-bold text-zinc-100 flex items-center gap-2">
-            Vazifalar Oqimi
-          </h2>
-          <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300 font-mono text-[10.5px] font-semibold">
-            {activeCount} Faol
-          </span>
+    <section className="relative flex w-[380px] lg:w-[420px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0c0d12]/80 backdrop-blur-md select-none h-full overflow-hidden">
+      {/* Sarlavha paneli */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/20">
+            <ListTodo size={15} />
+          </div>
+          <div>
+            <h2 className="text-[13.5px] font-bold text-zinc-100 leading-none">
+              Vazifalar
+            </h2>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              {activeCount > 0
+                ? `${activeCount} ta bajarilmagan vazifa`
+                : 'Barcha vazifalar bajarildi'}
+            </p>
+          </div>
         </div>
 
-        <div className="relative flex items-center gap-1 text-zinc-500">
-          {/* Saralash tugmasi */}
+        {/* Saralash menyusi */}
+        <div className="relative">
           <button
             onClick={() => setSortOpen((v) => !v)}
-            className={`rounded-lg p-1.5 hover:bg-white/5 transition ${sortOpen ? 'bg-white/10 text-zinc-200' : 'hover:text-zinc-200'}`}
-            title="Saralash"
+            className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
+              sortOpen
+                ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                : 'border-white/[0.08] bg-white/[0.03] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
+            }`}
+            title="Saralash tartibi"
           >
-            <ArrowUpDown size={14} />
+            <ArrowUpDown size={12} />
+            <span>
+              {sortOrder === 'newest'
+                ? 'Yangi'
+                : sortOrder === 'oldest'
+                ? 'Avvalgi'
+                : 'A-Z'}
+            </span>
           </button>
+
           {sortOpen && (
-            <div className="absolute right-0 top-8 z-50 w-48 overflow-hidden rounded-xl border border-white/10 bg-[#17181d] shadow-2xl py-1">
-              <p className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500 border-b border-white/[0.06]">
-                Saralash tartibi
-              </p>
-              <SortItem label="Eng yangi" active={sortOrder === 'newest'} onClick={() => { setSortOrder('newest'); setSortOpen(false); }} />
-              <SortItem label="Avvalgi" active={sortOrder === 'oldest'} onClick={() => { setSortOrder('oldest'); setSortOpen(false); }} />
-              <SortItem label="Muhimlik darajasi" active={sortOrder === 'priority'} onClick={() => { setSortOrder('priority'); setSortOpen(false); }} />
-              <SortItem label="Nomi (A-Z)" active={sortOrder === 'title'} onClick={() => { setSortOrder('title'); setSortOpen(false); }} />
-            </div>
-          )}
-
-          {/* Filtrni tozalash / boshqarish */}
-          <button
-            onClick={() => setFilter(quickFilter ? null : 'high')}
-            className={`rounded-lg p-1.5 hover:bg-white/5 transition ${quickFilter ? 'bg-sky-500/20 text-sky-300' : 'hover:text-zinc-200'}`}
-            title={quickFilter ? "Filtrni bekor qilish" : "Muhimlarini filtrlash"}
-          >
-            <SlidersHorizontal size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Kun dropdown va filtr teglari */}
-      <div className="px-3.5 pt-2.5 pb-2 border-b border-white/[0.04]">
-        <div className="flex items-center gap-1.5 pb-2 text-[11.5px] font-medium text-zinc-400">
-          <Calendar size={13} className="text-zinc-500" />
-          <span>Bugun</span>
-          <span className="text-zinc-600">· {todayLabel}</span>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {FILTERS.map((f) => {
-            const on = quickFilter === f.id;
-            return (
+            <div className="absolute right-0 top-8 z-50 w-40 overflow-hidden rounded-xl border border-white/10 bg-[#16171d] shadow-2xl py-1 text-[12px]">
               <button
-                key={f.id}
-                onClick={() => setFilter(on ? null : f.id)}
-                className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition ${
-                  on
-                    ? 'border-sky-400/60 bg-sky-500/20 text-sky-200 shadow-[0_0_12px_-2px_rgba(56,189,248,0.6)]'
-                    : 'border-white/[0.08] bg-white/[0.03] text-zinc-400 hover:text-zinc-200'
+                onClick={() => {
+                  setSortOrder('newest');
+                  setSortOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-3 py-1.5 hover:bg-white/5 ${
+                  sortOrder === 'newest'
+                    ? 'text-sky-300 font-semibold'
+                    : 'text-zinc-300'
                 }`}
               >
-                {f.label}
+                Eng yangi {sortOrder === 'newest' && <Check size={12} />}
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Active Squad / Group Filter Banner */}
-      {activeGroup && (
-        <div className="mx-3.5 mt-2 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11.5px]">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: activeGroup.color }} />
-            <span className="font-semibold text-white">{activeGroup.name}</span>
-            <span className="text-zinc-500 font-mono text-[10px]">Squad</span>
-          </div>
-          <button
-            onClick={() => setActiveGroup(null)}
-            className="text-[11px] text-zinc-400 hover:text-white transition"
-          >
-            Barchasi
-          </button>
-        </div>
-      )}
-
-      {/* Active Tag Filter Banner */}
-      {activeTag && (
-        <div className="mx-3.5 mt-2 flex items-center justify-between rounded-xl border border-violet-400/25 bg-violet-500/[0.08] px-3 py-1.5 text-[11.5px]">
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-semibold text-violet-200">#{activeTag}</span>
-            <span className="text-zinc-500 font-mono text-[10px]">Teg</span>
-          </div>
-          <button
-            onClick={() => setActiveTag(null)}
-            className="text-[11px] text-zinc-400 hover:text-white transition"
-          >
-            Barchasi
-          </button>
-        </div>
-      )}
-
-      {/* Vazifalar ro'yxati */}
-      <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3 pb-20">
-        {(() => {
-          const activeVisible = visible.filter((t) => t.status !== 'completed');
-          const completedVisible = visible.filter((t) => t.status === 'completed');
-
-          return (
-            <>
-              {activeVisible.map((t) => {
-                const grp = groups.find((g) => g.id === t.group_id);
-                return (
-                  <TaskCard
-                    key={t.id}
-                    task={t}
-                    selected={t.id === selectedTaskId}
-                    groupName={grp?.name}
-                    groupColor={grp?.color}
-                    noteSnippet={notes[t.id]}
-                    promptSnippet={prompts.find((p) => p.task_id === t.id)?.raw_prompt}
-                    onSelect={() => selectTask(t.id)}
-                    onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
-                  />
-                );
-              })}
-
-              {completedVisible.length > 0 && (
-                <div className="pt-2">
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-zinc-500">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Arxiv / Bajarilgan
-                    </span>
-                    <span className="rounded-full bg-emerald-500/15 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-medium text-emerald-400">
-                      {completedVisible.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2 opacity-75 hover:opacity-100 transition">
-                    {completedVisible.map((t) => {
-                      const grp = groups.find((g) => g.id === t.group_id);
-                      return (
-                        <TaskCard
-                          key={t.id}
-                          task={t}
-                          selected={t.id === selectedTaskId}
-                          groupName={grp?.name}
-                          groupColor={grp?.color}
-                          noteSnippet={notes[t.id]}
-                          promptSnippet={prompts.find((p) => p.task_id === t.id)?.raw_prompt}
-                          onSelect={() => selectTask(t.id)}
-                          onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-
-        {/* 0 ta vazifa bo'lgandagi bo'sh holat */}
-        {workspaceTasks.length === 0 && (
-          <div className="mx-1 my-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.01] px-4 py-8 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-zinc-400 shadow-inner">
-              <Inbox size={18} />
+              <button
+                onClick={() => {
+                  setSortOrder('oldest');
+                  setSortOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-3 py-1.5 hover:bg-white/5 ${
+                  sortOrder === 'oldest'
+                    ? 'text-sky-300 font-semibold'
+                    : 'text-zinc-300'
+                }`}
+              >
+                Avvalgilari {sortOrder === 'oldest' && <Check size={12} />}
+              </button>
+              <button
+                onClick={() => {
+                  setSortOrder('title');
+                  setSortOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-3 py-1.5 hover:bg-white/5 ${
+                  sortOrder === 'title'
+                    ? 'text-sky-300 font-semibold'
+                    : 'text-zinc-300'
+                }`}
+              >
+                Nomi bo'yicha (A-Z) {sortOrder === 'title' && <Check size={12} />}
+              </button>
             </div>
-            <p className="mt-3 text-[13px] font-medium text-zinc-300">
-              Ushbu ish maydonida faol vazifalar yo'q.
-            </p>
-            <p className="mt-1 text-[12px] leading-relaxed text-zinc-500">
-              Quyidagi qatordan yangi ish, yechilgan xato yoki bilimni tezda yozib qoldiring.
-            </p>
-          </div>
-        )}
-
-        {/* Qidiruv/filtr bo'yicha topilmaganda */}
-        {workspaceTasks.length > 0 && visible.length === 0 && (
-          <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center">
-            <p className="text-[13px] text-zinc-500">
-              Ushbu filtr bo'yicha hech qanday vazifa topilmadi.
-            </p>
-            <button
-              onClick={() => { setFilter(null); setActiveTag(null); }}
-              className="mt-2 text-[12px] text-sky-400 hover:underline"
-            >
-              Filtrni tozalash
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Tezkor kiritish (Quick Capture) - Pastki panel */}
-      <div className="p-2.5 border-t border-white/[0.08] bg-[#0f1013]/95 backdrop-blur-md absolute bottom-0 inset-x-0">
-        <form onSubmit={handleQuickCapture} className="relative flex items-center">
+      {/* Yuqoridagi tezkor vazifa yozish kiritish qatori (To-Do Input) */}
+      <div className="p-3 border-b border-white/[0.05] bg-white/[0.015]">
+        <form onSubmit={handleAddTask} className="relative flex items-center">
           <input
             value={quickInput}
             onChange={(e) => setQuickInput(e.target.value)}
-            placeholder="Bugun nima qildingiz? (Enter)"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-3 pr-9 text-[12px] text-zinc-200 placeholder:text-zinc-500 focus:border-sky-400 focus:outline-none transition shadow-inner"
+            placeholder="Yangi vazifa yozing va Enter bosing..."
+            className="w-full rounded-xl border border-white/10 bg-black/40 py-2.5 pl-3.5 pr-20 text-[13px] text-zinc-100 placeholder:text-zinc-500 focus:border-sky-400 focus:bg-black/60 focus:outline-none transition shadow-inner"
           />
           <button
             type="submit"
             disabled={!quickInput.trim()}
-            className="absolute right-1.5 p-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500 hover:text-white disabled:opacity-20 transition"
-            title="Qayd qilish"
+            className="absolute right-1.5 flex items-center gap-1 rounded-lg bg-sky-500 px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-sky-400 disabled:opacity-20 disabled:hover:bg-sky-500 transition shadow-sm"
           >
-            <Send size={13} />
+            <Plus size={13} strokeWidth={2.5} />
+            <span>Qo'shish</span>
           </button>
         </form>
       </div>
-    </section>
-  );
-}
 
-function SortItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12.5px] hover:bg-white/5 transition ${active ? 'text-sky-300 font-semibold' : 'text-zinc-300'}`}
-    >
-      <span>{label}</span>
-      {active && <Check size={13} className="text-sky-400" />}
-    </button>
-  );
-}
-
-function keyStyle(t: Task): string {
-  if (t.status === 'completed') return 'bg-emerald-500/15 text-emerald-300';
-  if (t.priority === 'Critical') return 'bg-red-500/15 text-red-300';
-  return 'bg-sky-500/15 text-sky-300';
-}
-
-function statusBadge(t: Task): { label: string; cls: string } {
-  if (t.status === 'blocker') return { label: "P0 To'siq", cls: 'bg-amber-500/15 text-amber-300 border-amber-400/40' };
-  if (t.status === 'in_review') return { label: "Tekshiruvda", cls: 'bg-sky-500/12 text-sky-300 border-sky-400/30' };
-  if (t.status === 'completed') return { label: 'Bajarildi', cls: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/30' };
-  if (t.priority === 'Critical') return { label: "Kritik", cls: 'bg-pink-500/15 text-pink-300 border-pink-400/30' };
-  if (t.priority === 'High Priority') return { label: 'Yuqori', cls: 'bg-violet-500/12 text-violet-300 border-violet-400/30' };
-  return { label: 'Oddiy', cls: 'bg-zinc-500/12 text-zinc-300 border-zinc-500/30' };
-}
-
-function aiPill(ai: string): { label: React.ReactNode; cls: string } {
-  const low = ai.toLowerCase();
-  if (low.includes('claude')) return { label: ai, cls: 'border-violet-400/25 bg-violet-500/10 text-violet-200' };
-  if (low.includes('gemini')) return { label: ai, cls: 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200' };
-  if (low.includes('ollama')) return { label: <span className="flex items-center gap-1"><Terminal size={10} /> {ai}</span>, cls: 'border-white/10 bg-white/[0.05] text-zinc-300' };
-  return { label: ai, cls: 'border-white/10 bg-white/[0.05] text-zinc-400' };
-}
-
-function TaskCard({
-  task,
-  selected,
-  onSelect,
-  noteSnippet,
-  promptSnippet,
-  groupName,
-  groupColor,
-  onTagClick,
-}: {
-  task: Task;
-  selected: boolean;
-  onSelect: () => void;
-  noteSnippet?: string;
-  promptSnippet?: string;
-  groupName?: string;
-  groupColor?: string;
-  onTagClick?: (tag: string) => void;
-}) {
-  const st = statusBadge(task);
-  const ai = task.ai_source ? aiPill(task.ai_source) : null;
-  const done = task.status === 'completed';
-
-  return (
-    <button
-      onClick={onSelect}
-      className={`w-full rounded-2xl border p-3.5 text-left transition ${
-        selected
-          ? 'border-sky-400/50 bg-gradient-to-b from-sky-500/[0.12] to-white/[0.02] shadow-[0_8px_30px_-12px_rgba(56,189,248,0.5)]'
-          : 'border-white/[0.06] bg-zinc-900/60 hover:border-white/[0.14] hover:bg-zinc-900'
-      }`}
-    >
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {task.priority === 'Critical' && <span className="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_6px_1px_rgba(248,113,113,0.8)]" />}
-        <span className={`rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold ${keyStyle(task)}`}>{task.id}</span>
-        <span className={`rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold ${st.cls}`}>{st.label}</span>
-        {groupName && (
-          <span
-            className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold border"
-            style={{
-              backgroundColor: `${groupColor || '#38bdf8'}18`,
-              borderColor: `${groupColor || '#38bdf8'}35`,
-              color: groupColor || '#38bdf8',
-            }}
+      {/* Filtr tablari: Barchasi | Faol | Bajarilgan va qidiruv */}
+      <div className="px-3 pt-2.5 pb-2 border-b border-white/[0.04] space-y-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setTab('all')}
+            className={`flex-1 rounded-lg py-1 px-2 text-[11.5px] font-semibold transition text-center ${
+              tab === 'all'
+                ? 'bg-sky-500/20 text-sky-200 border border-sky-400/40 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+            }`}
           >
-            {groupName}
-          </span>
-        )}
-        {done && (
-          <span className="ml-auto rounded-md border border-emerald-400/30 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1">
-            <CheckCircle2 size={11} /> Yechildi
-          </span>
-        )}
-      </div>
-
-      <p className={`mt-2 text-[13.5px] font-semibold leading-snug ${done ? 'text-zinc-400' : 'text-zinc-100'}`}>{task.title}</p>
-
-      {/* Attached AI Prompt Snippet Karta (Prototip dizayndagidek) */}
-      {(promptSnippet || task.ai_source) && (
-        <div className="mt-2.5 rounded-xl border border-white/[0.07] bg-black/40 p-2.5">
-          <div className="flex items-center gap-1.5 font-mono text-[10px] text-violet-300 mb-1">
-            <Bot size={11} />
-            <span>Biriktirilgan prompt ({task.ai_source ?? 'AI'})</span>
-          </div>
-          <p className="line-clamp-2 text-zinc-400 font-mono text-[11px] leading-relaxed">
-            {promptSnippet || (noteSnippet ? noteSnippet.replace(/^[#\s]+/, '').slice(0, 120) : "AI suhbati va kontekst ushbu vazifaga biriktirilgan...")}
-          </p>
+            Barchasi ({workspaceTasks.length})
+          </button>
+          <button
+            onClick={() => setTab('active')}
+            className={`flex-1 rounded-lg py-1 px-2 text-[11.5px] font-semibold transition text-center ${
+              tab === 'active'
+                ? 'bg-sky-500/20 text-sky-200 border border-sky-400/40 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+            }`}
+          >
+            Faol ({activeCount})
+          </button>
+          <button
+            onClick={() => setTab('completed')}
+            className={`flex-1 rounded-lg py-1 px-2 text-[11.5px] font-semibold transition text-center ${
+              tab === 'completed'
+                ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+            }`}
+          >
+            Bajarilgan ({completedCount})
+          </button>
         </div>
-      )}
 
-      {/* Teglar va bog'liqliklar */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        {ai && <span className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] ${ai.cls}`}>{ai.label}</span>}
-        {(task.tags ?? []).map((tag) => (
-          <span
-            key={tag}
-            onClick={(e) => { e.stopPropagation(); onTagClick?.(tag); }}
-            title={`#${tag} bo'yicha filtrlash`}
-            className="cursor-pointer rounded-md border border-violet-400/25 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-200 hover:bg-violet-500/25 transition"
-          >
-            #{tag}
-          </span>
-        ))}
-        {done && <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-200">#solved</span>}
-        {(task.assignee_avatar || task.assignee_avatar2) && (
-          <span className="ml-auto flex items-center">
-            {task.assignee_avatar && (
-              <Avatar letter={task.assignee_avatar} name={task.assignee_name} gradient="from-cyan-400 to-blue-600" />
+        {/* Tezkor qidiruv */}
+        <div className="relative flex items-center">
+          <Search
+            size={12}
+            className="absolute left-2.5 text-zinc-500 pointer-events-none"
+          />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Vazifalardan qidirish..."
+            className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] py-1 pl-7 pr-6 text-[11.5px] text-zinc-300 placeholder:text-zinc-600 focus:border-white/20 focus:outline-none"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 text-zinc-500 hover:text-zinc-300"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Vazifalar ro'yxati (To-Do List) */}
+      <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-1.5">
+        {visibleTasks.map((t) => {
+          const isDone = t.status === 'completed';
+          const isSelected = t.id === selectedTaskId;
+
+          return (
+            <div
+              key={t.id}
+              onClick={() => selectTask(t.id)}
+              className={`group relative flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer transition ${
+                isSelected
+                  ? 'border-sky-500/50 bg-sky-500/[0.09] shadow-[0_4px_16px_-4px_rgba(56,189,248,0.25)]'
+                  : 'border-white/[0.06] bg-zinc-900/40 hover:border-white/[0.14] hover:bg-zinc-900/80'
+              }`}
+            >
+              {/* Checkbox: bitta bosish bilan check/uncheck qilish */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateTaskStatus(t.id, isDone ? 'active' : 'completed');
+                }}
+                title={isDone ? 'Bajarilmaganga qaytarish' : 'Bajarildi deb belgilash'}
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border transition ${
+                  isDone
+                    ? 'border-emerald-500 bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                    : 'border-zinc-600 bg-white/[0.03] text-transparent hover:border-sky-400 hover:bg-sky-500/10'
+                }`}
+              >
+                <Check
+                  size={12}
+                  strokeWidth={3}
+                  className={isDone ? 'opacity-100' : 'opacity-0 group-hover:opacity-30 text-sky-300'}
+                />
+              </button>
+
+              {/* Vazifa matni va ID */}
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`text-[13px] leading-snug break-words transition ${
+                    isDone
+                      ? 'line-through text-zinc-500'
+                      : 'text-zinc-100 font-medium'
+                  }`}
+                >
+                  {t.title}
+                </p>
+                <div className="mt-0.5 flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-zinc-500">
+                    {t.id}
+                  </span>
+                  {t.updated_at && (
+                    <span className="text-[10px] text-zinc-600">
+                      {t.updated_at.slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* O'chirish tugmasi (faqat hover qilinganda) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteTask(t.id);
+                }}
+                title="Vazifani o'chirish"
+                className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-zinc-500 hover:bg-rose-500/20 hover:text-rose-400 transition"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Bo'sh holat: Hech qanday vazifa yo'q */}
+        {workspaceTasks.length === 0 && (
+          <div className="mx-2 my-10 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-6 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-3">
+              <CheckSquare size={22} />
+            </div>
+            <h4 className="text-[14px] font-semibold text-zinc-200">
+              Vazifalar ro'yxati bo'sh
+            </h4>
+            <p className="mt-1 text-[12px] text-zinc-500 max-w-[240px] leading-relaxed">
+              Yuqoridagi maydonga yangi vazifangizni yozib Enter tugmasini bosing.
+            </p>
+          </div>
+        )}
+
+        {/* Qidiruv yoki filtr bo'yicha hech narsa topilmadi */}
+        {workspaceTasks.length > 0 && visibleTasks.length === 0 && (
+          <div className="my-8 text-center px-4">
+            <p className="text-[12.5px] text-zinc-500">
+              {tab === 'active'
+                ? 'Barcha vazifalar bajarilgan! 🎉'
+                : tab === 'completed'
+                ? 'Bajarilgan vazifalar mavjud emas'
+                : 'Hech qanday vazifa topilmadi'}
+            </p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-2 text-[11.5px] text-sky-400 hover:underline"
+              >
+                Qidiruvni tozalash
+              </button>
             )}
-            {task.assignee_avatar2 && (
-              <span className="-ml-2"><Avatar letter={task.assignee_avatar2} name={task.assignee_name2} gradient="from-rose-400 to-orange-500" /></span>
-            )}
-          </span>
+          </div>
         )}
       </div>
-    </button>
-  );
-}
-
-function Avatar({ letter, name, gradient }: { letter: string; name: string | null; gradient: string }) {
-  return (
-    <span title={name ?? ''} className={`flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br text-[9.5px] font-bold text-white ring-2 ring-[#141519] ${gradient}`}>
-      {letter}
-    </span>
+    </section>
   );
 }

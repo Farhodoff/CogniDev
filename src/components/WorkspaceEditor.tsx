@@ -1,11 +1,21 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Check, FileText, MessagesSquare, Plus, Trash2, ChevronDown, Copy, Mic, Sparkles, X, Tag } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Check,
+  CheckSquare,
+  FileText,
+  Plus,
+  Trash2,
+  ListTodo,
+  Circle,
+  Clock,
+  Sparkles,
+} from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { useFocusStore } from '../lib/focusStore';
 
 /** Minimal markdown renderer: headings, code fences, inline code, bold, quote. */
 export function MiniMarkdown({ source }: { source: string }) {
-  const blocks = useMemo(() => renderMarkdown(source), [source]);
+  const blocks = React.useMemo(() => renderMarkdown(source), [source]);
   return <div className="space-y-3 text-[13.5px] leading-relaxed text-zinc-300">{blocks}</div>;
 }
 
@@ -61,626 +71,298 @@ function highlight(code: string, _lang: string): string {
     .replace(/\b(\d[\d_]*)\b/g, '<span style="color:#fbbf24">$1</span>');
 }
 
-function useInlineDictation(taskId: string | null, notes: Record<string, string>, updateNote: (id: string, md: string) => void) {
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [interim, setInterim] = useState('');
-  const [finalText, setFinalText] = useState('');
-  const recognitionRef = useRef<any>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const stop = useCallback(() => {
-    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch {} }
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
-    setRecording(false);
-  }, []);
-
-  const start = useCallback(() => {
-    if (!taskId) return;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert('Web Speech API not supported'); return; }
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = 'en-US';
-    recognitionRef.current = rec;
-
-    rec.onresult = (e: any) => {
-      let interimResult = '';
-      let finalResult = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i];
-        if (res.isFinal) finalResult += res[0].transcript + ' ';
-        else interimResult += res[0].transcript;
-      }
-      if (finalResult) {
-        setFinalText((prev) => prev + finalResult);
-        setInterim('');
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      } else if (interimResult) {
-        setInterim(interimResult);
-      }
-    };
-    rec.onerror = (e: any) => {
-      if (e.error !== 'no-speech') console.warn('SpeechRecognition error', e.error);
-    };
-    rec.start();
-    setRecording(true);
-    setSeconds(0);
-    timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-  }, [taskId]);
-
-  const commit = useCallback(() => {
-    if (!taskId) return;
-    const full = (finalText + interim).trim();
-    if (!full) return;
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const block = `\n\n---\n### Voice Memo (${now})\n${full}`;
-    updateNote(taskId, (notes[taskId] ?? '') + block);
-    setFinalText('');
-    setInterim('');
-  }, [taskId, notes, updateNote, finalText, interim]);
-
-  return { recording, seconds, interim, finalText, start, stop, commit };
-}
-
 export default function WorkspaceEditor() {
   const {
     tasks,
     selectedTaskId,
-    editorTab,
-    setTab,
     notes,
     checklists,
     toggleCheck,
     addChecklistItem,
     removeChecklistItem,
-    prompts,
     deleteTask,
     updateTaskStatus,
-    updateTaskPriority,
-    setTaskModal,
-    setChatModal,
+    updateTaskTitle,
     updateNote,
-    triggerWeeklyCoach,
-    groups,
-    assignTaskToGroup,
-    addTag,
-    removeTag,
   } = useSynapse();
-
-  const dictation = useInlineDictation(selectedTaskId, notes, updateNote);
-  const [editing, setEditing] = useState(false);
-  const [addingItem, setAddingItem] = useState(false);
-  const [newItemText, setNewItemText] = useState('');
 
   const task = tasks.find((t) => t.id === selectedTaskId);
   const note = selectedTaskId ? (notes[selectedTaskId] ?? '') : '';
   const list = selectedTaskId ? (checklists[selectedTaskId] ?? []) : [];
-  const threadCount = prompts.length;
 
+  const [titleDraft, setTitleDraft] = useState('');
+  const [addingItem, setAddingItem] = useState(false);
+  const [newItemText, setNewItemText] = useState('');
+
+  // Tanlangan vazifa o'zgarganda sarlavha draftini yangilash
+  useEffect(() => {
+    if (task) {
+      setTitleDraft(task.title);
+    }
+  }, [task?.id, task?.title]);
+
+  function handleTitleBlur() {
+    if (task && titleDraft.trim() && titleDraft.trim() !== task.title) {
+      updateTaskTitle(task.id, titleDraft.trim());
+    }
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (e.target as HTMLInputElement).blur();
+    }
+  }
+
+  // Tanlangan vazifa bo'lmaganda ko'rinadigan bo'sh holat
   if (!task) {
     return (
-      <main className="flex min-w-0 flex-1 flex-col items-center justify-center bg-[#0f1013]/80 p-8 text-center relative">
+      <main className="flex min-w-0 flex-1 flex-col items-center justify-center bg-[#0d0e13]/60 p-8 text-center relative select-none">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-zinc-500 shadow-inner">
-          <FileText size={26} className="text-zinc-400" />
+          <CheckSquare size={26} className="text-sky-400" />
         </div>
-        <h3 className="mt-4 text-[16px] font-semibold text-zinc-200">Hech qanday vazifa tanlanmagan</h3>
+        <h3 className="mt-4 text-[16px] font-semibold text-zinc-200">
+          Vazifa tanlanmagan
+        </h3>
         <p className="mt-1.5 max-w-sm text-[13px] text-zinc-500 leading-relaxed">
-          Chap tomondagi oqimdan kerakli vazifani tanlang yoki quyidagi tugma orqali yangi vazifa yarating.
+          Chap tomondagi ro'yxatdan biror vazifani tanlang yoki yuqoridagi maydondan yangi vazifa yozing.
         </p>
-        <button
-          onClick={() => setTaskModal(true)}
-          className="mt-5 flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-[13px] font-semibold text-white shadow-lg hover:brightness-110 transition"
-        >
-          <Plus size={15} /> Yangi Vazifa yaratish
-        </button>
       </main>
     );
   }
 
-  const isEditing = editing || !note;
+  const isDone = task.status === 'completed';
+  const completedSubtasks = list.filter((c) => c.done).length;
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col bg-[#0f1013]/80 relative overflow-hidden">
-      {/* Yuqori tablar */}
-      <div className="flex items-center gap-4 border-b border-white/[0.06] px-6 pt-3">
-        <TabBtn
-          active={editorTab === 'note'}
-          onClick={() => setTab('note')}
-          label="Qaydlar"
-          icon={<FileText size={14} />}
-        />
-        <TabBtn
-          active={editorTab === 'thread'}
-          onClick={() => setTab('thread')}
-          label="AI Suhbatlar"
-          badge={String(threadCount)}
-          icon={<MessagesSquare size={14} />}
-        />
+    <main className="flex min-w-0 flex-1 flex-col bg-[#0d0e13]/60 relative overflow-hidden h-full">
+      {/* Yuqori boshqaruv paneli */}
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-3">
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-md bg-sky-500/15 border border-sky-400/30 px-2.5 py-0.5 font-mono text-[11px] font-bold text-sky-300">
+            {task.id}
+          </span>
 
-        <div className="ml-auto flex items-center gap-2 pb-2">
-          {note && (
-            <button
-              onClick={() => setEditing((v) => !v)}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
-            >
-              {isEditing ? "Ko'rish" : 'Tahrirlash'}
-            </button>
-          )}
+          {/* Statusni o'zgartirish tugmasi */}
+          <button
+            onClick={() =>
+              updateTaskStatus(task.id, isDone ? 'active' : 'completed')
+            }
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1 text-[12px] font-semibold transition ${
+              isDone
+                ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                : 'border-white/10 bg-white/[0.04] text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-300'
+            }`}
+          >
+            {isDone ? (
+              <>
+                <Check size={13} strokeWidth={2.5} />
+                <span>Bajarildi</span>
+              </>
+            ) : (
+              <>
+                <Circle size={13} />
+                <span>Faol (Bajarish)</span>
+              </>
+            )}
+          </button>
 
+          {/* Fokus (Pomodoro) */}
           <button
             onClick={() => {
-              if (window.confirm(`${task.id} vazifasini o'chirishni tasdiqlaysizmi?`)) {
+              useFocusStore.getState().startFocus(25, task.id, task.title);
+              useFocusStore.getState().setShowModal(true);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11.5px] font-medium text-rose-300 hover:bg-rose-500/20 transition"
+            title="25 minutlik Pomodoro fokus taymerini boshlash"
+          >
+            <span className="text-xs">🍅</span>
+            <span>Fokus</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* O'chirish */}
+          <button
+            onClick={() => {
+              if (window.confirm(`"${task.title}" vazifasini o'chirishni xohlaysizmi?`)) {
                 deleteTask(task.id);
               }
             }}
             title="Vazifani o'chirish"
-            className="flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11.5px] text-red-300 hover:bg-red-500/20 transition"
+            className="flex items-center gap-1 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-[11.5px] font-medium text-rose-300 hover:bg-rose-500/20 transition"
           >
-            <Trash2 size={12} /> O'chirish
+            <Trash2 size={12} />
+            <span>O'chirish</span>
           </button>
-          <span className="hidden font-mono text-[11px] text-zinc-500 lg:block">
-            {task.id} · {task.updated_at ? task.updated_at.slice(0, 10) : ''}
-          </span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-7 py-6">
-        {editorTab === 'note' ? (
-          <div className="mx-auto max-w-[760px] space-y-6 pb-24">
-            {/* Vazifa Metadatalari & Boshqaruv Qatori */}
-            <div className="space-y-3 pb-4 border-b border-white/[0.06]">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-sky-500/15 border border-sky-400/30 px-2 py-0.5 font-mono text-[11.5px] font-bold text-sky-300">
-                  {task.id}
-                </span>
-
-                {task.ai_source && (
-                  <span className="rounded-md border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300 flex items-center gap-1">
-                    <Sparkles size={11} /> {task.ai_source}
-                  </span>
-                )}
-
-                {/* Status tanlash */}
-                <select
-                  value={task.status}
-                  onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
-                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
-                >
-                  <option value="active" className="bg-[#17181d] text-zinc-200">Faol</option>
-                  <option value="in_review" className="bg-[#17181d] text-sky-300">Tekshiruvda</option>
-                  <option value="completed" className="bg-[#17181d] text-emerald-300">Bajarildi</option>
-                  <option value="blocker" className="bg-[#17181d] text-amber-300">P0 To'siq</option>
-                </select>
-
-                {/* Muhimlik darajasi tanlash */}
-                <select
-                  value={task.priority}
-                  onChange={(e) => updateTaskPriority(task.id, e.target.value as any)}
-                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
-                >
-                  <option value="Normal" className="bg-[#17181d] text-zinc-200">Oddiy</option>
-                  <option value="High Priority" className="bg-[#17181d] text-violet-300">Yuqori</option>
-                  <option value="Critical" className="bg-[#17181d] text-red-300">Kritik</option>
-                  <option value="P0 Blocker" className="bg-[#17181d] text-amber-300">P0 To'siq</option>
-                </select>
-
-                {/* Team Group / Squad tanlash */}
-                <select
-                  value={task.group_id ?? ''}
-                  onChange={(e) => assignTaskToGroup(task.id, e.target.value ? e.target.value : null)}
-                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-200 hover:border-white/20 focus:border-sky-400 focus:outline-none cursor-pointer transition"
-                >
-                  <option value="" className="bg-[#17181d] text-zinc-400">Umumiy</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id} className="bg-[#17181d] text-zinc-200">
-                      Guruh: {g.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Ovozli eslatma (Mic) */}
-                <button
-                  onClick={dictation.recording ? dictation.stop : dictation.start}
-                  disabled={!selectedTaskId}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition ${
-                    dictation.recording
-                      ? 'bg-red-500/20 border border-red-400/40 text-red-300 shadow-[0_0_16px_-4px_rgba(248,113,113,0.6)] animate-pulse'
-                      : 'border border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={dictation.recording ? 'Stop & Append' : 'Ovozli diktofoni ishga tushirish'}
-                >
-                  {dictation.recording ? (
-                    <>
-                      <span className="h-2 w-2 rounded-full bg-red-400" />
-                      <span className="font-mono">{String(Math.floor(dictation.seconds / 60)).padStart(2, '0')}:{String(dictation.seconds % 60).padStart(2, '0')}</span>
-                      <Mic size={12} className="text-red-400" />
-                    </>
-                  ) : (
-                    <>
-                      <Mic size={12} className="text-sky-300" />
-                      <span>Ovozli yozish</span>
-                    </>
-                  )}
-                </button>
-
-                {/* 🍅 Fokus Rejimiga Olish */}
-                <button
-                  onClick={() => {
-                    useFocusStore.getState().startFocus(25, task.id, task.title);
-                    useFocusStore.getState().setShowModal(true);
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11.5px] font-medium text-rose-300 hover:bg-rose-500/20 transition"
-                  title="Ushbu vazifani 25 minutlik Pomodoro fokus rejimiga olish"
-                >
-                  <span className="text-xs">🍅</span>
-                  <span>Fokus</span>
-                </button>
-              </div>
-
-              {/* Vazifa Sarlavhasi */}
-              <h1 className="text-[22px] font-bold leading-snug text-white tracking-tight">
-                {task.title}
-              </h1>
-              <TagEditor tags={task.tags ?? []} onAdd={(t) => addTag(task.id, t)} onRemove={(t) => removeTag(task.id, t)} />
-            </div>
-
-            {dictation.recording && (
-              <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 font-mono text-[12px] text-red-200 animate-pulse">
-                Eshitilmoqda… <span className="text-zinc-400">{dictation.finalText || '(ovoz kutilyapti)'}</span> <span className="text-zinc-500 italic">{dictation.interim}</span>
-              </div>
-            )}
-
-            {(dictation.finalText || dictation.interim) && !dictation.recording && (
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-                <p className="flex-1 font-mono text-[12px] text-emerald-200">Qo'shishga tayyor: <span className="text-zinc-300">{dictation.finalText}{dictation.interim && ` ${dictation.interim}`}</span></p>
-                <button onClick={dictation.commit} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-400">Qaydga qo'shish</button>
-                <button onClick={() => { dictation.stop(); }} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-white/10">Bekor qilish</button>
-              </div>
-            )}
-
-            {/* Asosiy Qayd / Markdown Area */}
-            {isEditing ? (
-              <div>
-                <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-zinc-500">
-                  {note ? "Arxitektura va Muammo Yechimi (Markdown)" : "Yangi Qayd / Markdown yozing"}
-                </p>
-                <EditorArea taskId={task.id} value={note} placeholder="Muammo sababi, texnik tahlil, kod bloklari va yechim bosqichlarini yozing…" />
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5">
-                <MiniMarkdown source={note} />
-              </div>
-            )}
-
-            {/* Yechim nazorat ro'yxati */}
-            <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">Nazorat Ro'yxati</h3>
-                  <span className="rounded-full bg-white/[0.08] px-2 py-0.5 font-mono text-[10.5px] text-zinc-400">
-                    {list.filter((c) => c.done).length}/{list.length} bajarildi
-                  </span>
-                </div>
-                <button
-                  onClick={() => setAddingItem(true)}
-                  className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
-                >
-                  <Plus size={13} className="text-sky-300" /> Yangi band qo'shish
-                </button>
-              </div>
-
-              {addingItem && (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (newItemText.trim()) {
-                      addChecklistItem(task.id, newItemText.trim());
-                      setNewItemText('');
-                      setAddingItem(false);
-                    }
-                  }}
-                  className="mt-3 flex items-center gap-2"
-                >
-                  <input
-                    autoFocus
-                    value={newItemText}
-                    onChange={(e) => setNewItemText(e.target.value)}
-                    placeholder="Band matnini kiriting (masalan: Unit testlar yozildi)…"
-                    className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 text-[12.5px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newItemText.trim()}
-                    className="rounded-lg bg-sky-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-sky-400 disabled:opacity-40"
-                  >
-                    Qo'shish
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAddingItem(false); setNewItemText(''); }}
-                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
-                  >
-                    Bekor qilish
-                  </button>
-                </form>
-              )}
-
-              <div className="mt-3 space-y-2">
-                {list.map((c) => (
-                  <div key={c.id} className="group flex w-full items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2.5 hover:border-white/[0.12] transition">
-                    <button
-                      onClick={() => toggleCheck(task.id, c.id)}
-                      className="flex flex-1 items-center gap-3 text-left"
-                    >
-                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${c.done ? 'border-sky-400/70 bg-sky-500 text-white shadow-[0_0_10px_-2px_rgba(56,189,248,0.8)]' : 'border-zinc-600 bg-transparent text-transparent'}`}>
-                        <Check size={13} strokeWidth={3} />
-                      </span>
-                      <span className={`text-[13px] ${c.done ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{c.text}</span>
-                    </button>
-                    <button
-                      onClick={() => removeChecklistItem(task.id, c.id)}
-                      title="O'chirish"
-                      className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 transition"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
-                {list.length === 0 && !addingItem && (
-                  <p className="text-[13px] text-zinc-600">Hozircha nazorat ro'yxati bandlari yo'q.</p>
-                )}
-              </div>
-            </section>
-
-            {/* Prompt Vault integratsiyasi */}
-            <LocalPromptVault taskId={task.id} onOpenChat={() => setChatModal(true)} />
+      {/* Asosiy tahrirlash maydoni */}
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="mx-auto max-w-[700px] space-y-6 pb-20">
+          {/* Vazifa sarlavhasi (inline tahrirlash) */}
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                updateTaskStatus(task.id, isDone ? 'active' : 'completed')
+              }
+              title={isDone ? 'Bajarilmaganga qaytarish' : 'Bajarildi deb belgilash'}
+              className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition ${
+                isDone
+                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                  : 'border-zinc-600 bg-white/[0.03] text-transparent hover:border-sky-400 hover:bg-sky-500/10'
+              }`}
+            >
+              <Check
+                size={14}
+                strokeWidth={3}
+                className={isDone ? 'opacity-100' : 'opacity-0 hover:opacity-40 text-sky-300'}
+              />
+            </button>
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+              placeholder="Vazifa nomi..."
+              className={`w-full bg-transparent text-[20px] font-bold tracking-tight text-white focus:outline-none transition ${
+                isDone ? 'line-through text-zinc-500' : ''
+              }`}
+            />
           </div>
-        ) : (
-          <div className="mx-auto max-w-[760px] space-y-4 pb-24">
-            <div className="flex justify-between items-center pb-3 border-b border-white/[0.06]">
-              <span className="text-[13px] text-zinc-300 font-medium">
-                {task.id} uchun biriktirilgan AI muloqotlari ({prompts.length})
-              </span>
+
+          {/* Kichik vazifalar / Nazorat ro'yxati (Subtasks) */}
+          <section className="rounded-2xl border border-white/[0.07] bg-white/[0.015] p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
+              <div className="flex items-center gap-2">
+                <ListTodo size={15} className="text-sky-400" />
+                <h3 className="text-[12px] font-bold uppercase tracking-wider text-zinc-300">
+                  Nazorat Ro'yxati (Subtasks)
+                </h3>
+                {list.length > 0 && (
+                  <span className="rounded-full bg-white/[0.06] border border-white/10 px-2 py-0.5 text-[11px] font-mono text-zinc-400">
+                    {completedSubtasks}/{list.length} bajarildi
+                  </span>
+                )}
+              </div>
               <button
-                onClick={() => setChatModal(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-violet-500 transition shadow-sm"
+                onClick={() => setAddingItem(true)}
+                className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11.5px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition"
               >
-                <Plus size={13} /> + Suhbat
+                <Plus size={13} className="text-sky-300" />
+                <span>Band qo'shish</span>
               </button>
             </div>
 
-            {prompts.map((p, idx) => (
-              <div key={p.id} className="space-y-3">
-                <div className="ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-violet-600/90 px-4 py-3 text-[13px] text-white shadow-lg">
-                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-violet-200">Siz · {p.prompt_hash ?? `#${idx + 1}`}</p>
-                  {p.raw_prompt}
-                </div>
-                {p.ai_response && (
-                  <div className="w-fit max-w-[92%] rounded-2xl rounded-bl-md border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-[13px] text-zinc-200">
-                    <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-zinc-500">{p.model_name ?? 'AI'}</p>
-                    {p.ai_response}
-                  </div>
-                )}
-              </div>
-            ))}
-            {prompts.length === 0 && (
-              <div className="py-8 text-center">
-                <p className="text-[13px] text-zinc-500">Ushbu vazifaga hali AI suhbati biriktirilmagan.</p>
+            {/* Yangi band qo'shish formasi */}
+            {addingItem && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newItemText.trim()) {
+                    addChecklistItem(task.id, newItemText.trim());
+                    setNewItemText('');
+                    setAddingItem(false);
+                  }
+                }}
+                className="mt-3 flex items-center gap-2"
+              >
+                <input
+                  autoFocus
+                  value={newItemText}
+                  onChange={(e) => setNewItemText(e.target.value)}
+                  placeholder="Kichik qadam yoki band nomi…"
+                  className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 text-[12.5px] text-zinc-100 placeholder:text-zinc-600 focus:border-sky-400/60 focus:outline-none"
+                />
                 <button
-                  onClick={() => setChatModal(true)}
-                  className="mt-3 text-[12.5px] text-violet-400 hover:underline"
+                  type="submit"
+                  disabled={!newItemText.trim()}
+                  className="rounded-lg bg-sky-500 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-sky-400 disabled:opacity-40"
                 >
-                  + AI suhbatini biriktirish
+                  Qo'shish
                 </button>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingItem(false);
+                    setNewItemText('');
+                  }}
+                  className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
+                >
+                  Bekor qilish
+                </button>
+              </form>
             )}
-          </div>
-        )}
-      </div>
 
-      {/* Minimizable AI Weekly Coach Widget */}
-      <CollapsibleWeeklyCoach
-        tasks={tasks}
-        onTriggerCoach={triggerWeeklyCoach}
-      />
+            {/* Bandlar ro'yxati */}
+            <div className="mt-3 space-y-2">
+              {list.map((c) => (
+                <div
+                  key={c.id}
+                  className="group flex w-full items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.015] px-3 py-2 hover:border-white/[0.12] transition"
+                >
+                  <button
+                    onClick={() => toggleCheck(task.id, c.id)}
+                    className="flex flex-1 items-center gap-2.5 text-left"
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition ${
+                        c.done
+                          ? 'border-sky-400 bg-sky-500 text-white shadow-[0_0_8px_rgba(56,189,248,0.6)]'
+                          : 'border-zinc-600 bg-transparent text-transparent hover:border-sky-400'
+                      }`}
+                    >
+                      <Check size={11} strokeWidth={3} />
+                    </span>
+                    <span
+                      className={`text-[13px] ${
+                        c.done ? 'text-zinc-500 line-through' : 'text-zinc-200'
+                      }`}
+                    >
+                      {c.text}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => removeChecklistItem(task.id, c.id)}
+                    title="O'chirish"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 transition"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+
+              {list.length === 0 && !addingItem && (
+                <p className="py-2 text-[12.5px] text-zinc-500">
+                  Hozircha kichik qadamlar yo'q. "Band qo'shish" orqali vazifani kichik bo'laklarga ajratishingiz mumkin.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* Qaydlar va izohlar (Notes) */}
+          <section className="rounded-2xl border border-white/[0.07] bg-white/[0.015] p-5">
+            <div className="flex items-center gap-2 pb-3 border-b border-white/[0.05]">
+              <FileText size={15} className="text-sky-400" />
+              <h3 className="text-[12px] font-bold uppercase tracking-wider text-zinc-300">
+                Qaydlar va izohlar
+              </h3>
+            </div>
+            <div className="mt-3">
+              <textarea
+                value={note}
+                onChange={(e) => updateNote(task.id, e.target.value)}
+                rows={8}
+                spellCheck={false}
+                placeholder="Ushbu vazifa bo'yicha qo'shimcha eslatmalar, havolalar yoki tafsilotlarni yozing…"
+                className="w-full rounded-xl border border-white/10 bg-black/40 p-3.5 text-[13px] leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-sky-400/50 focus:outline-none transition resize-y font-normal"
+              />
+            </div>
+          </section>
+        </div>
+      </div>
     </main>
-  );
-}
-
-function LocalPromptVault({ taskId, onOpenChat }: { taskId: string; onOpenChat: () => void }) {
-  const { prompts } = useSynapse();
-  const [open, setOpen] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const first = prompts[0];
-
-  if (!first) {
-    return (
-      <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.03] p-4 text-center">
-        <p className="text-[13px] text-zinc-400">Ushbu vazifada yechim topishda ishlatilgan AI suhbati bormi?</p>
-        <button
-          onClick={onOpenChat}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/80 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-violet-600 transition"
-        >
-          <Plus size={13} /> AI suhbatini biriktirish
-        </button>
-      </section>
-    );
-  }
-
-  function copy() {
-    navigator.clipboard?.writeText(first.raw_prompt).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <section className="overflow-hidden rounded-2xl border border-violet-400/20 bg-gradient-to-b from-violet-500/[0.08] to-transparent">
-      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left">
-        <span className="text-[13px] font-bold text-violet-100">AI Prompt Ombori</span>
-        <span className="ml-auto rounded-md bg-violet-500/15 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">Xesh: {first.prompt_hash ?? '#—'}</span>
-        <ChevronDown size={15} className={`text-violet-300 transition-transform ${open ? '' : '-rotate-90'}`} />
-      </button>
-      {open && (
-        <div className="border-t border-violet-400/10 px-4 py-3">
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">{first.model_name ?? 'AI'} prompti:</p>
-          <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-black/50 p-3.5 font-mono text-[12px] leading-relaxed text-zinc-300">{first.raw_prompt}</pre>
-          <div className="mt-2.5 flex items-center gap-2">
-            <button onClick={copy} className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 px-3 py-1.5 text-[12px] font-semibold text-violet-100 hover:bg-violet-500/30 transition">
-              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Nusxalandi' : 'Nusxa olish'}
-            </button>
-            <span className="font-mono text-[11px] text-zinc-600">vazifa: {taskId}</span>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function TagEditor({ tags, onAdd, onRemove }: { tags: string[]; onAdd: (t: string) => void; onRemove: (t: string) => void }) {
-  const [draft, setDraft] = useState('');
-  function commit() {
-    if (!draft.trim()) return;
-    onAdd(draft);
-    setDraft('');
-  }
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <Tag size={12} className="text-zinc-500" />
-      {tags.map((t) => (
-        <span key={t} className="group flex items-center gap-1 rounded-md border border-violet-400/25 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">
-          #{t}
-          <button onClick={() => onRemove(t)} title={`#${t} ni o'chirish`} className="text-violet-300/60 hover:text-rose-300 transition">
-            <X size={10} />
-          </button>
-        </span>
-      ))}
-      <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
-        onBlur={commit}
-        placeholder={tags.length ? '+ teg' : '+ teg qo‘shish (bugfix, arch)'}
-        className="w-36 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-mono text-[11px] text-zinc-300 placeholder:text-zinc-600 hover:border-white/10 focus:border-violet-400/50 focus:outline-none"
-      />
-    </div>
-  );
-}
-
-function TabBtn({ active, onClick, label, icon, badge }: { active: boolean; onClick: () => void; label: string; icon?: React.ReactNode; badge?: string }) {  return (
-    <button
-      onClick={onClick}
-      className={`relative flex items-center gap-1.5 px-3 pb-3 pt-1 text-[13px] font-semibold transition ${active ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-    >
-      {icon}
-      {label}
-      {badge && <span className="rounded-md bg-white/[0.08] px-1.5 py-px font-mono text-[10.5px] text-zinc-300">{badge}</span>}
-      {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-sky-400" />}
-    </button>
-  );
-}
-
-function EditorArea({ taskId, value, placeholder }: { taskId: string; value: string; placeholder?: string }) {
-  const { updateNote } = useSynapse();
-  return (
-    <textarea
-      value={value}
-      onChange={(e) => updateNote(taskId, e.target.value)}
-      rows={12}
-      spellCheck={false}
-      placeholder={placeholder}
-      className="w-full rounded-xl border border-white/10 bg-black/40 p-4 font-mono text-[12.5px] leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-violet-400/50 focus:outline-none"
-    />
-  );
-}
-
-function CollapsibleWeeklyCoach({
-  tasks,
-  onTriggerCoach,
-}: {
-  tasks: any[];
-  onTriggerCoach: () => void;
-}) {
-  const { weeklyCoach } = useSynapse();
-  const [expanded, setExpanded] = useState(false);
-  const completed = tasks.filter((t) => t.status === 'completed').length;
-  const blockers = tasks.filter((t) => t.status === 'blocker' || t.priority === 'P0 Blocker');
-  const active = tasks.filter((t) => t.status === 'active').length;
-
-  const dynamicBottleneck =
-    weeklyCoach?.bottlenecks?.[0] ||
-    (blockers.length > 0
-      ? `To'siq: ${blockers[0].title}`
-      : active > 3
-      ? `Diqqat: ${active} ta vazifa parallel jarayonda`
-      : "To'siqlar yo'q, oqim barqaror");
-
-  const dynamicRecommendation =
-    weeklyCoach?.recommendations?.[0] ||
-    (blockers.length > 0
-      ? `Tavsiya: Avval ${blockers[0].id} to'sig'ini bartaraf eting`
-      : completed > 0
-      ? "Tavsiya: Hal qilingan yechimlarni bilim bazasiga saqlang"
-      : "Tavsiya: Yangi sprint vazifalarini rejalashtiring");
-
-  if (!expanded) {
-    return (
-      <div className="absolute bottom-5 right-6 z-20">
-        <button
-          onClick={() => setExpanded(true)}
-          className="flex items-center gap-2 rounded-full border border-violet-500/30 bg-[#12131a]/95 px-3.5 py-1.5 shadow-xl backdrop-blur-xl text-[12px] font-semibold text-violet-200 hover:text-white hover:border-violet-400/50 transition group"
-          title="Haftalik tahlilni ochish"
-        >
-          <Sparkles size={13} className="text-violet-300 group-hover:rotate-12 transition-transform" />
-          <span>Haftalik Tahlil</span>
-          <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-mono text-violet-300">
-            {completed}/{tasks.length || 0}
-          </span>
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="absolute bottom-5 right-6 z-20 w-80 overflow-hidden rounded-2xl border border-violet-500/30 bg-[#12131a]/95 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-2 duration-200">
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-600/30 text-violet-300">
-            <Sparkles size={13} />
-          </div>
-          <span className="text-[12.5px] font-bold text-white tracking-tight">Haftalik Tahlil</span>
-        </div>
-        <button
-          onClick={() => setExpanded(false)}
-          className="rounded-lg p-1 text-zinc-400 hover:bg-white/10 hover:text-white transition"
-          title="Kichraytirish"
-        >
-          <X size={14} />
-        </button>
-      </div>
-      <div className="space-y-1.5 text-[11.5px] text-zinc-300">
-        <p className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-          <span>{completed} ta bajarildi, {active} ta faol vazifa</span>
-        </p>
-        <p className="flex items-center gap-2">
-          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${blockers.length > 0 ? 'bg-rose-400' : 'bg-amber-400'}`} />
-          <span className="truncate" title={dynamicBottleneck}>{dynamicBottleneck}</span>
-        </p>
-        <p className="flex items-center gap-2 text-zinc-400">
-          <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
-          <span className="truncate" title={dynamicRecommendation}>{dynamicRecommendation}</span>
-        </p>
-      </div>
-      <button
-        onClick={() => onTriggerCoach()}
-        className="mt-3 w-full rounded-xl bg-violet-500/15 hover:bg-violet-500/25 border border-violet-400/20 py-1.5 text-center text-[12px] font-semibold text-violet-200 hover:text-white transition shadow-sm"
-      >
-        Batafsil Tahlil & Hisobot
-      </button>
-    </div>
   );
 }

@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "cognidev"
-version = "0.2.11"
+version = "0.2.13"
 dependencies = [
  "base64 0.22.1",
  "serde",

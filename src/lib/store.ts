@@ -582,6 +582,7 @@ interface SynapseState {
   deleteTask: (id: string) => Promise<void>;
   updateTaskStatus: (id: string, status: Task['status']) => void;
   updateTaskPriority: (id: string, priority: Task['priority']) => void;
+  updateTaskTitle: (id: string, title: string) => void;
   createWorkspace: (name: string, type: 'personal' | 'team') => Promise<void>;
   addPrompt: (p: PromptEntry) => void;
   triggerStandup: () => Promise<void>;
@@ -2934,7 +2935,7 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       priority: 'Normal',
       git_branch: null,
       pr_url: null,
-      ai_source: 'AI Synced',
+      ai_source: null,
       assignee_name: userProfile.full_name || 'Muhandis',
       assignee_avatar: userProfile.avatar_initials || 'M',
       assignee_name2: null,
@@ -2944,11 +2945,8 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
       updated_at: now,
     };
 
-    const initialNote = `# ${trimmed}\n\n### Problem Solved & Kontekst\n\n\`\`\`typescript\n// Yechim kodi yoki arxitektura namunasi\n\`\`\`\n\n### Key Learnings (O'rganilgan bilimlar)\n- Bugun nimalar tushunildi:\n- Keyingi qadamlar:\n`;
-    const newChecklist = [
-      { id: uid('chk'), text: "Muammoni aniqlash va o'rganish", done: false },
-      { id: uid('chk'), text: "Yechim kodini tekshirish", done: false },
-    ];
+    const initialNote = '';
+    const newChecklist: Array<{ id: string; text: string; done: boolean }> = [];
 
     if (dbMode === 'sqlite') {
       try {
@@ -3187,6 +3185,15 @@ Iltimos, ${currentUserName} (${currentUserTitle}) uchun bugungi kungi qisqa, pro
     }
   },
 
+  updateTaskTitle: (id, title) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const stamp = new Date().toISOString();
+    const updatedTasks = get().tasks.map((t) => (t.id === id ? { ...t, title: trimmed, updated_at: stamp } : t));
+    saveStoredTasks(updatedTasks);
+    set({ tasks: updatedTasks });
+  },
+
   createWorkspace: async (name, type) => {
     const w: Workspace = {
       id: uid('ws'),
@@ -3359,6 +3366,8 @@ export function filteredTasks(
       return a === 'men' || a === 'o\'zim' || a === 'me';
     });
   }
+  if (f === 'active') out = out.filter((t) => t.status !== 'completed');
+  if (f === 'completed') out = out.filter((t) => t.status === 'completed');
   if (f === 'high') out = out.filter((t) => t.priority === 'P0 Blocker' || t.priority === 'Critical');
   if (f === 'claude') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('claude'));
   if (f === 'gemini') out = out.filter((t) => (t.ai_source ?? '').toLowerCase().includes('gemini'));
