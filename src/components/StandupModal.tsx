@@ -1,13 +1,23 @@
 import { useState } from 'react';
-import { X, Cpu, Check, Copy, GitBranch, RefreshCw } from 'lucide-react';
+import { X, Cpu, Check, Copy, GitBranch, RefreshCw, Send } from 'lucide-react';
 import { useSynapse } from '../lib/store';
 import { SOURCE_LABELS } from '../lib/providers';
 import { MiniMarkdown } from './WorkspaceEditor';
 
 export default function StandupModal() {
-  const { showStandupModal, setStandupModal, standup, standupSource, generateGitStandup } = useSynapse();
+  const {
+    showStandupModal,
+    setStandupModal,
+    standup,
+    standupSource,
+    generateGitStandup,
+    dispatchDailyReportToTelegramAction,
+    setTelegramModal,
+  } = useSynapse();
   const [copied, setCopied] = useState(false);
   const [loadingGit, setLoadingGit] = useState(false);
+  const [sendingTelegram, setSendingTelegram] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
 
   if (!showStandupModal || !standup) return null;
 
@@ -23,6 +33,30 @@ export default function StandupModal() {
       await generateGitStandup();
     } finally {
       setLoadingGit(false);
+    }
+  }
+
+  async function handleSendToTelegram() {
+    if (!standup) return;
+    setSendingTelegram(true);
+    setTelegramStatus(null);
+    try {
+      const count = await dispatchDailyReportToTelegramAction(standup);
+      if (count > 0) {
+        setTelegramStatus('Yuborildi!');
+        setTimeout(() => setTelegramStatus(null), 2500);
+      } else {
+        setTelegramStatus('Bot sozlanmagan');
+        setTimeout(() => {
+          setTelegramStatus(null);
+          setTelegramModal(true);
+        }, 1200);
+      }
+    } catch {
+      setTelegramStatus('Xatolik');
+      setTimeout(() => setTelegramStatus(null), 2000);
+    } finally {
+      setSendingTelegram(false);
     }
   }
   const isGitSource = String(standupSource).includes('git');
@@ -81,6 +115,15 @@ export default function StandupModal() {
           </button>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleSendToTelegram}
+              disabled={sendingTelegram}
+              className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-3 py-1.5 text-[12.5px] font-medium text-sky-300 transition disabled:opacity-40"
+              title="Telegram bot orqali shaxsiy profilingizga jo'natish"
+            >
+              <Send size={13} className={sendingTelegram ? 'animate-pulse' : ''} />
+              <span>{telegramStatus || (sendingTelegram ? 'Yuborilmoqda…' : 'Telegramga jo‘natish')}</span>
+            </button>
             <button
               onClick={copyMarkdown}
               className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[12.5px] font-medium text-zinc-200 hover:bg-white/10 transition"

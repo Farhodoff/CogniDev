@@ -1329,5 +1329,39 @@ export async function upsertTelegramSettings(cfg: TelegramBotConfig): Promise<vo
   );
 }
 
+export interface FtsSearchResult {
+  item_id: string;
+  item_type: 'task' | 'note';
+  title: string;
+  snippet: string;
+}
+
+/** Instant Full-Text Search via SQLite FTS5 table */
+export async function globalFtsSearch(query: string): Promise<FtsSearchResult[]> {
+  const clean = query.trim().replace(/['"*]/g, '');
+  if (!clean) return [];
+  try {
+    const db = await getDb();
+    const rows = await db.select<Array<{ item_id: string; item_type: string; title: string; snippet: string }>>(
+      `SELECT item_id, item_type, title, snippet(global_search, 3, '<b>', '</b>', '...', 10) as snippet
+       FROM global_search
+       WHERE global_search MATCH $1
+       ORDER BY rank
+       LIMIT 20`,
+      [`"${clean}"*`],
+    );
+    return rows.map((r) => ({
+      item_id: r.item_id,
+      item_type: r.item_type as 'task' | 'note',
+      title: r.title,
+      snippet: r.snippet || '',
+    }));
+  } catch (err) {
+    console.warn('[db.ts globalFtsSearch] fallback or error:', err);
+    return [];
+  }
+}
+
+
 
 

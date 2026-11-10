@@ -1,4 +1,5 @@
 import type { TelegramBotConfig } from './types';
+import { fetchTelegramSettings } from './db';
 
 export interface TelegramTestResult {
   ok: boolean;
@@ -85,6 +86,36 @@ export async function sendTelegramMessage(
   } catch (err) {
     console.warn('[TelegramBot] Failed to send fallback message:', err);
     return false;
+  }
+}
+
+/**
+ * Sends a standup or notification to all allowed user IDs configured in Telegram settings.
+ */
+export async function broadcastToAllowedTelegramUsers(
+  text: string,
+): Promise<{ sent: number; total: number; error?: string }> {
+  try {
+    const cfg = await fetchTelegramSettings();
+    if (!cfg.bot_token || !cfg.allowed_user_ids) {
+      return { sent: 0, total: 0, error: 'Telegram Bot token yoki User ID sozlanmagan' };
+    }
+    const ids = cfg.allowed_user_ids.split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) {
+      return { sent: 0, total: 0, error: 'Ruxsat etilgan Telegram User ID mavjud emas' };
+    }
+    let sent = 0;
+    for (const id of ids) {
+      const ok = await sendTelegramMessage(cfg.bot_token, id, text);
+      if (ok) sent++;
+    }
+    return { sent, total: ids.length };
+  } catch (err: unknown) {
+    return {
+      sent: 0,
+      total: 0,
+      error: err instanceof Error ? err.message : 'Nomaʼlum xatolik',
+    };
   }
 }
 
