@@ -1,16 +1,35 @@
-import { useState } from 'react';
-import { Bot, Check, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bot, Check, ChevronDown, ChevronUp, Loader2, X, HardDrive, RefreshCw } from 'lucide-react';
 import {
   PROVIDERS, getProvider, setProvider, testProvider, getProviderOrder, moveProvider,
   type CloudProviderId,
 } from '../lib/providers';
 import { getJevKey, setJevKey, testJev } from '../lib/jev';
+import { checkOllama } from '../lib/ai';
 
 export default function AiProvidersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [tick, setTick] = useState(0);
   const [testing, setTesting] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, { ok: boolean; detail: string }>>({});
   const [jevKey, setJevKeyState] = useState(getJevKey());
+  const [ollamaStatus, setOllamaStatus] = useState<{ checked: boolean; online: boolean; models: string[]; host?: string }>({
+    checked: false,
+    online: false,
+    models: [],
+  });
+
+  useEffect(() => {
+    if (open) {
+      checkOllama().then((res) => {
+        setOllamaStatus({
+          checked: true,
+          online: res.online,
+          models: res.models || [],
+          host: res.host,
+        });
+      }).catch(() => {});
+    }
+  }, [open]);
 
   if (!open) return null;
   void tick;
@@ -34,6 +53,21 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
     try {
       const res = await testJev();
       setResults((r) => ({ ...r, jev: res }));
+    } finally {
+      setTesting(null);
+    }
+  }
+
+  async function onTestOllama() {
+    setTesting('ollama');
+    try {
+      const res = await checkOllama();
+      setOllamaStatus({
+        checked: true,
+        online: res.online,
+        models: res.models || [],
+        host: res.host,
+      });
     } finally {
       setTesting(null);
     }
@@ -125,6 +159,55 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
               </div>
             );
           })}
+
+          {/* Local Ollama Status & Config */}
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3.5">
+            <div className="flex items-center gap-2.5">
+              <HardDrive size={15} className="text-emerald-400" />
+              <span className="text-[13.5px] font-bold text-zinc-100">
+                Ollama <span className="font-mono text-[10.5px] font-normal text-emerald-300">Mahalliy AI (100% Oflayn va Bepul)</span>
+              </span>
+              <span
+                className={`ml-auto rounded-full px-2 py-0.5 font-mono text-[10.5px] font-semibold ${
+                  ollamaStatus.online
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                }`}
+              >
+                {ollamaStatus.online ? '● Online' : '○ Offline'}
+              </span>
+            </div>
+
+            <p className="mt-1 text-[11.5px] leading-relaxed text-zinc-400">
+              {ollamaStatus.online ? (
+                ollamaStatus.models.length > 0 ? (
+                  <>
+                    Aniqlangan modellar: <span className="font-mono text-zinc-200">{ollamaStatus.models.join(', ')}</span>
+                  </>
+                ) : (
+                  <span className="text-amber-300">
+                    Ollama ishlab turibdi, lekin model yuklanmagan! Terminalda: <code className="rounded bg-black/40 px-1 py-0.5 font-mono text-amber-200">ollama run llama3.2</code>
+                  </span>
+                )
+              ) : (
+                'Ollama ulanmadi. localhost:11434 yoki 127.0.0.1:11434 xizmati o‘chiq.'
+              )}
+            </p>
+
+            <div className="mt-2.5 flex items-center justify-between">
+              <span className="font-mono text-[11px] text-zinc-500">
+                {ollamaStatus.host || 'http://127.0.0.1:11434'}
+              </span>
+              <button
+                onClick={onTestOllama}
+                disabled={testing !== null}
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-zinc-200 hover:bg-white/10 disabled:opacity-50 transition"
+              >
+                <RefreshCw size={12} className={testing === 'ollama' ? 'animate-spin' : ''} />
+                <span>Tekshirish</span>
+              </button>
+            </div>
+          </div>
 
           {/* Jev — decision model (no text generation) */}
           <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-3.5">

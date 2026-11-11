@@ -1,8 +1,5 @@
 import { tryCloudProviders, type AiSource } from './providers';
-
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
-// Same chain as ai.ts: cloud flagships → local 3b offline fallback.
-const MODEL_CANDIDATES = ['gpt-oss:20b-cloud', 'gpt-oss:120b-cloud', 'qwen2.5-coder:3b', 'llama3.2:3b'];
+import { checkOllama } from './ai';
 
 const SYSTEM_PROMPT = `You are a technical writing assistant for engineers. Format the following raw voice transcript from a developer into clean, structured Markdown with these sections:
 
@@ -29,23 +26,25 @@ export async function formatVoiceWithOllama(text: string): Promise<VoiceFormatRe
   // Chain: enabled cloud provider → local Ollama → offline template.
   const cloud = await tryCloudProviders(prompt, SYSTEM_PROMPT).catch(() => null);
   if (cloud) return { text: cloud.text, source: cloud.source, model: cloud.model };
-  for (const model of MODEL_CANDIDATES) {
-    try {
+  try {
+    const ollama = await checkOllama();
+    if (ollama.online && ollama.model && ollama.host) {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 30000);
-      const res = await fetch(OLLAMA_URL, {
+      const timer = setTimeout(() => ctrl.abort(), 35000);
+      const res = await fetch(`${ollama.host}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt, stream: false, system: SYSTEM_PROMPT }),
+        body: JSON.stringify({ model: ollama.model, prompt, stream: false, system: SYSTEM_PROMPT }),
         signal: ctrl.signal,
       });
       clearTimeout(timer);
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data?.response) return { text: (data.response as string).trim(), source: 'ollama', model };
-    } catch {
-      continue;
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.response) return { text: (data.response as string).trim(), source: 'ollama', model: ollama.model };
+      }
     }
+  } catch {
+    /* ignore */
   }
   return { text: fallbackFormat(text), source: 'fallback' };
 }

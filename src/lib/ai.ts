@@ -2,10 +2,9 @@ import type { Task, TaskPriority, VoiceIntentResult } from './types';
 import { tryCloudProviders, trySingleProvider, type AiSource, type CloudProviderId } from './providers';
 import { parseNaturalTimeToIso } from './notifications';
 
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
-// Cloud flagships first (fast fail when offline/unsigned), local 3b as offline fallback.
-// NOTE: Ollama retired qwen3-coder/deepseek/kimi cloud IDs in mid-2026 — verify via /api/show.
-const MODEL_CANDIDATES = ['gpt-oss:20b-cloud', 'gpt-oss:120b-cloud', 'llama3.2:3b', 'qwen2.5-coder:3b'];
+const OLLAMA_HOSTS = ['http://127.0.0.1:11434', 'http://localhost:11434'];
+// Preferred model search order when multiple local models are available
+const MODEL_CANDIDATES = ['llama3.2', 'qwen2.5', 'llama3', 'mistral', 'deepseek', 'gpt-oss', 'gemma', 'phi'];
 
 export interface StandupResult {
   content: string;
@@ -37,12 +36,12 @@ export function analyzeBlockers(tasks: Task[]): string {
 
 async function tryOllama(prompt: string): Promise<{ text: string; model: string } | null> {
   const ollama = await checkOllama();
-  if (!ollama.online || !ollama.model) return null;
+  if (!ollama.online || !ollama.model || !ollama.host) return null;
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
-    const res = await fetch(OLLAMA_URL, {
+    const timer = setTimeout(() => ctrl.abort(), 35000);
+    const res = await fetch(`${ollama.host}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: ollama.model, prompt, stream: false }),
@@ -92,17 +91,20 @@ ${blockers.map((t) => `- ${t.id}: ${t.title}`).join('\n') || '- mavjud emas'}
   return { content: ruleBasedStandup(done, blockers, active), source: 'fallback' };
 }
 
-export async function checkOllama(): Promise<{ online: boolean; model?: string }> {
-  try {
-    const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return { online: false };
-    const data = await res.json();
-    const names: string[] = (data?.models ?? []).map((m: { name: string }) => m.name);
-    const model = MODEL_CANDIDATES.find((c) => names.some((n) => n.startsWith(c.split(':')[0]))) ?? names[0];
-    return { online: true, model };
-  } catch {
-    return { online: false };
+export async function checkOllama(): Promise<{ online: boolean; model?: string; models: string[]; host?: string }> {
+  for (const host of OLLAMA_HOSTS) {
+    try {
+      const res = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(2500) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const names: string[] = (data?.models ?? []).map((m: { name: string }) => m.name);
+      const model = MODEL_CANDIDATES.find((c) => names.some((n) => n.toLowerCase().includes(c))) ?? names[0];
+      return { online: true, model, models: names, host };
+    } catch {
+      // try next host candidate
+    }
   }
+  return { online: false, models: [] };
 }
 
 export interface WeeklyCoachAi {

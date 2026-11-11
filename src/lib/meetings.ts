@@ -1,5 +1,6 @@
 import type { MeetingItem, MeetingAiConfig, MeetingActionItem, TaskPriority } from './types';
 import { tryCloudProviders } from './providers';
+import { checkOllama } from './ai';
 
 export const DEFAULT_MEETINGS_AI_CONFIG: MeetingAiConfig = {
   useDedicatedKey: false,
@@ -201,22 +202,25 @@ Hech qanday boshqa so'z yoki markdown belgilarisiz, toza JSON bering.`;
 
   // 3. Try Local Ollama if available
   try {
-    const ollamaRes = await fetch('http://localhost:11434/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'qwen2.5:7b',
-        prompt: `${systemPrompt}\n\n${userPrompt}`,
-        stream: false,
-        format: 'json',
-      }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (ollamaRes.ok) {
-      const data = await ollamaRes.json();
-      if (data?.response) {
-        const parsed = parseMeetingJson(data.response, 'Ollama (Local)', 'qwen2.5:7b');
-        if (parsed) return parsed;
+    const ollama = await checkOllama();
+    if (ollama.online && ollama.model && ollama.host) {
+      const ollamaRes = await fetch(`${ollama.host}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollama.model,
+          prompt: `${systemPrompt}\n\n${userPrompt}`,
+          stream: false,
+          format: 'json',
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (ollamaRes.ok) {
+        const data = await ollamaRes.json();
+        if (data?.response) {
+          const parsed = parseMeetingJson(data.response, 'Ollama (Local)', ollama.model);
+          if (parsed) return parsed;
+        }
       }
     }
   } catch {
@@ -273,26 +277,21 @@ Agar uchrashuvda bu haqida aytilmagan bo'lsa, "Uchrashuv davomida bu mavzu tilga
 
   // 3. Local Ollama if available
   try {
-    const tagsRes = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(1500) });
-    if (tagsRes.ok) {
-      const tagsData = await tagsRes.json();
-      const availableModels: string[] = (tagsData?.models ?? []).map((m: any) => m.name || m.model);
-      const chosenModel = availableModels.find((m) => m.includes('qwen') || m.includes('llama') || m.includes('mistral')) || availableModels[0];
-      if (chosenModel) {
-        const ollamaRes = await fetch('http://localhost:11434/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: chosenModel,
-            prompt: `${systemPrompt}\n\n${userPrompt}`,
-            stream: false,
-          }),
-          signal: AbortSignal.timeout(45000),
-        });
-        if (ollamaRes.ok) {
-          const oData = await ollamaRes.json();
-          if (oData?.response?.trim()) return oData.response.trim();
-        }
+    const ollama = await checkOllama();
+    if (ollama.online && ollama.model && ollama.host) {
+      const ollamaRes = await fetch(`${ollama.host}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollama.model,
+          prompt: `${systemPrompt}\n\n${userPrompt}`,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (ollamaRes.ok) {
+        const oData = await ollamaRes.json();
+        if (oData?.response?.trim()) return oData.response.trim();
       }
     }
   } catch {

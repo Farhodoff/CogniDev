@@ -75,4 +75,3 @@ pub fn update_tray_focus(app: tauri::AppHandle, focus_tasks: Vec<String>) -> Res
     }
     Ok(())
 }
-

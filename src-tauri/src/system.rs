@@ -129,4 +129,3 @@ pub fn get_gh_cli_auth() -> GhCliAuthStatus {
 
     status
 }
-

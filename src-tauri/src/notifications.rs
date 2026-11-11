@@ -122,4 +122,3 @@ pub fn speak_text(text: String) -> Result<(), String> {
         Ok(())
     }
 }
-

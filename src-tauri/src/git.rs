@@ -194,6 +194,9 @@ mod tests {
         assert_eq!(resolve_repo_dir(None).unwrap(), ".");
         assert_eq!(resolve_repo_dir(Some("".to_string())).unwrap(), ".");
         assert!(resolve_repo_dir(Some("https://github.com/foo/bar".to_string())).is_err());
-        assert_eq!(resolve_repo_dir(Some("/tmp/myrepo".to_string())).unwrap(), "/tmp/myrepo");
+        assert_eq!(
+            resolve_repo_dir(Some("/tmp/myrepo".to_string())).unwrap(),
+            "/tmp/myrepo"
+        );
     }
 }

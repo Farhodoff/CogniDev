@@ -1343,7 +1343,7 @@ export async function globalFtsSearch(query: string): Promise<FtsSearchResult[]>
   try {
     const db = await getDb();
     const rows = await db.select<Array<{ item_id: string; item_type: string; title: string; snippet: string }>>(
-      `SELECT item_id, item_type, title, snippet(global_search, 3, '<b>', '</b>', '...', 10) as snippet
+      `SELECT item_id, item_type, title, snippet(global_search, -1, '<b>', '</b>', '...', 10) as snippet
        FROM global_search
        WHERE global_search MATCH $1
        ORDER BY rank
