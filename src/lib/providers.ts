@@ -16,7 +16,7 @@ export interface ProviderDef {
 }
 
 export const PROVIDERS: ProviderDef[] = [
-  { id: 'gemini', name: 'Gemini', modelDefault: 'gemini-2.5-flash', keyHint: 'AIza… (aistudio.google.com)', keyUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'gemini', name: 'Gemini', modelDefault: 'gemini-1.5-flash', keyHint: 'AIza… (aistudio.google.com)', keyUrl: 'https://aistudio.google.com/apikey' },
   { id: 'claude', name: 'Claude', modelDefault: 'claude-3-5-sonnet-20241022', keyHint: 'sk-ant-… (console.anthropic.com)', keyUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'openai', name: 'ChatGPT', modelDefault: 'gpt-4o-mini', keyHint: 'sk-… (platform.openai.com)', keyUrl: 'https://platform.openai.com/api-keys' },
   { id: 'deepseek', name: 'DeepSeek', modelDefault: 'deepseek-chat', keyHint: 'sk-… (platform.deepseek.com)', keyUrl: 'https://platform.deepseek.com/api_keys' },
@@ -192,27 +192,36 @@ async function chatDeepSeek(prompt: string, system: string, key: string, model: 
 }
 
 async function chatGemini(prompt: string, system: string, key: string, model: string): Promise<string | null> {
-  try {
-    const { ctrl, done } = await withTimeout(45000);
-    const text = system ? `${system}\n\n${prompt}` : prompt;
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text }] }] }),
-        signal: ctrl.signal,
-      },
-    );
-    done();
-    if (!res.ok) return null;
-    const data = await res.json();
-    const parts = data?.candidates?.[0]?.content?.parts as Array<{ text?: string }> | undefined;
-    const out = (parts ?? []).map((p) => p.text ?? '').join('').trim();
-    return out || null;
-  } catch {
-    return null;
+  const modelsToTry = [model, 'gemini-1.5-flash', 'gemini-2.0-flash'];
+  const uniqueModels = Array.from(new Set(modelsToTry.filter(Boolean)));
+
+  for (const m of uniqueModels) {
+    try {
+      const { ctrl, done } = await withTimeout(45000);
+      const text = system ? `${system}\n\n${prompt}` : prompt;
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text }] }] }),
+          signal: ctrl.signal,
+        },
+      );
+      done();
+      if (!res.ok) {
+        if (res.status === 404 || res.status === 403) continue;
+        return null;
+      }
+      const data = await res.json();
+      const parts = data?.candidates?.[0]?.content?.parts as Array<{ text?: string }> | undefined;
+      const out = (parts ?? []).map((p) => p.text ?? '').join('').trim();
+      if (out) return out;
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 async function chatClaude(prompt: string, system: string, key: string, model: string): Promise<string | null> {
@@ -431,21 +440,93 @@ export async function tryCloudProviders(prompt: string, system = ''): Promise<Pr
   return null;
 }
 
+async function testGeminiDirect(key: string, model: string): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const { ctrl, done } = await withTimeout(15000);
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'ok' }] }] }),
+        signal: ctrl.signal,
+      },
+    );
+    done();
+    if (res.ok) {
+      return { ok: true, detail: `Ulandi ✓ (${model})` };
+    }
+    const data = await res.json().catch(() => null);
+    const msg = data?.error?.message || `HTTP ${res.status}`;
+    if (msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
+      return { ok: false, detail: 'API kalit xato (aistudio.google.com dan oling)' };
+    }
+    if (msg.includes('not found') || res.status === 404) {
+      return { ok: false, detail: `Model '${model}' topilmadi. 'gemini-1.5-flash' ni yozing` };
+    }
+    if (msg.toLowerCase().includes('location') || msg.toLowerCase().includes('country')) {
+      return { ok: false, detail: 'Mintaqada cheklangan (VPN zarur bo‘lishi mumkin)' };
+    }
+    if (msg.toLowerCase().includes('quota') || res.status === 429) {
+      return { ok: false, detail: 'Google API kvotasi tugagan' };
+    }
+    return { ok: false, detail: `Xatolik: ${msg.slice(0, 60)}` };
+  } catch (err: unknown) {
+    return { ok: false, detail: `Tarmoq xatosi: ${err instanceof Error ? err.message : 'Ulanib bo‘lmadi'}` };
+  }
+}
+
+async function testDeepSeekDirect(key: string, model: string): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const { ctrl, done } = await withTimeout(15000);
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'ok' }],
+        max_tokens: 5,
+        stream: false,
+      }),
+      signal: ctrl.signal,
+    });
+    done();
+    if (res.ok) {
+      return { ok: true, detail: `Ulandi ✓ (${model})` };
+    }
+    const data = await res.json().catch(() => null);
+    const msg = data?.error?.message || `HTTP ${res.status}`;
+    if (msg.toLowerCase().includes('insufficient balance')) {
+      return { ok: false, detail: 'Balans yetarli emas (platform.deepseek.com da hisobni to‘ldiring)' };
+    }
+    if (msg.toLowerCase().includes('authentication') || msg.toLowerCase().includes('invalid') || res.status === 401) {
+      return { ok: false, detail: 'API kalit xato (sk-...)' };
+    }
+    return { ok: false, detail: `Xatolik: ${msg.slice(0, 60)}` };
+  } catch (err: unknown) {
+    return { ok: false, detail: `Tarmoq xatosi: ${err instanceof Error ? err.message : 'Ulanib bo‘lmadi'}` };
+  }
+}
+
 /** Quick connectivity check for the Test button. */
 export async function testProvider(id: CloudProviderId): Promise<{ ok: boolean; detail: string }> {
   const s = getProvider(id);
-  if (!s.apiKey.trim()) return { ok: false, detail: 'API kalit kiritilmagan' };
+  const key = s.apiKey.trim();
+  const model = s.model.trim();
+  if (!key) return { ok: false, detail: 'API kalit kiritilmagan' };
+
+  if (id === 'gemini') return testGeminiDirect(key, model);
+  if (id === 'deepseek') return testDeepSeekDirect(key, model);
+
   const text = await (async () => {
-    if (id === 'gemini') return chatGemini('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    if (id === 'claude') return chatClaude('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    if (id === 'openai') return chatOpenAI('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    if (id === 'deepseek') return chatDeepSeek('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    if (id === 'groq') return chatGroq('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    if (id === 'openrouter') return chatOpenRouter('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    if (id === 'muse') return chatMuse('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
-    return chatLlama('Reply with exactly: ok', '', s.apiKey.trim(), s.model.trim());
+    if (id === 'claude') return chatClaude('Reply with exactly: ok', '', key, model);
+    if (id === 'openai') return chatOpenAI('Reply with exactly: ok', '', key, model);
+    if (id === 'groq') return chatGroq('Reply with exactly: ok', '', key, model);
+    if (id === 'openrouter') return chatOpenRouter('Reply with exactly: ok', '', key, model);
+    if (id === 'muse') return chatMuse('Reply with exactly: ok', '', key, model);
+    return chatLlama('Reply with exactly: ok', '', key, model);
   })();
-  if (text) return { ok: true, detail: `Ulandi ✓ (${s.model.trim()})` };
+  if (text) return { ok: true, detail: `Ulandi ✓ (${model})` };
   return { ok: false, detail: 'Ulanmadi — kalit/modelni tekshiring' };
 }
 

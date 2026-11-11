@@ -130,7 +130,12 @@ export default function AiProvidersModal({ open, onClose }: { open: boolean; onC
                   <input
                     type="password"
                     value={s.apiKey}
-                    onChange={(e) => { setProvider(p.id, { apiKey: e.target.value }); refresh(); }}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      const autoEnable = val.length > 5 && !s.enabled;
+                      setProvider(p.id, { apiKey: val, ...(autoEnable ? { enabled: true } : {}) });
+                      refresh();
+                    }}
                     placeholder={p.keyHint}
                     className="rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 font-mono text-[12px] text-zinc-100 placeholder:text-zinc-600 focus:border-violet-400/60 focus:outline-none"
                   />
